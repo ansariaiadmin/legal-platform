@@ -1,0 +1,17 @@
+{
+  "name": "legal-platform",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "typecheck": "npm run typecheck --workspaces",
+    "test": "npm run test --workspaces"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
