@@ -7,54 +7,58 @@ dist/
 build/
 target/
 
-# TypeScript/JavaScript
-*.tsbuildinfo
-.next/
-.nuxt/
-.un~lock
-
 # Environment variables
 .env
 .env.local
 *.env.*
 
-# Logs
-*.log
-
-# Temporary files
-*.tmp
-*.temp
-*~
-
-# OS generated files
-.DS_Store
-Thumbs.db
-
-# IDE specific
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# Python (if present)
+# Python cache
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
-.Python
-env/
-venv/
-.venv/
-pip-log.txt
-pip-delete-this-directory.txt
-.pytest_cache/
-.coverage
-htmlcov/
-.mypy_cache/
 
-# Docker
-.dockerignore
+# Logs
+*.log
 
 # Coverage
 coverage/
+htmlcov/
+.coverage
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*.tmp
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Testing
+.nyc_output/
+coverage/
+
+# Package manager
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Runtime
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Distribution
+*.tgz
+
+# Compiled JavaScript
+*.js.map
+*.ts.map
+
+# NestJS
+.nest/
+.nest-cli/
 ```
