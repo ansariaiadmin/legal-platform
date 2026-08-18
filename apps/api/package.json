@@ -8,7 +8,10 @@
     "start": "node dist/main.js",
     "start:worker": "node dist/worker.js",
     "dev": "ts-node src/main.ts",
-    "test": "jest"
+    "test": "jest",
+    "migrate:up": "node-pg-migrate --migration-file-language ts --migrations-dir src/database/migrations up",
+    "migrate:down": "node-pg-migrate --migration-file-language ts --migrations-dir src/database/migrations down",
+    "migrate:create": "node-pg-migrate --migration-file-language ts --migrations-dir src/database/migrations create"
   },
   "dependencies": {
     "@nestjs/common": "^10.0.0",
@@ -21,6 +24,8 @@
     "@types/jest": "^29.5.0",
     "@types/node": "^20.0.0",
     "jest": "^29.7.0",
+    "node-pg-migrate": "^7.0.0",
+    "pg": "^8.13.0",
     "ts-jest": "^29.1.0",
     "ts-node": "^10.9.0",
     "typescript": "^5.3.0"

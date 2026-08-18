@@ -1,96 +1,60 @@
 ```
 # Dependencies
 node_modules/
-.pnpm-store/
-.npm/
-.yarn/
-.yarn-cache/
 
 # Build outputs
 dist/
 build/
+target/
+
+# TypeScript/JavaScript
+*.tsbuildinfo
 .next/
 .nuxt/
-out/
-public/build/
-webpack.config.js.build/
-
-# TypeScript
-*.tsbuildinfo
-*.tsx
-*.jsx
+.un~lock
 
 # Environment variables
 .env
 .env.local
-.env.*
-!.env.example
-
-# Testing
-coverage/
-.nyc_output/
-.jest/
+*.env.*
 
 # Logs
 *.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+
+# Temporary files
+*.tmp
+*.temp
+*~
 
 # OS generated files
 .DS_Store
 Thumbs.db
-ehthumbs.db
-Icon?
-.directory
-.Trashes
-*.nib
 
 # IDE specific
 .vscode/
 .idea/
 *.swp
 *.swo
-*~
 
-# Runtime data
-pids/
-*.pid
-*.seed
-*.pid.lock
-
-# Temporary folders
-temp/
-tmp/
-
-# System files
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-
-# Compiled JavaScript
-*.js.map
-*.mjs.map
-
-# Compiled CSS
-*.css.map
-
-# Lock files
-package-lock.json
-yarn.lock
-pnpm-lock.yaml
+# Python (if present)
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
 
 # Docker
 .dockerignore
 
-# Database
-*.db
-*.db-journal
-
-# Secrets
-secrets/
+# Coverage
+coverage/
 ```
