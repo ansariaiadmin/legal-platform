@@ -49,7 +49,8 @@ export class AuditService {
         ],
       );
       this.logger.debug(`Audit log recorded: ${moduleName}.${action}`);
-    } catch (error) {
+    } catch (err) {
+      const error = err as Error;
       this.logger.error(`Failed to record audit log: ${error.message}`);
       // Don't throw - audit logging failure shouldn't break the main operation
     }

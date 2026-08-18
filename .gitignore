@@ -1,64 +1,85 @@
 ```
 # Dependencies
 node_modules/
+**/node_modules/
 
 # Build outputs
 dist/
 build/
 target/
+**/dist/
+**/build/
+**/target/
 
-# Environment variables
-.env
-.env.local
-*.env.*
+# TypeScript/JavaScript
+*.tsbuildinfo
+*.js.map
+*.jsx.map
+*.ts.map
 
-# Python cache
+# Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+.Python
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+
+# Virtual environments
+venv/
+.venv/
+env/
+.env/
+**/venv/
+**/.venv/
+**/env/
+**/.env/
 
 # Logs
 *.log
+logs/
+**/logs/
+
+# Temporary files
+*.tmp
+*.temp
+.DS_Store
+Thumbs.db
+
+# Environment variables
+.env
+.env.local
+.env.*
+!env.example
+!.env.example
+
+# IDE specific
+.vscode/
+.idea/
+*.swp
+*.swo
 
 # Coverage
 coverage/
 htmlcov/
 .coverage
+**/coverage/
+**/.coverage
 
-# IDE files
-.vscode/
-.idea/
-*.swp
-*.swo
-*.tmp
+# Database
+*.db
+*.sqlite
+*.sqlite3
 
-# OS files
+# OS generated
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
-
-# Testing
-.nyc_output/
-coverage/
-
-# Package manager
-package-lock.json
-yarn.lock
-pnpm-lock.yaml
-
-# Runtime
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Distribution
-*.tgz
-
-# Compiled JavaScript
-*.js.map
-*.ts.map
-
-# NestJS
-.nest/
-.nest-cli/
 ```

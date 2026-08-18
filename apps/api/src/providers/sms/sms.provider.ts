@@ -1,3 +1,5 @@
+import { ProviderError } from '../provider.error';
+
 export interface SendSmsResult {
   success: boolean;
   messageId?: string;
@@ -8,3 +10,5 @@ export interface SmsProvider {
   sendSms(input: { phone: string; message: string }): Promise<SendSmsResult>;
   verifyConfig(): Promise<{ valid: boolean; error?: string }>;
 }
+
+export { ProviderError };

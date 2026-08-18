@@ -44,7 +44,10 @@ export const up = (pgm: MigrationBuilder) => {
     },
     created_at: { type: 'timestamptz', notNull: true, default: 'now()' },
     updated_at: { type: 'timestamptz', notNull: true, default: 'now()' },
-  }, {
+  });
+
+  // Add check constraint for users table
+  pgm.addConstraint('users', 'users_phone_or_email_check', {
     check: 'phone_normalized IS NOT NULL OR email IS NOT NULL'
   });
 

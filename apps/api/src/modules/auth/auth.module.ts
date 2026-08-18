@@ -1,11 +1,10 @@
-import { Module, forwardRef } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { DatabaseModule } from '../../database/database.module';
 import { AuditModule } from '../audit/audit.module';
 import { MockSmsAdapter } from '../../providers/sms/mock-sms.adapter';
-import { SmsProvider } from '../../providers/sms/sms.provider';
 
 @Module({
   imports: [
@@ -20,7 +19,7 @@ import { SmsProvider } from '../../providers/sms/sms.provider';
   providers: [
     AuthService,
     {
-      provide: SmsProvider,
+      provide: Symbol('SmsProvider'),
       useClass: MockSmsAdapter,
     },
   ],

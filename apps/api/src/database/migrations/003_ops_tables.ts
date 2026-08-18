@@ -183,7 +183,7 @@ export const up = (pgm: MigrationBuilder) => {
   });
 };
 
-export const down: MigrationAction = (pgm: MigrationBuilder) => {
+export const down = (pgm: MigrationBuilder) => {
   // Drop tables in reverse order of creation
   pgm.dropTable('data_erasure_requests');
   pgm.dropTable('data_export_requests');
