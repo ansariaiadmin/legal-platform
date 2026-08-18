@@ -1,0 +1,128 @@
+services:
+  proxy:
+    image: nginx:alpine
+    container_name: legal-proxy
+    ports:
+      - "8080:80"
+    volumes:
+      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - api
+      - web
+    restart: unless-stopped
+    networks:
+      - legal-network
+
+  web:
+    build:
+      context: .
+      dockerfile: infra/docker/web.Dockerfile
+    container_name: legal-web
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - API_URL=${API_URL:-http://api:3001}
+    depends_on:
+      - api
+    restart: unless-stopped
+    networks:
+      - legal-network
+
+  api:
+    build:
+      context: .
+      dockerfile: infra/docker/api.Dockerfile
+    container_name: legal-api
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - PORT=3001
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+      - ENCRYPTION_MASTER_KEY=${ENCRYPTION_MASTER_KEY}
+      - APP_URL=${APP_URL}
+      - SMS_PROVIDER=${SMS_PROVIDER:-mock}
+      - PAYMENT_PROVIDER=${PAYMENT_PROVIDER:-mock}
+      - PUSH_PROVIDER=${PUSH_PROVIDER:-mock}
+      - TELEPHONY_PROVIDER=${TELEPHONY_PROVIDER:-mock}
+      - AI_PROVIDER=${AI_PROVIDER:-mock}
+      - AI_ROUTING_MODE=${AI_ROUTING_MODE:-iranian_gateway}
+      - AI_BASE_URL=${AI_BASE_URL}
+      - AI_API_KEY=${AI_API_KEY}
+      - AI_EMBEDDING_DIMENSION=${AI_EMBEDDING_DIMENSION:-1024}
+      - STORAGE_DRIVER=${STORAGE_DRIVER:-local}
+      - LOCAL_STORAGE_PATH=${LOCAL_STORAGE_PATH:-/app/uploads}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    volumes:
+      - uploads:/app/uploads
+    depends_on:
+      - postgres
+      - redis
+    restart: unless-stopped
+    networks:
+      - legal-network
+
+  worker:
+    build:
+      context: .
+      dockerfile: infra/docker/api.Dockerfile
+    container_name: legal-worker
+    command: ["node", "dist/worker.js"]
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+      - ENCRYPTION_MASTER_KEY=${ENCRYPTION_MASTER_KEY}
+      - SMS_PROVIDER=${SMS_PROVIDER:-mock}
+      - PAYMENT_PROVIDER=${PAYMENT_PROVIDER:-mock}
+      - PUSH_PROVIDER=${PUSH_PROVIDER:-mock}
+      - TELEPHONY_PROVIDER=${TELEPHONY_PROVIDER:-mock}
+      - AI_PROVIDER=${AI_PROVIDER:-mock}
+      - AI_ROUTING_MODE=${AI_ROUTING_MODE:-iranian_gateway}
+      - AI_BASE_URL=${AI_BASE_URL}
+      - AI_API_KEY=${AI_API_KEY}
+      - AI_EMBEDDING_DIMENSION=${AI_EMBEDDING_DIMENSION:-1024}
+      - STORAGE_DRIVER=${STORAGE_DRIVER:-local}
+      - LOCAL_STORAGE_PATH=${LOCAL_STORAGE_PATH:-/app/uploads}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    volumes:
+      - uploads:/app/uploads
+    depends_on:
+      - postgres
+      - redis
+    restart: unless-stopped
+    networks:
+      - legal-network
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: legal-postgres
+    environment:
+      - POSTGRES_USER=legal
+      - POSTGRES_PASSWORD=legal_password_change_me
+      - POSTGRES_DB=legal_platform
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - legal-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: legal-redis
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    networks:
+      - legal-network
+
+volumes:
+  postgres_data:
+  redis_data:
+  uploads:
+
+networks:
+  legal-network:
+    driver: bridge
