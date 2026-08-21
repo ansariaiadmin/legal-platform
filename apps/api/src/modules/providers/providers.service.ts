@@ -56,12 +56,16 @@ export class ProvidersService {
   }
 
   async updateConfig(id: string, updates: Partial<ProviderConfig>): Promise<ProviderConfig> {
-    await this.repo.update(id, updates);
-    return this.findOne(id);
+    const entity = await this.findOne(id);
+    Object.assign(entity, updates);
+    await this.repo.save(entity);
+    return entity;
   }
 
   async setFallback(providerId: string, fallbackId: string | null): Promise<void> {
-    await this.repo.update(providerId, { fallbackProviderConfigId: fallbackId });
+    const entity = await this.findOne(providerId);
+    entity.fallbackProviderConfigId = fallbackId;
+    await this.repo.save(entity);
   }
 
   async checkHealth(config: ProviderConfig): Promise<{ valid: boolean; error?: string }> {
@@ -85,17 +89,17 @@ export class ProvidersService {
   private createAdapter(config: ProviderConfig): unknown {
     switch (config.providerType) {
       case 'sms':
-        return new MockSmsAdapter();
+        return new MockSmsAdapter() as SmsProvider;
       case 'payment':
-        return new MockPaymentAdapter(this.configService);
+        return new MockPaymentAdapter() as PaymentProvider;
       case 'ai':
-        return new MockAIAdapter(this.configService);
+        return new MockAIAdapter() as AIProvider;
       case 'telephony':
-        return new MockTelephonyAdapter(this.configService);
+        return new MockTelephonyAdapter() as TelephonyProvider;
       case 'push':
-        return new MockPushAdapter(this.configService);
+        return new MockPushAdapter() as PushProvider;
       case 'storage':
-        return new LocalStorageAdapter(this.configService);
+        return new LocalStorageAdapter() as StorageProvider;
       default:
         throw new Error(`Unknown provider type: ${config.providerType}`);
     }
@@ -104,17 +108,17 @@ export class ProvidersService {
   private createMockAdapter(providerType: string): unknown {
     switch (providerType) {
       case 'sms':
-        return new MockSmsAdapter();
+        return new MockSmsAdapter() as SmsProvider;
       case 'payment':
-        return new MockPaymentAdapter(this.configService);
+        return new MockPaymentAdapter() as PaymentProvider;
       case 'ai':
-        return new MockAIAdapter(this.configService);
+        return new MockAIAdapter() as AIProvider;
       case 'telephony':
-        return new MockTelephonyAdapter(this.configService);
+        return new MockTelephonyAdapter() as TelephonyProvider;
       case 'push':
-        return new MockPushAdapter(this.configService);
+        return new MockPushAdapter() as PushProvider;
       case 'storage':
-        return new LocalStorageAdapter(this.configService);
+        return new LocalStorageAdapter() as StorageProvider;
       default:
         throw new Error(`Unknown provider type: ${providerType}`);
     }
