@@ -1,4 +1,3 @@
-import { ConfigService } from '@nestjs/config';
 import {
   PushProvider,
   PushNotification,
@@ -7,7 +6,7 @@ import {
 } from './push.provider';
 
 export class MockPushAdapter implements PushProvider {
-  constructor(private configService: ConfigService) {}
+  constructor() {}
 
   async sendPush(input: {
     tokens: string[];

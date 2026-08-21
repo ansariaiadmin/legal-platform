@@ -1,4 +1,3 @@
-import { ConfigService } from '@nestjs/config';
 import {
   TelephonyProvider,
   CallSession,
@@ -9,7 +8,7 @@ import {
 export class MockTelephonyAdapter implements TelephonyProvider {
   private readonly calls: Map<string, CallSession> = new Map();
 
-  constructor(private configService: ConfigService) {}
+  constructor() {}
 
   async createOutboundCall(input: {
     toNumber: string;

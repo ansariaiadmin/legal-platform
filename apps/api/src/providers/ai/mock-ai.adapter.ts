@@ -1,4 +1,3 @@
-import { ConfigService } from '@nestjs/config';
 import {
   AIProvider,
   TextGenerationResult,
@@ -6,10 +5,9 @@ import {
   AIProviderMetadata,
   TokenUsage,
 } from './ai.provider';
-import { ProviderError, PROVIDER_ERROR_CODES } from '../provider.error';
 
 export class MockAIAdapter implements AIProvider {
-  constructor(private configService: ConfigService) {}
+  constructor() {}
 
   async generateText(input: {
     prompt: string;

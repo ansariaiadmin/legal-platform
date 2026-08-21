@@ -1,4 +1,3 @@
-import { ConfigService } from '@nestjs/config';
 import {
   PaymentProvider,
   PaymentSession,
@@ -16,7 +15,7 @@ export class MockPaymentAdapter implements PaymentProvider {
   private readonly sessions: Map<string, PaymentSession & { orderId: string; metadata?: Record<string, unknown> }> = new Map();
   private readonly callbacks: Set<string> = new Set();
 
-  constructor(private configService: ConfigService) {
+  constructor() {
     this.hmacSecret = randomBytes(32).toString('hex');
   }
 
@@ -95,7 +94,7 @@ export class MockPaymentAdapter implements PaymentProvider {
       if (session.sessionId === paymentId || session.orderId === paymentId) {
         return {
           paymentId: session.sessionId,
-          status: session.status,
+          status: session.status === 'completed' ? 'paid' : session.status,
           amount: session.amount,
           lastUpdated: session.createdAt,
         };
@@ -117,7 +116,7 @@ export class MockPaymentAdapter implements PaymentProvider {
       };
     }
 
-    if (session.status !== 'paid') {
+    if (session.status !== 'paid' && session.status !== 'completed') {
       return {
         success: false,
         error: 'Can only refund completed payments',
