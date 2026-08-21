@@ -12,7 +12,7 @@ import { createHmac, randomBytes } from 'crypto';
 
 export class MockPaymentAdapter implements PaymentProvider {
   private readonly hmacSecret: string;
-  private readonly sessions: Map<string, PaymentSession & { orderId: string; metadata?: Record<string, unknown> }> = new Map();
+  private readonly sessions: Map<string, (Omit<PaymentSession, 'status'> & { status: 'pending' | 'paid' | 'failed' | 'expired' }) & { orderId: string; metadata?: Record<string, unknown> }> = new Map();
   private readonly callbacks: Set<string> = new Set();
 
   constructor() {
@@ -30,7 +30,7 @@ export class MockPaymentAdapter implements PaymentProvider {
     const now = new Date();
     const expiresAt = new Date(now.getTime() + 30 * 60 * 1000); // 30 minutes
 
-    const session: PaymentSession & { orderId: string; metadata?: Record<string, unknown> } = {
+    const session: (Omit<PaymentSession, 'status'> & { status: 'pending' | 'paid' | 'failed' | 'expired' }) & { orderId: string; metadata?: Record<string, unknown> } = {
       sessionId,
       redirectUrl: `https://mock-payment.example.com/pay/${sessionId}`,
       status: 'pending',
@@ -94,7 +94,7 @@ export class MockPaymentAdapter implements PaymentProvider {
       if (session.sessionId === paymentId || session.orderId === paymentId) {
         return {
           paymentId: session.sessionId,
-          status: session.status === 'completed' ? 'paid' : session.status,
+          status: session.status === 'paid' ? 'paid' : session.status,
           amount: session.amount,
           lastUpdated: session.createdAt,
         };
@@ -116,7 +116,7 @@ export class MockPaymentAdapter implements PaymentProvider {
       };
     }
 
-    if (session.status !== 'paid' && session.status !== 'completed') {
+    if (session.status !== 'paid') {
       return {
         success: false,
         error: 'Can only refund completed payments',

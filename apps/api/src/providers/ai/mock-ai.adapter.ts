@@ -5,9 +5,10 @@ import {
   AIProviderMetadata,
   TokenUsage,
 } from './ai.provider';
+import { ConfigService } from '@nestjs/config';
 
 export class MockAIAdapter implements AIProvider {
-  constructor() {}
+  constructor(private readonly configService: ConfigService) {}
 
   async generateText(input: {
     prompt: string;

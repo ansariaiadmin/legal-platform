@@ -4,17 +4,11 @@ import { Repository } from 'typeorm';
 import { ProviderConfig } from './entities/provider-config.entity';
 import { EncryptionService } from '../../security/encryption.service';
 import { ConfigService } from '@nestjs/config';
-import type { SmsProvider } from '../../providers/sms/sms.provider';
 import { MockSmsAdapter } from '../../providers/sms/mock-sms.adapter';
-import type { PaymentProvider } from '../../providers/payment/payment.provider';
 import { MockPaymentAdapter } from '../../providers/payment/mock-payment.adapter';
-import type { AIProvider } from '../../providers/ai/ai.provider';
 import { MockAIAdapter } from '../../providers/ai/mock-ai.adapter';
-import type { TelephonyProvider } from '../../providers/telephony/telephony.provider';
 import { MockTelephonyAdapter } from '../../providers/telephony/mock-telephony.adapter';
-import type { PushProvider } from '../../providers/push/push.provider';
 import { MockPushAdapter } from '../../providers/push/mock-push.adapter';
-import type { StorageProvider } from '../../providers/storage/storage.provider';
 import { LocalStorageAdapter } from '../../providers/storage/local-storage.adapter';
 
 @Injectable()
@@ -89,17 +83,17 @@ export class ProvidersService {
   private createAdapter(config: ProviderConfig): unknown {
     switch (config.providerType) {
       case 'sms':
-        return new MockSmsAdapter() as SmsProvider;
+        return new MockSmsAdapter();
       case 'payment':
-        return new MockPaymentAdapter() as PaymentProvider;
+        return new MockPaymentAdapter();
       case 'ai':
-        return new MockAIAdapter() as AIProvider;
+        return new MockAIAdapter(this.configService);
       case 'telephony':
-        return new MockTelephonyAdapter() as TelephonyProvider;
+        return new MockTelephonyAdapter();
       case 'push':
-        return new MockPushAdapter() as PushProvider;
+        return new MockPushAdapter();
       case 'storage':
-        return new LocalStorageAdapter() as StorageProvider;
+        return new LocalStorageAdapter(this.configService);
       default:
         throw new Error(`Unknown provider type: ${config.providerType}`);
     }
@@ -108,17 +102,17 @@ export class ProvidersService {
   private createMockAdapter(providerType: string): unknown {
     switch (providerType) {
       case 'sms':
-        return new MockSmsAdapter() as SmsProvider;
+        return new MockSmsAdapter();
       case 'payment':
-        return new MockPaymentAdapter() as PaymentProvider;
+        return new MockPaymentAdapter();
       case 'ai':
-        return new MockAIAdapter() as AIProvider;
+        return new MockAIAdapter(this.configService);
       case 'telephony':
-        return new MockTelephonyAdapter() as TelephonyProvider;
+        return new MockTelephonyAdapter();
       case 'push':
-        return new MockPushAdapter() as PushProvider;
+        return new MockPushAdapter();
       case 'storage':
-        return new LocalStorageAdapter() as StorageProvider;
+        return new LocalStorageAdapter(this.configService);
       default:
         throw new Error(`Unknown provider type: ${providerType}`);
     }
