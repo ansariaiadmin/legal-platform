@@ -1,69 +1,80 @@
 ```
 # Dependencies
 node_modules/
-.pnpm-store/
-.npm/
-.yarn/
-.yarn-cache/
+**/node_modules/
 
 # Build outputs
 dist/
 build/
-.next/
-.nuxt/
-out/
-public/build/
-webpack.config.js.build/
+target/
+**/dist/
+**/build/
+**/target/
 
-# TypeScript
+# TypeScript/JavaScript
 *.tsbuildinfo
-*.tsx
-*.jsx
+*.js.map
+*.jsx.map
+*.ts.map
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+
+# Virtual environments
+venv/
+.venv/
+env/
+.env/
+**/venv/
+**/.venv/
+**/env/
+**/.env/
+
+# Logs
+*.log
+logs/
+**/logs/
+
+# Temporary files
+*.tmp
+*.temp
+.DS_Store
+Thumbs.db
 
 # Environment variables
 .env
 .env.local
 .env.*
+!env.example
 !.env.example
-
-# Testing
-coverage/
-.nyc_output/
-.jest/
-
-# Logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# OS generated files
-.DS_Store
-Thumbs.db
-ehthumbs.db
-Icon?
-.directory
-.Trashes
-*.nib
 
 # IDE specific
 .vscode/
 .idea/
 *.swp
 *.swo
-*~
 
-# Runtime data
-pids/
-*.pid
-*.seed
-*.pid.lock
+# Coverage
+coverage/
+htmlcov/
+.coverage
+**/coverage/
+**/.coverage
 
-# Temporary folders
-temp/
-tmp/
+# Database
+*.db
+*.sqlite
+*.sqlite3
 
-# System files
+# OS generated
 .DS_Store
 .DS_Store?
 ._*
@@ -71,26 +82,4 @@ tmp/
 .Trashes
 ehthumbs.db
 Thumbs.db
-
-# Compiled JavaScript
-*.js.map
-*.mjs.map
-
-# Compiled CSS
-*.css.map
-
-# Lock files
-package-lock.json
-yarn.lock
-pnpm-lock.yaml
-
-# Docker
-.dockerignore
-
-# Database
-*.db
-*.db-journal
-
-# Secrets
-secrets/
 ```
