@@ -1,4 +1,6 @@
-import { MigrationBuilder } from 'node-pg-migrate';
+// node-pg-migrate v9 is ESM-only and its top-level `types` entry is missing,
+// so the type-only import needs an explicit resolution mode under Node16.
+import type { MigrationBuilder } from 'node-pg-migrate' with { 'resolution-mode': 'import' };
 
 /**
  * Migration 002: Identity Tables

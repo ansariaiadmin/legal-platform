@@ -11,6 +11,10 @@ env/
 .env
 .env.local
 .env.*
+# Operational output written by scripts/backup.sh and friends
+backups/
+data/
+
 # Build outputs
 dist/
 build/

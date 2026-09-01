@@ -1,120 +1,163 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { ProviderConfig } from './entities/provider-config.entity';
-import { EncryptionService } from '../../security/encryption.service';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { MockSmsAdapter } from '../../providers/sms/mock-sms.adapter';
-import { MockPaymentAdapter } from '../../providers/payment/mock-payment.adapter';
-import { MockAIAdapter } from '../../providers/ai/mock-ai.adapter';
-import { MockTelephonyAdapter } from '../../providers/telephony/mock-telephony.adapter';
-import { MockPushAdapter } from '../../providers/push/mock-push.adapter';
-import { LocalStorageAdapter } from '../../providers/storage/local-storage.adapter';
+import { ERROR_CODES } from '@legal-platform/contracts';
+import { ProvidersRepository, type ProviderConfigView } from './providers.repository';
+import { EncryptionService } from '../../security/encryption.service';
+import { createAdapterFor, adapterKeyFromEnv } from '../../providers/provider.factory';
+import { isHealthCheckable, type HealthCheckResult } from '../../providers/health-checkable';
+import type { ProviderCategory } from '../../providers/provider.tokens';
+import type { CreateProviderConfigDto, UpdateProviderConfigDto } from './dto/provider-config.dto';
 
+export interface ResolvedProvider {
+  adapter: unknown;
+  config: ProviderConfigView | null;
+  source: 'database' | 'environment';
+}
+
+/**
+ * CRUD + health for the `provider_configs` table (SPEC section 8).
+ *
+ * Secrets are encrypted before they touch the database and are never returned
+ * to any caller; every mutation is written to the audit log by the controller.
+ */
 @Injectable()
 export class ProvidersService {
+  private readonly logger = new Logger(ProvidersService.name);
+
   constructor(
-    @InjectRepository(ProviderConfig)
-    private readonly repo: Repository<ProviderConfig>,
+    private readonly repository: ProvidersRepository,
     private readonly encryptionService: EncryptionService,
     private readonly configService: ConfigService,
   ) {}
 
-  async findAll(): Promise<ProviderConfig[]> {
-    return this.repo.find();
+  async list(): Promise<ProviderConfigView[]> {
+    const rows = await this.repository.findAll();
+    return rows.map((row) => this.repository.toView(row));
   }
 
-  async findOne(id: string): Promise<ProviderConfig> {
-    const config = await this.repo.findOne({ where: { id } });
-    if (!config) {
-      throw new NotFoundException(`Provider config ${id} not found`);
+  async get(id: string): Promise<ProviderConfigView> {
+    const row = await this.repository.findById(id);
+    if (!row) {
+      throw new NotFoundException(ERROR_CODES.PROVIDER_NOT_FOUND);
     }
-    return config;
+    return this.repository.toView(row);
   }
 
-  async resolveProvider<T>(providerType: string): Promise<T | null> {
-    const config = await this.repo.findOne({
-      where: { providerType, isActive: true },
+  async create(dto: CreateProviderConfigDto): Promise<ProviderConfigView> {
+    const row = await this.repository.create({
+      providerType: dto.providerType,
+      adapterKey: dto.adapterKey,
+      config: dto.config ?? {},
+      encryptedSecrets: dto.secrets ? this.encryptSecrets(dto.secrets) : null,
+      isActive: dto.isActive ?? false,
+    });
+    return this.repository.toView(row);
+  }
+
+  async update(id: string, dto: UpdateProviderConfigDto): Promise<ProviderConfigView> {
+    await this.get(id);
+
+    const row = await this.repository.update(id, {
+      adapterKey: dto.adapterKey,
+      config: dto.config,
+      encryptedSecrets: dto.secrets ? this.encryptSecrets(dto.secrets) : undefined,
+      isActive: dto.isActive,
     });
 
-    if (!config) {
-      // Fall back to env-based mock in development only
-      const envProvider = this.configService.get<string>(`${providerType.toUpperCase()}_PROVIDER`);
-      if (envProvider === 'mock' && process.env.NODE_ENV !== 'production') {
-        return this.createMockAdapter(providerType) as T;
+    if (!row) {
+      throw new NotFoundException(ERROR_CODES.PROVIDER_NOT_FOUND);
+    }
+    return this.repository.toView(row);
+  }
+
+  async setFallback(providerId: string, fallbackId: string | null): Promise<ProviderConfigView> {
+    const primary = await this.get(providerId);
+
+    if (fallbackId !== null) {
+      if (fallbackId === providerId) {
+        throw new BadRequestException('VALIDATION_INVALID_INPUT');
       }
+      const fallback = await this.get(fallbackId);
+      if (fallback.providerType !== primary.providerType) {
+        throw new BadRequestException('VALIDATION_INVALID_INPUT');
+      }
+    }
+
+    const row = await this.repository.update(providerId, { fallbackProviderConfigId: fallbackId });
+    if (!row) {
+      throw new NotFoundException(ERROR_CODES.PROVIDER_NOT_FOUND);
+    }
+    return this.repository.toView(row);
+  }
+
+  async testConnection(id: string): Promise<HealthCheckResult> {
+    const row = await this.repository.findById(id);
+    if (!row) {
+      throw new NotFoundException(ERROR_CODES.PROVIDER_NOT_FOUND);
+    }
+
+    let result: HealthCheckResult;
+    try {
+      const adapter = this.buildAdapter(row.provider_type as ProviderCategory, row.adapter_key);
+      result = isHealthCheckable(adapter)
+        ? await adapter.verifyConfig()
+        : { valid: false, error: 'Adapter does not support health checks' };
+    } catch (error) {
+      result = { valid: false, error: error instanceof Error ? error.message : 'Health check failed' };
+    }
+
+    await this.repository.recordHealth(id, result.valid ? 'healthy' : 'unhealthy');
+    return result;
+  }
+
+  async healthSummary(): Promise<Array<ProviderConfigView & HealthCheckResult>> {
+    const rows = await this.repository.findAll();
+    const results: Array<ProviderConfigView & HealthCheckResult> = [];
+
+    for (const row of rows) {
+      const health = await this.testConnection(row.id);
+      results.push({ ...this.repository.toView(row), ...health });
+    }
+
+    return results;
+  }
+
+  /**
+   * Returns the adapter for a category, preferring the active database config
+   * and falling back to the environment-selected adapter (mock in development).
+   */
+  async resolveAdapter(category: ProviderCategory): Promise<ResolvedProvider | null> {
+    const row = await this.repository.findActiveByType(category);
+    if (row) {
+      return {
+        adapter: this.buildAdapter(category, row.adapter_key),
+        config: this.repository.toView(row),
+        source: 'database',
+      };
+    }
+
+    const adapterKey = adapterKeyFromEnv(category, this.configService);
+    if (adapterKey === 'mock' && this.configService.get<string>('NODE_ENV') === 'production') {
+      this.logger.warn(`No active ${category} provider configured; refusing mock in production`);
       return null;
     }
 
-    return this.createAdapter(config) as T;
-  }
-
-  async updateConfig(id: string, updates: Partial<ProviderConfig>): Promise<ProviderConfig> {
-    const entity = await this.findOne(id);
-    Object.assign(entity, updates);
-    await this.repo.save(entity);
-    return entity;
-  }
-
-  async setFallback(providerId: string, fallbackId: string | null): Promise<void> {
-    const entity = await this.findOne(providerId);
-    entity.fallbackProviderConfigId = fallbackId;
-    await this.repo.save(entity);
-  }
-
-  async checkHealth(config: ProviderConfig): Promise<{ valid: boolean; error?: string }> {
-    const adapter = this.createAdapter(config);
-    if (adapter && typeof (adapter as any).verifyConfig === 'function') {
-      return (adapter as any).verifyConfig();
-    }
-    return { valid: false, error: 'Adapter does not support health check' };
-  }
-
-  encryptSecrets(secrets: Record<string, string>): string {
-    const json = JSON.stringify(secrets);
-    return this.encryptionService.encrypt(json);
+    return {
+      adapter: this.buildAdapter(category, adapterKey),
+      config: null,
+      source: 'environment',
+    };
   }
 
   decryptSecrets(encrypted: string): Record<string, string> {
-    const json = this.encryptionService.decrypt(encrypted);
-    return JSON.parse(json);
+    return JSON.parse(this.encryptionService.decrypt(encrypted)) as Record<string, string>;
   }
 
-  private createAdapter(config: ProviderConfig): unknown {
-    switch (config.providerType) {
-      case 'sms':
-        return new MockSmsAdapter();
-      case 'payment':
-        return new MockPaymentAdapter();
-      case 'ai':
-        return new MockAIAdapter(this.configService);
-      case 'telephony':
-        return new MockTelephonyAdapter();
-      case 'push':
-        return new MockPushAdapter();
-      case 'storage':
-        return new LocalStorageAdapter(this.configService);
-      default:
-        throw new Error(`Unknown provider type: ${config.providerType}`);
-    }
+  private encryptSecrets(secrets: Record<string, string>): string {
+    return this.encryptionService.encrypt(JSON.stringify(secrets));
   }
 
-  private createMockAdapter(providerType: string): unknown {
-    switch (providerType) {
-      case 'sms':
-        return new MockSmsAdapter();
-      case 'payment':
-        return new MockPaymentAdapter();
-      case 'ai':
-        return new MockAIAdapter(this.configService);
-      case 'telephony':
-        return new MockTelephonyAdapter();
-      case 'push':
-        return new MockPushAdapter();
-      case 'storage':
-        return new LocalStorageAdapter(this.configService);
-      default:
-        throw new Error(`Unknown provider type: ${providerType}`);
-    }
+  private buildAdapter(category: ProviderCategory, adapterKey: string): unknown {
+    return createAdapterFor(category, adapterKey, this.configService, this.logger);
   }
 }

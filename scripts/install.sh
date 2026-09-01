@@ -89,9 +89,16 @@ install_docker() {
     log_success "Docker compose plugin available: $(docker compose version)"
 }
 
-# Generate random secret
+# Generate a random secret (64 hex characters == 32 bytes)
 generate_secret() {
     openssl rand -hex 32
+}
+
+# The encryption key must decode to exactly 32 bytes. `openssl rand -hex 32`
+# produces 64 hex characters, which is accepted, but base64 is the canonical
+# form the API documents, so emit that instead.
+generate_encryption_key() {
+    openssl rand -base64 32
 }
 
 # Setup .env file
@@ -113,11 +120,11 @@ setup_env() {
     # Replace secrets with real random values
     JWT_ACCESS=$(generate_secret)
     JWT_REFRESH=$(generate_secret)
-    ENCRYPTION_KEY=$(generate_secret)
+    ENCRYPTION_KEY=$(generate_encryption_key)
     
     sed -i "s/^JWT_ACCESS_SECRET=.*/JWT_ACCESS_SECRET=$JWT_ACCESS/" "$ENV_FILE"
     sed -i "s/^JWT_REFRESH_SECRET=.*/JWT_REFRESH_SECRET=$JWT_REFRESH/" "$ENV_FILE"
-    sed -i "s/^ENCRYPTION_MASTER_KEY=.*/ENCRYPTION_MASTER_KEY=$ENCRYPTION_KEY/" "$ENV_FILE"
+    sed -i "s|^ENCRYPTION_MASTER_KEY=.*|ENCRYPTION_MASTER_KEY=$ENCRYPTION_KEY|" "$ENV_FILE"
     
     log_success ".env file created with secure secrets"
 }

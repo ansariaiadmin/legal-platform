@@ -3,19 +3,24 @@
   "version": "1.0.0",
   "private": true,
   "workspaces": [
-    "apps/*",
-    "packages/*"
+    "packages/domain",
+    "packages/contracts",
+    "packages/shared",
+    "apps/api",
+    "apps/web"
   ],
   "scripts": {
-    "build": "npm run build --workspaces",
-    "typecheck": "npm run typecheck --workspaces",
-    "test": "npm run test --workspaces"
+    "build:packages": "npm run build -w @legal-platform/domain -w @legal-platform/contracts -w @legal-platform/shared",
+    "build:apps": "npm run build -w @legal-platform/api -w @legal-platform/web",
+    "build": "npm run build:packages && npm run build:apps",
+    "clean": "npm run clean --workspaces --if-present",
+    "typecheck": "npm run build:packages && npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "test:e2e": "npm run test:e2e -w @legal-platform/api",
+    "migrate:up": "npm run migrate:up -w @legal-platform/api",
+    "migrate:down": "npm run migrate:down -w @legal-platform/api"
   },
   "engines": {
     "node": ">=20"
-  },
-  "devDependencies": {
-    "node-pg-migrate": "^9.0.0",
-    "pg": "^8.23.0"
   }
 }

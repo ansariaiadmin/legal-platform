@@ -1,110 +1,133 @@
-import { Injectable, Logger, BadRequestException, UnauthorizedException, ForbiddenException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  Logger,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { Pool } from 'pg';
+import { ConfigService } from '@nestjs/config';
+import { Pool, PoolClient } from 'pg';
 import * as crypto from 'crypto';
-import * as bcrypt from 'bcrypt';
+import { ERROR_CODES } from '@legal-platform/contracts';
+import { UserRole } from '@legal-platform/domain';
+import { normalizeIranPhone } from '@legal-platform/shared';
 import { AuditService } from '../audit/audit.service';
 import { SmsProvider } from '../../providers/sms/sms.provider';
-import { normalizeIranPhone } from '@legal-platform/shared';
+import { SMS_PROVIDER } from '../../providers/provider.tokens';
+import { RateLimitService } from '../../common/rate-limit.service';
+import type { AccessTokenClaims, RefreshTokenClaims } from '../../security/authenticated-user';
 
-interface RateLimitEntry {
-  count: number;
-  firstAttempt: number;
-  lockedUntil?: number;
+export interface PublicUser {
+  id: string;
+  phoneNormalized: string | null;
+  email: string | null;
+  displayName: string | null;
+  status: string;
+  roles: string[];
 }
+
+export interface AuthTokens {
+  accessToken: string;
+  refreshToken: string;
+}
+
+interface OtpChallengeRow {
+  id: string;
+  code_hash: string;
+  attempts: number;
+  max_attempts: number;
+  expires_at: Date;
+}
+
+interface UserRow {
+  id: string;
+  phone_normalized: string | null;
+  email: string | null;
+  display_name: string | null;
+  status: string;
+}
+
+const ACCESS_TOKEN_TTL = '15m';
+const REFRESH_TOKEN_TTL = '7d';
+const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
-  private readonly otpTtlSeconds = parseInt(process.env.OTP_TTL_SECONDS || '120', 10);
-  private readonly rateLimitWindowMs = 10 * 60 * 1000; // 10 minutes
-  private readonly maxRateLimitAttempts = 5;
-  private readonly resendCooldownMs = 60 * 1000; // 60 seconds
-  private readonly bruteForceWindowMs = 15 * 60 * 1000; // 15 minutes
-  private readonly maxVerifyAttempts = 5;
-
-  // In-memory rate limiting (production should use Redis)
-  private readonly otpRequestLimits = new Map<string, RateLimitEntry>();
-  private readonly otpVerifyLimits = new Map<string, RateLimitEntry>();
-  private readonly lastOtpSent = new Map<string, number>();
+  private readonly otpTtlSeconds: number;
 
   constructor(
     private readonly pool: Pool,
     private readonly jwtService: JwtService,
+    private readonly configService: ConfigService,
     private readonly auditService: AuditService,
-    private readonly smsProvider: SmsProvider,
-  ) {}
+    private readonly rateLimiter: RateLimitService,
+    @Inject(SMS_PROVIDER) private readonly smsProvider: SmsProvider,
+  ) {
+    this.otpTtlSeconds = Number(this.configService.get<string>('OTP_TTL_SECONDS')) || 120;
+  }
 
   async requestOtp(phone: string, ip?: string): Promise<{ challengeId: string }> {
     const normalizedPhone = normalizeIranPhone(phone);
     if (!normalizedPhone) {
-      throw new BadRequestException('VALIDATION_INVALID_PHONE');
+      throw new BadRequestException(ERROR_CODES.VALIDATION_INVALID_PHONE);
     }
 
-    // Check rate limit
-    const rateLimitKey = normalizedPhone;
-    const now = Date.now();
-    const existingLimit = this.otpRequestLimits.get(rateLimitKey);
+    const phoneDecision = this.rateLimiter.consume(`otp:request:${normalizedPhone}`, {
+      limit: 5,
+      windowMs: 10 * 60 * 1000,
+      cooldownMs: 60 * 1000,
+      lockMs: 10 * 60 * 1000,
+    });
+    if (!phoneDecision.allowed) {
+      await this.auditService.log({
+        module: 'auth',
+        action: 'otp.request',
+        entityType: 'otp_challenge',
+        metadata: { destination: normalizedPhone, reason: phoneDecision.rejection },
+        ip,
+        result: 'failure',
+      });
+      throw new ForbiddenException(
+        phoneDecision.rejection === 'cooldown'
+          ? ERROR_CODES.AUTH_RESEND_COOLDOWN
+          : ERROR_CODES.AUTH_RATE_LIMITED,
+      );
+    }
 
-    if (existingLimit) {
-      if (existingLimit.lockedUntil && now < existingLimit.lockedUntil) {
-        throw new ForbiddenException('AUTH_RATE_LIMITED');
+    if (ip) {
+      // Stops one host from spraying OTP requests across many numbers.
+      const ipDecision = this.rateLimiter.consume(`otp:request:ip:${ip}`, {
+        limit: 20,
+        windowMs: 10 * 60 * 1000,
+        lockMs: 10 * 60 * 1000,
+      });
+      if (!ipDecision.allowed) {
+        throw new ForbiddenException(ERROR_CODES.AUTH_RATE_LIMITED);
       }
-      if (now - existingLimit.firstAttempt < this.rateLimitWindowMs) {
-        if (existingLimit.count >= this.maxRateLimitAttempts) {
-          const lockedUntil = now + this.rateLimitWindowMs;
-          this.otpRequestLimits.set(rateLimitKey, { ...existingLimit, lockedUntil });
-          throw new ForbiddenException('AUTH_RATE_LIMITED');
-        }
-      } else {
-        // Reset window
-        this.otpRequestLimits.set(rateLimitKey, { count: 0, firstAttempt: now });
-      }
-    } else {
-      this.otpRequestLimits.set(rateLimitKey, { count: 1, firstAttempt: now });
     }
 
-    // Check resend cooldown
-    const lastSent = this.lastOtpSent.get(normalizedPhone);
-    if (lastSent && now - lastSent < this.resendCooldownMs) {
-      throw new ForbiddenException('AUTH_RESEND_COOLDOWN');
-    }
-
-    // Generate OTP
     const code = crypto.randomInt(100000, 999999).toString();
-    const codeHash = crypto.createHash('sha256').update(code).digest('hex');
+    const codeHash = this.hashCode(code);
+    const challengeId = crypto.randomUUID();
     const expiresAt = new Date(Date.now() + this.otpTtlSeconds * 1000);
 
-    // Store challenge
-    const result = await this.pool.query(
-      `INSERT INTO otp_challenges (destination, code_hash, purpose, expires_at)
-       VALUES ($1, $2, 'login', $3)
-       RETURNING id`,
-      [normalizedPhone, codeHash, expiresAt],
+    await this.pool.query(
+      `INSERT INTO otp_challenges (id, destination, code_hash, purpose, expires_at)
+       VALUES ($1, $2, $3, 'login', $4)`,
+      [challengeId, normalizedPhone, codeHash, expiresAt],
     );
 
-    const challengeId = result.rows[0].id;
-
-    // Send SMS
-    const message = `Your verification code: ${code}`;
-    const smsResult = await this.smsProvider.sendSms({
-      phone: normalizedPhone,
-      message,
-    });
+    // Only log the code when the mock adapter is in play (development).
+    const message = `کد تأیید شما: ${code}`;
+    const smsResult = await this.smsProvider.sendSms({ phone: normalizedPhone, message });
 
     if (!smsResult.success) {
       this.logger.warn(`SMS delivery failed for ${normalizedPhone}`);
     }
 
-    // Update rate limit counter
-    const currentLimit = this.otpRequestLimits.get(rateLimitKey)!;
-    this.otpRequestLimits.set(rateLimitKey, {
-      ...currentLimit,
-      count: currentLimit.count + 1,
-    });
-    this.lastOtpSent.set(normalizedPhone, now);
-
-    // Audit log
     await this.auditService.log({
       module: 'auth',
       action: 'otp.request',
@@ -118,262 +141,178 @@ export class AuthService {
     return { challengeId };
   }
 
-  async verifyOtp(phone: string, code: string, ip?: string): Promise<{ accessToken: string; refreshToken: string; user: any }> {
+  async verifyOtp(phone: string, code: string, ip?: string): Promise<AuthTokens & { user: PublicUser }> {
     const normalizedPhone = normalizeIranPhone(phone);
     if (!normalizedPhone) {
-      throw new BadRequestException('VALIDATION_INVALID_PHONE');
+      throw new BadRequestException(ERROR_CODES.VALIDATION_INVALID_PHONE);
     }
 
-    const codeHash = crypto.createHash('sha256').update(code).digest('hex');
-    const now = new Date();
+    const verifyKey = `otp:verify:${normalizedPhone}`;
+    const decision = this.rateLimiter.consume(verifyKey, {
+      limit: 5,
+      windowMs: 15 * 60 * 1000,
+      lockMs: 15 * 60 * 1000,
+    });
+    if (!decision.allowed) {
+      throw new ForbiddenException(ERROR_CODES.AUTH_RATE_LIMITED);
+    }
 
-    // Find unverified challenge
-    const challengeResult = await this.pool.query(
-      `SELECT id, code_hash, expires_at, attempts, verified_at 
-       FROM otp_challenges 
-       WHERE destination = $1 AND code_hash = $2 AND verified_at IS NULL
-       ORDER BY created_at DESC
-       LIMIT 1`,
-      [normalizedPhone, codeHash],
+    const challenge = await this.pool.query<OtpChallengeRow>(
+      `SELECT id, code_hash, attempts, max_attempts, expires_at
+         FROM otp_challenges
+        WHERE destination = $1
+          AND purpose = 'login'
+          AND verified_at IS NULL
+        ORDER BY created_at DESC
+        LIMIT 1`,
+      [normalizedPhone],
     );
 
-    if (challengeResult.rows.length === 0) {
-      // Check if there's any recent challenge to increment attempts
-      const anyChallengeResult = await this.pool.query(
-        `SELECT id, attempts FROM otp_challenges 
-         WHERE destination = $1 AND verified_at IS NULL 
-         AND expires_at > NOW()
-         ORDER BY created_at DESC
-         LIMIT 1`,
-        [normalizedPhone],
-      );
-
-      if (anyChallengeResult.rows.length > 0) {
-        const challenge = anyChallengeResult.rows[0];
-        const newAttempts = challenge.attempts + 1;
-
-        await this.pool.query(
-          `UPDATE otp_challenges SET attempts = $1 WHERE id = $2`,
-          [newAttempts, challenge.id],
-        );
-
-        // Check for brute force lock
-        if (newAttempts >= this.maxVerifyAttempts) {
-          const lockedUntil = Date.now() + this.bruteForceWindowMs;
-          this.otpVerifyLimits.set(normalizedPhone, {
-            count: newAttempts,
-            firstAttempt: Date.now(),
-            lockedUntil,
-          });
-          throw new ForbiddenException('AUTH_RATE_LIMITED');
-        }
-      }
-
+    if (challenge.rows.length === 0) {
       await this.auditService.log({
         module: 'auth',
         action: 'otp.verify',
         entityType: 'otp_challenge',
-        metadata: { destination: normalizedPhone, reason: 'invalid_code' },
+        metadata: { destination: normalizedPhone, reason: 'no_challenge' },
         ip,
         result: 'failure',
       });
-
-      throw new UnauthorizedException('AUTH_INVALID_CODE');
+      throw new UnauthorizedException(ERROR_CODES.AUTH_INVALID_CODE);
     }
 
-    const challenge = challengeResult.rows[0];
+    const row = challenge.rows[0];
 
-    // Check expiry
-    if (new Date(challenge.expires_at) < now) {
+    if (new Date(row.expires_at).getTime() <= Date.now()) {
       await this.auditService.log({
         module: 'auth',
         action: 'otp.verify',
         entityType: 'otp_challenge',
-        entityId: challenge.id,
+        entityId: row.id,
         metadata: { destination: normalizedPhone, reason: 'expired' },
         ip,
         result: 'failure',
       });
-      throw new UnauthorizedException('AUTH_CODE_EXPIRED');
+      throw new UnauthorizedException(ERROR_CODES.AUTH_CODE_EXPIRED);
     }
 
-    // Mark as verified
-    await this.pool.query(
-      `UPDATE otp_challenges SET verified_at = NOW() WHERE id = $1`,
-      [challenge.id],
-    );
+    if (!this.hashMatches(code, row.code_hash)) {
+      const attempts = row.attempts + 1;
+      await this.pool.query(`UPDATE otp_challenges SET attempts = $1 WHERE id = $2`, [
+        attempts,
+        row.id,
+      ]);
 
-    // Find or create user
-    let userResult = await this.pool.query(
-      `SELECT id, phone_normalized, email, display_name FROM users 
-       WHERE phone_normalized = $1`,
-      [normalizedPhone],
-    );
+      await this.auditService.log({
+        module: 'auth',
+        action: 'otp.verify',
+        entityType: 'otp_challenge',
+        entityId: row.id,
+        metadata: { destination: normalizedPhone, reason: 'invalid_code', attempts },
+        ip,
+        result: 'failure',
+      });
 
-    let userId: string;
-    if (userResult.rows.length === 0) {
-      // Create new user with client role
-      const clientRoleResult = await this.pool.query(
-        `SELECT id FROM roles WHERE key = 'client'`,
-      );
-      const roleId = clientRoleResult.rows[0]?.id;
-
-      if (!roleId) {
-        throw new Error('Client role not found');
+      if (attempts >= row.max_attempts) {
+        throw new ForbiddenException(ERROR_CODES.AUTH_RATE_LIMITED);
       }
-
-      const newUserResult = await this.pool.query(
-        `INSERT INTO users (phone_normalized, status) 
-         VALUES ($1, 'active') 
-         RETURNING id, phone_normalized, email, display_name`,
-        [normalizedPhone],
-      );
-      userId = newUserResult.rows[0].id;
-
-      await this.pool.query(
-        `INSERT INTO role_assignments (user_id, role_id) VALUES ($1, $2)`,
-        [userId, roleId],
-      );
-
-      userResult = newUserResult;
-    } else {
-      userId = userResult.rows[0].id;
+      throw new UnauthorizedException(ERROR_CODES.AUTH_INVALID_CODE);
     }
 
-    // Check brute force lock
-    const rateLimitEntry = this.otpVerifyLimits.get(normalizedPhone);
-    if (rateLimitEntry && rateLimitEntry.lockedUntil && Date.now() < rateLimitEntry.lockedUntil) {
-      throw new ForbiddenException('AUTH_RATE_LIMITED');
-    }
-    this.otpVerifyLimits.delete(normalizedPhone);
+    // Verified: burn the challenge and clear the brute-force budget.
+    await this.pool.query(`UPDATE otp_challenges SET verified_at = NOW() WHERE id = $1`, [row.id]);
+    this.rateLimiter.reset(verifyKey, `otp:request:${normalizedPhone}`);
 
-    // Create session and tokens
-    const sessionId = crypto.randomUUID();
-    const accessToken = this.jwtService.sign(
-      { sub: userId, sessionId },
-      { expiresIn: '15m' },
-    );
-    const refreshToken = this.jwtService.sign(
-      { sub: userId, sessionId, type: 'refresh' },
-      { expiresIn: '7d' },
-    );
-
-    const accessTokenHash = crypto.createHash('sha256').update(accessToken).digest('hex');
-    const refreshTokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
-
-    await this.pool.query(
-      `INSERT INTO user_sessions (id, user_id, access_token_hash, refresh_token_hash, expires_at)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [sessionId, userId, accessTokenHash, refreshTokenHash, new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)],
-    );
+    const user = await this.findOrCreateUser(normalizedPhone);
+    const session = await this.createSession(user, ip);
 
     await this.auditService.log({
-      actorId: userId,
+      actorId: user.id,
       module: 'auth',
       action: 'otp.verify',
       entityType: 'user_session',
-      entityId: sessionId,
+      entityId: session.sessionId,
       metadata: { destination: normalizedPhone },
       ip,
       result: 'success',
     });
 
-    return {
-      accessToken,
-      refreshToken,
-      user: userResult.rows[0],
-    };
+    return { accessToken: session.accessToken, refreshToken: session.refreshToken, user };
   }
 
-  async refreshToken(refreshToken: string, ip?: string): Promise<{ accessToken: string; refreshToken: string }> {
+  async refreshToken(refreshToken: string, ip?: string): Promise<AuthTokens> {
+    let claims: RefreshTokenClaims;
     try {
-      const payload = this.jwtService.verify(refreshToken, { secret: process.env.JWT_REFRESH_SECRET });
-      if (payload.type !== 'refresh') {
-        throw new UnauthorizedException('AUTH_INVALID_TOKEN');
-      }
+      claims = this.jwtService.verify<RefreshTokenClaims>(refreshToken, {
+        secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
+      });
+    } catch {
+      throw new UnauthorizedException(ERROR_CODES.AUTH_INVALID_TOKEN);
+    }
 
-      const userId = payload.sub;
-      const sessionId = payload.sessionId;
+    if (claims.type !== 'refresh' || !claims.sub || !claims.sessionId) {
+      throw new UnauthorizedException(ERROR_CODES.AUTH_INVALID_TOKEN);
+    }
 
-      const refreshTokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
 
-      // Find and validate session
-      const sessionResult = await this.pool.query(
-        `SELECT id, user_id, refresh_token_hash, revoked_at, expires_at 
-         FROM user_sessions 
-         WHERE id = $1 AND access_token_hash IS NOT NULL`,
-        [sessionId],
+      // Lock the row so two concurrent refreshes cannot both rotate.
+      const sessionResult = await client.query(
+        `SELECT user_id, refresh_token_hash, revoked_at, expires_at
+           FROM user_sessions
+          WHERE id = $1
+          FOR UPDATE`,
+        [claims.sessionId],
       );
 
       if (sessionResult.rows.length === 0) {
-        throw new UnauthorizedException('AUTH_INVALID_SESSION');
+        throw new UnauthorizedException(ERROR_CODES.AUTH_INVALID_SESSION);
       }
 
       const session = sessionResult.rows[0];
-
       if (session.revoked_at) {
-        throw new UnauthorizedException('AUTH_SESSION_REVOKED');
+        throw new UnauthorizedException(ERROR_CODES.AUTH_SESSION_REVOKED);
+      }
+      if (new Date(session.expires_at).getTime() <= Date.now()) {
+        throw new UnauthorizedException(ERROR_CODES.AUTH_SESSION_EXPIRED);
+      }
+      if (!this.hashMatches(refreshToken, session.refresh_token_hash)) {
+        // A token that is not the current one for this session is a reuse signal.
+        throw new UnauthorizedException(ERROR_CODES.AUTH_INVALID_TOKEN);
       }
 
-      if (new Date(session.expires_at) < new Date()) {
-        throw new UnauthorizedException('AUTH_SESSION_EXPIRED');
-      }
-
-      if (session.refresh_token_hash !== refreshTokenHash) {
-        throw new UnauthorizedException('AUTH_INVALID_TOKEN');
-      }
-
-      // Revoke old session
-      await this.pool.query(
-        `UPDATE user_sessions SET revoked_at = NOW() WHERE id = $1`,
-        [sessionId],
-      );
-
-      // Create new session
-      const newSessionId = crypto.randomUUID();
-      const newAccessToken = this.jwtService.sign(
-        { sub: userId, sessionId: newSessionId },
-        { expiresIn: '15m' },
-      );
-      const newRefreshToken = this.jwtService.sign(
-        { sub: userId, sessionId: newSessionId, type: 'refresh' },
-        { expiresIn: '7d' },
-      );
-
-      const newAccessTokenHash = crypto.createHash('sha256').update(newAccessToken).digest('hex');
-      const newRefreshTokenHash = crypto.createHash('sha256').update(newRefreshToken).digest('hex');
-
-      await this.pool.query(
-        `INSERT INTO user_sessions (id, user_id, access_token_hash, refresh_token_hash, expires_at)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [newSessionId, userId, newAccessTokenHash, newRefreshTokenHash, new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)],
-      );
-
-      await this.auditService.log({
-        actorId: userId,
-        module: 'auth',
-        action: 'token.refresh',
-        entityType: 'user_session',
-        entityId: newSessionId,
-        ip,
-        result: 'success',
-      });
-
-      return {
-        accessToken: newAccessToken,
-        refreshToken: newRefreshToken,
-      };
+      await client.query(`UPDATE user_sessions SET revoked_at = NOW() WHERE id = $1`, [
+        claims.sessionId,
+      ]);
+      await client.query('COMMIT');
     } catch (error) {
-      if (error instanceof UnauthorizedException) {
-        throw error;
-      }
-      throw new UnauthorizedException('AUTH_INVALID_TOKEN');
+      await client.query('ROLLBACK').catch(() => undefined);
+      if (error instanceof UnauthorizedException) throw error;
+      throw new UnauthorizedException(ERROR_CODES.AUTH_INVALID_TOKEN);
+    } finally {
+      client.release();
     }
+
+    const user = await this.loadUser(claims.sub);
+    const tokens = await this.createSession(user, ip);
+
+    await this.auditService.log({
+      actorId: user.id,
+      module: 'auth',
+      action: 'token.refresh',
+      entityType: 'user_session',
+      entityId: claims.sessionId,
+      ip,
+      result: 'success',
+    });
+
+    return { accessToken: tokens.accessToken, refreshToken: tokens.refreshToken };
   }
 
   async logout(sessionId: string, userId: string, ip?: string): Promise<void> {
     await this.pool.query(
-      `UPDATE user_sessions SET revoked_at = NOW() WHERE id = $1 AND user_id = $2`,
+      `UPDATE user_sessions SET revoked_at = NOW() WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL`,
       [sessionId, userId],
     );
 
@@ -388,30 +327,152 @@ export class AuthService {
     });
   }
 
-  async getCurrentUser(userId: string): Promise<any> {
-    const userResult = await this.pool.query(
+  async getCurrentUser(userId: string): Promise<PublicUser> {
+    return this.loadUser(userId);
+  }
+
+  // ---------------------------------------------------------------- internals
+
+  private async loadUser(userId: string): Promise<PublicUser> {
+    const result = await this.pool.query<UserRow & { roles: string[] }>(
       `SELECT u.id, u.phone_normalized, u.email, u.display_name, u.status,
-              array_agg(r.key) as roles
-       FROM users u
-       LEFT JOIN role_assignments ra ON ra.user_id = u.id
-       LEFT JOIN roles r ON r.id = ra.role_id
-       WHERE u.id = $1
-       GROUP BY u.id`,
+              COALESCE(array_agg(r.key) FILTER (WHERE r.key IS NOT NULL), '{}') AS roles
+         FROM users u
+         LEFT JOIN role_assignments ra ON ra.user_id = u.id
+         LEFT JOIN roles r ON r.id = ra.role_id
+        WHERE u.id = $1
+        GROUP BY u.id`,
       [userId],
     );
 
-    if (userResult.rows.length === 0) {
-      throw new UnauthorizedException('AUTH_USER_NOT_FOUND');
+    if (result.rows.length === 0) {
+      throw new UnauthorizedException(ERROR_CODES.AUTH_USER_NOT_FOUND);
     }
 
-    return userResult.rows[0];
+    return this.toPublicUser(result.rows[0]);
   }
 
-  async hashPassword(password: string): Promise<string> {
-    return bcrypt.hash(password, 12);
+  private async findOrCreateUser(normalizedPhone: string): Promise<PublicUser> {
+    const client: PoolClient = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // Take an advisory lock keyed on the phone so two concurrent verifications
+      // cannot both insert the same user.
+      const lockKey = BigInt(`0x${crypto.createHash('sha256').update(normalizedPhone).digest('hex').slice(0, 15)}`);
+      await client.query('SELECT pg_advisory_xact_lock($1)', [lockKey.toString()]);
+
+      const existing = await client.query<UserRow>(
+        `SELECT id, phone_normalized, email, display_name, status
+           FROM users
+          WHERE phone_normalized = $1`,
+        [normalizedPhone],
+      );
+
+      if (existing.rows.length > 0) {
+        await client.query('COMMIT');
+        return this.loadUser(existing.rows[0].id);
+      }
+
+      const clientRole = await client.query<{ id: string }>(
+        `SELECT id FROM roles WHERE key = $1`,
+        [UserRole.CLIENT],
+      );
+      if (clientRole.rows.length === 0) {
+        throw new Error(`Role '${UserRole.CLIENT}' is missing - run migrations`);
+      }
+
+      const userId = crypto.randomUUID();
+      await client.query(
+        `INSERT INTO users (id, phone_normalized, status) VALUES ($1, $2, 'active')`,
+        [userId, normalizedPhone],
+      );
+      await client.query(
+        `INSERT INTO role_assignments (id, user_id, role_id) VALUES ($1, $2, $3)`,
+        [crypto.randomUUID(), userId, clientRole.rows[0].id],
+      );
+
+      await client.query('COMMIT');
+      return this.loadUser(userId);
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
-  async verifyPassword(password: string, hash: string): Promise<boolean> {
-    return bcrypt.compare(password, hash);
+  private async createSession(
+    user: PublicUser,
+    ip?: string,
+  ): Promise<AuthTokens & { sessionId: string }> {
+    const sessionId = crypto.randomUUID();
+
+    const accessClaims: AccessTokenClaims = { sub: user.id, sessionId, roles: user.roles };
+    const refreshClaims: RefreshTokenClaims = {
+      sub: user.id,
+      sessionId,
+      type: 'refresh',
+    };
+
+    const accessToken = this.jwtService.sign(accessClaims, { expiresIn: ACCESS_TOKEN_TTL });
+    const refreshToken = this.jwtService.sign(refreshClaims, {
+      expiresIn: REFRESH_TOKEN_TTL,
+      secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
+    });
+
+    await this.pool.query(
+      `INSERT INTO user_sessions (id, user_id, access_token_hash, refresh_token_hash, ip, expires_at)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [
+        sessionId,
+        user.id,
+        this.hashCode(accessToken),
+        this.hashCode(refreshToken),
+        ip ?? null,
+        new Date(Date.now() + SESSION_TTL_MS),
+      ],
+    );
+
+    return { accessToken, refreshToken, sessionId };
+  }
+
+  private toPublicUser(row: UserRow & { roles?: string[] }): PublicUser {
+    return {
+      id: row.id,
+      phoneNormalized: row.phone_normalized,
+      email: row.email,
+      displayName: row.display_name,
+      status: row.status,
+      roles: Array.isArray(row.roles) ? row.roles : [],
+    };
+  }
+
+  /**
+   * A 6-digit code has only 10^6 possible values, so hashing alone is not
+   * secrecy - it just keeps the plaintext out of the database. The HMAC key
+   * means an attacker who reads `otp_challenges` still cannot recover codes
+   * without the server secret. The real brute-force defence is the short TTL
+   * plus the per-destination attempt limit enforced in verifyOtp().
+   */
+  private hashCode(code: string): string {
+    return crypto.createHmac('sha256', this.otpKey()).update(code).digest('hex');
+  }
+
+  private otpKey(): string {
+    return (
+      this.configService.get<string>('ENCRYPTION_MASTER_KEY') ||
+      this.configService.get<string>('JWT_ACCESS_SECRET') ||
+      'development-only-otp-key'
+    );
+  }
+
+  private hashMatches(code: string, expectedHash: string): boolean {
+    const actual = Buffer.from(this.hashCode(code), 'hex');
+    const expected = Buffer.from(expectedHash, 'hex');
+    if (actual.length !== expected.length) {
+      return false;
+    }
+    return crypto.timingSafeEqual(actual, expected);
   }
 }

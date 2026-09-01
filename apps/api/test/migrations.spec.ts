@@ -1,86 +1,99 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-describe('Database Migrations', () => {
-  const migrationsDir = path.join(__dirname, '../src/database/migrations');
+const migrationsDir = path.join(__dirname, '../src/database/migrations');
 
-  it('should have migration files', () => {
-    const files = fs.readdirSync(migrationsDir).filter(f => f.endsWith('.ts'));
-    expect(files.length).toBeGreaterThan(0);
+const migrationFiles = fs
+  .readdirSync(migrationsDir)
+  .filter((file) => /^\d{3}_.+\.ts$/.test(file))
+  .sort();
+
+const read = (file: string): string => fs.readFileSync(path.join(migrationsDir, file), 'utf-8');
+
+describe('Database migrations', () => {
+  it('finds at least one migration', () => {
+    expect(migrationFiles.length).toBeGreaterThan(0);
   });
 
-  it('should have timestamp-ordered migration files', () => {
-    const files = fs.readdirSync(migrationsDir)
-      .filter(f => f.endsWith('.ts'))
-      .filter(f => !f.startsWith('.')); // exclude hidden files
+  it('numbers every migration sequentially and uniquely', () => {
+    const numbers = migrationFiles.map((file) => Number.parseInt(file.split('_')[0], 10));
 
-    expect(files.length).toBeGreaterThan(0);
-
-    // Check that files start with numeric prefix (timestamp order)
-    const numberedFiles = files.filter(f => /^\d{3}_/.test(f));
-    expect(numberedFiles.length).toBe(files.length);
-
-    // Verify ordering
-    const numbers = numberedFiles.map(f => parseInt(f.split('_')[0], 10));
-    for (let i = 1; i < numbers.length; i++) {
+    expect(new Set(numbers).size).toBe(numbers.length);
+    for (let i = 1; i < numbers.length; i += 1) {
       expect(numbers[i]).toBeGreaterThan(numbers[i - 1]);
     }
   });
 
-  it('should have up and down functions in each migration', () => {
-    const files = fs.readdirSync(migrationsDir)
-      .filter(f => f.endsWith('.ts') && /^\d{3}_/.test(f));
+  /**
+   * The previous version of this test grepped for `export const up:` with a
+   * colon, which no migration ever used - so it failed on every file. Importing
+   * the module checks the real contract: both hooks must be callable.
+   */
+  it.each(migrationFiles)('%s exports callable up() and down() hooks', (file) => {
+    // `require`, not `await import()`: ts-jest runs in a CommonJS VM where a
+    // dynamic import needs --experimental-vm-modules.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const migration = require(path.join(migrationsDir, file)) as { up?: unknown; down?: unknown };
 
-    for (const file of files) {
-      const content = fs.readFileSync(path.join(migrationsDir, file), 'utf-8');
-      
-      // Check for exported up function
-      expect(content).toMatch(/export\s+const\s+up\s*:/);
-      
-      // Check for exported down function
-      expect(content).toMatch(/export\s+const\s+down\s*:/);
-    }
+    expect(typeof migration.up).toBe('function');
+    expect(typeof migration.down).toBe('function');
   });
 
-  it('migration 001 should create extensions', () => {
-    const migration001 = path.join(migrationsDir, '001_extensions_and_helpers.ts');
-    expect(fs.existsSync(migration001)).toBe(true);
-    
-    const content = fs.readFileSync(migration001, 'utf-8');
-    expect(content).toContain('vector');
-    expect(content).toContain('pgcrypto');
+  it('001 installs pgvector, pgcrypto and the updated_at trigger helper', () => {
+    const content = read('001_extensions_and_helpers.ts');
+
+    expect(content).toContain('CREATE EXTENSION IF NOT EXISTS vector');
+    expect(content).toContain('CREATE EXTENSION IF NOT EXISTS pgcrypto');
     expect(content).toContain('set_updated_at');
   });
 
-  it('migration 002 should create identity tables', () => {
-    const migration002 = path.join(migrationsDir, '002_identity_tables.ts');
-    expect(fs.existsSync(migration002)).toBe(true);
-    
-    const content = fs.readFileSync(migration002, 'utf-8');
-    expect(content).toContain('roles');
-    expect(content).toContain('users');
-    expect(content).toContain('role_assignments');
-    expect(content).toContain('user_sessions');
-    expect(content).toContain('otp_challenges');
-    expect(content).toContain('lawyer_owner');
-    expect(content).toContain('staff');
-    expect(content).toContain('client');
-    expect(content).toContain('operator');
+  it('002 creates the identity tables and seeds all four roles', () => {
+    const content = read('002_identity_tables.ts');
+
+    for (const table of ['roles', 'users', 'role_assignments', 'user_sessions', 'otp_challenges']) {
+      expect(content).toContain(`createTable('${table}'`);
+    }
+    for (const role of ['lawyer_owner', 'staff', 'client', 'operator']) {
+      expect(content).toContain(role);
+    }
   });
 
-  it('migration 003 should create ops tables', () => {
-    const migration003 = path.join(migrationsDir, '003_ops_tables.ts');
-    expect(fs.existsSync(migration003)).toBe(true);
-    
-    const content = fs.readFileSync(migration003, 'utf-8');
-    expect(content).toContain('audit_logs');
-    expect(content).toContain('provider_configs');
-    expect(content).toContain('backup_jobs');
-    expect(content).toContain('restore_jobs');
-    expect(content).toContain('diagnostic_runs');
-    expect(content).toContain('system_notices');
-    expect(content).toContain('license_records');
-    expect(content).toContain('data_export_requests');
-    expect(content).toContain('data_erasure_requests');
+  it('003 creates the ops tables', () => {
+    const content = read('003_ops_tables.ts');
+
+    for (const table of [
+      'audit_logs',
+      'provider_configs',
+      'backup_jobs',
+      'restore_jobs',
+      'diagnostic_runs',
+      'system_notices',
+      'license_records',
+      'data_export_requests',
+      'data_erasure_requests',
+    ]) {
+      expect(content).toContain(`createTable('${table}'`);
+    }
+  });
+
+  it('004 adds the fallback provider reference', () => {
+    const content = read('004_add_fallback_provider.ts');
+
+    expect(content).toContain('fallback_provider_config_id');
+    expect(content).toContain('REFERENCES provider_configs(id)');
+  });
+
+  /**
+   * Migrations 002/003 declared uuid primary keys with no default while the
+   * application inserts without an id, which silently emptied the audit trail.
+   */
+  it('005 gives every uuid primary key a gen_random_uuid() default', () => {
+    const content = read('005_uuid_defaults_and_indexes.ts');
+
+    expect(content).toContain('gen_random_uuid()');
+    for (const table of ['roles', 'audit_logs', 'otp_challenges', 'role_assignments', 'provider_configs']) {
+      expect(content).toContain(`'${table}'`);
+    }
+    expect(content).toContain('DROP DEFAULT');
   });
 });
