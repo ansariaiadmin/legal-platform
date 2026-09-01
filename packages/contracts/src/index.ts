@@ -87,24 +87,20 @@ export function isKnownErrorCode(code: string): boolean {
   return Object.values(ERROR_PREFIXES).some((prefix) => code.startsWith(prefix));
 }
 
-/** HTTP status implied by an error code, used by the global exception filter. */
+/**
+ * HTTP status implied by an error code, used by the global exception filter.
+ *
+ * Prefix-based rather than an enumerated list: an enumerated list silently
+ * drops new codes to 500, which is exactly how AUTH_CODE_EXPIRED ended up
+ * answering 500 instead of 401.
+ */
 export function httpStatusForCode(code: string): number {
   if (code.startsWith(ERROR_PREFIXES.VALIDATION)) return 400;
-  if (
-    code === ERROR_CODES.AUTH_MISSING_TOKEN ||
-    code === ERROR_CODES.AUTH_INVALID_TOKEN ||
-    code === ERROR_CODES.AUTH_INVALID_CODE ||
-    code === ERROR_CODES.AUTH_INVALID_SESSION ||
-    code === ERROR_CODES.AUTH_SESSION_REVOKED ||
-    code === ERROR_CODES.AUTH_SESSION_EXPIRED ||
-    code === ERROR_CODES.AUTH_USER_NOT_FOUND
-  ) {
-    return 401;
-  }
-  if (code === ERROR_CODES.AUTH_RATE_LIMITED || code === ERROR_CODES.AUTH_RESEND_COOLDOWN) {
-    return 429;
-  }
+  // A webhook payload the gateway sent badly is the caller's problem, not ours.
+  if (code === ERROR_CODES.PAYMENT_CALLBACK_INVALID) return 400;
+  if (code === ERROR_CODES.AUTH_RATE_LIMITED || code === ERROR_CODES.AUTH_RESEND_COOLDOWN) return 429;
   if (code === ERROR_CODES.AUTH_INSUFFICIENT_ROLE) return 403;
+  if (code.startsWith(ERROR_PREFIXES.AUTH)) return 401;
   if (code.endsWith('_NOT_FOUND')) return 404;
   if (code.startsWith(ERROR_PREFIXES.PROVIDER) || code.startsWith(ERROR_PREFIXES.AI)) return 502;
   return 500;

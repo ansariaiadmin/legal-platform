@@ -1,6 +1,11 @@
 # Database Migrations
 
-This directory contains all database migrations for the Legal Platform.
+Migrations live in `src/database/migrations/`.
+
+> This file is deliberately **not** inside that directory. `node-pg-migrate`
+> parses every file it finds there and fails with
+> `Cannot determine numeric prefix for "README.md"`, which made every
+> `migrate:up` - including the one `scripts/install.sh` runs - abort.
 
 ## Migration Tooling
 

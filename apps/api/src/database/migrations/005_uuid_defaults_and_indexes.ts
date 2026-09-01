@@ -5,19 +5,21 @@ import type { MigrationBuilder } from 'node-pg-migrate' with { 'resolution-mode'
 /**
  * Migration 005: UUID defaults and lookup indexes
  *
- * Migrations 002/003 declared `uuid` primary keys without a default, while the
- * application inserts into `otp_challenges`, `role_assignments` and
+ * Migrations 002/003 originally declared `uuid` primary keys without a usable
+ * default (the raw expressions were emitted as quoted string literals), while
+ * the application inserts into `otp_challenges`, `role_assignments` and
  * `audit_logs` without supplying an id. Those inserts failed a NOT NULL
- * constraint, and because AuditService swallows its errors the audit trail was
+ * constraint, and because AuditService swallowed its errors the audit trail was
  * silently empty.
  *
- * Application code now also generates explicit ids, so this migration is
- * defence in depth rather than the only fix. Existing migrations are never
- * edited (see migrations/README.md), hence a new one.
+ * 002/003 now set the defaults at creation time; this migration is defence in
+ * depth, so a database built from an older snapshot is healed too. Application
+ * code also generates explicit ids.
  */
 
 const TABLES_WITH_UUID_PK = [
   'roles',
+  'users',
   'role_assignments',
   'user_sessions',
   'otp_challenges',

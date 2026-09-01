@@ -1,6 +1,6 @@
 import { ArgumentsHost, BadRequestException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { AllExceptionsFilter } from '../../src/common/all-exceptions.filter';
-import { ERROR_CODES } from '@legal-platform/contracts';
+import { ERROR_CODES, httpStatusForCode, isKnownErrorCode } from '@legal-platform/contracts';
 
 interface Harness {
   json: jest.Mock;
@@ -97,5 +97,61 @@ describe('AllExceptionsFilter', () => {
     filter.catch(new NotFoundException('Provider config 123 not found'), host);
 
     expect(status).toHaveBeenCalledWith(404);
+  });
+});
+
+/**
+ * Regression: AUTH_CODE_EXPIRED was absent from an enumerated 401 list and so
+ * fell through to 500. Every known code must map to the status its prefix
+ * implies, and no client-facing failure may answer 500.
+ */
+describe('error code coverage', () => {
+  // DB_, SECURITY_ and SYSTEM_ are server-side (500). PROVIDER_ and AI_ describe
+  // an upstream dependency, so 502 is correct and asserted separately.
+  const callerFacing = Object.entries(ERROR_CODES).filter(
+    ([, code]) =>
+      !code.startsWith('DB_') &&
+      !code.startsWith('SECURITY_') &&
+      !code.startsWith('SYSTEM_') &&
+      !code.startsWith('PROVIDER_') &&
+      !code.startsWith('AI_'),
+  );
+
+  it.each(callerFacing)('%s maps to a 4xx status', (_name, code) => {
+    const status = httpStatusForCode(code);
+
+    expect(status).toBeGreaterThanOrEqual(400);
+    expect(status).toBeLessThan(500);
+  });
+
+  it('maps rate limiting to 429, roles to 403 and other auth failures to 401', () => {
+    expect(httpStatusForCode(ERROR_CODES.AUTH_RATE_LIMITED)).toBe(429);
+    expect(httpStatusForCode(ERROR_CODES.AUTH_RESEND_COOLDOWN)).toBe(429);
+    expect(httpStatusForCode(ERROR_CODES.AUTH_INSUFFICIENT_ROLE)).toBe(403);
+    expect(httpStatusForCode(ERROR_CODES.AUTH_CODE_EXPIRED)).toBe(401);
+    expect(httpStatusForCode(ERROR_CODES.AUTH_USER_NOT_FOUND)).toBe(401);
+  });
+
+  it("treats a malformed payment callback as the caller's error", () => {
+    expect(httpStatusForCode(ERROR_CODES.PAYMENT_CALLBACK_INVALID)).toBe(400);
+  });
+
+  it('maps not-found codes to 404 and upstream provider failures to 502', () => {
+    expect(httpStatusForCode(ERROR_CODES.PROVIDER_NOT_FOUND)).toBe(404);
+    expect(httpStatusForCode(ERROR_CODES.BACKUP_NOT_FOUND)).toBe(404);
+    expect(httpStatusForCode(ERROR_CODES.PROVIDER_UNAVAILABLE)).toBe(502);
+    expect(httpStatusForCode(ERROR_CODES.AI_NOT_CONFIGURED)).toBe(502);
+  });
+
+  it('reserves 500 for genuine server-side failures', () => {
+    expect(httpStatusForCode(ERROR_CODES.DB_QUERY_FAILED)).toBe(500);
+    expect(httpStatusForCode(ERROR_CODES.SECURITY_DECRYPTION_FAILED)).toBe(500);
+    expect(httpStatusForCode(ERROR_CODES.SYSTEM_INTERNAL_ERROR)).toBe(500);
+  });
+
+  it('accepts every code the codebase can emit', () => {
+    for (const code of Object.values(ERROR_CODES)) {
+      expect(isKnownErrorCode(code)).toBe(true);
+    }
   });
 });

@@ -79,8 +79,9 @@ describeWithDb('Auth API (integration)', () => {
     expect(response.status).toBe(200);
     expect(response.body.service).toBe('api');
     expect(response.body.checks.database.status).toBe('up');
-    // The integration job runs a real Redis, so the raw RESP probe must see it.
-    expect(response.body.checks.redis.status).toBe('up');
+    // With no REDIS_URL the probe reports `skipped`; the CI job runs a real
+    // Redis, so the raw RESP client must see it there.
+    expect(response.body.checks.redis.status).toBe(process.env.REDIS_URL ? 'up' : 'skipped');
     expect(response.body.status).toBe('ok');
   });
 
