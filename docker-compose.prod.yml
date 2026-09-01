@@ -53,8 +53,10 @@ services:
     volumes:
       - uploads:/app/uploads
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     restart: always
     networks:
       - legal-network
@@ -62,7 +64,7 @@ services:
   worker:
     image: legal-platform/api:latest
     container_name: legal-worker
-    command: ["node", "dist/worker.js"]
+    command: ["node", "apps/api/dist/worker.js"]
     environment:
       - NODE_ENV=production
       - DATABASE_URL=${DATABASE_URL}
@@ -85,8 +87,10 @@ services:
     volumes:
       - uploads:/app/uploads
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     restart: always
     networks:
       - legal-network
@@ -100,6 +104,11 @@ services:
       - POSTGRES_DB=legal_platform
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U legal -d legal_platform"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
     restart: always
     networks:
       - legal-network
@@ -109,6 +118,11 @@ services:
     container_name: legal-redis
     volumes:
       - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
     restart: always
     networks:
       - legal-network

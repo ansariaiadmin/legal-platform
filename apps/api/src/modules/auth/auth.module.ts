@@ -1,28 +1,12 @@
 import { Module } from '@nestjs/common';
-import { JwtModule } from '@nestjs/jwt';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
-import { DatabaseModule } from '../../database/database.module';
-import { AuditModule } from '../audit/audit.module';
-import { MockSmsAdapter } from '../../providers/sms/mock-sms.adapter';
+import { JwtAccessGuard } from '../../security/jwt-access.guard';
+import { RolesGuard } from '../../security/roles.guard';
 
 @Module({
-  imports: [
-    DatabaseModule,
-    AuditModule,
-    JwtModule.register({
-      secret: process.env.JWT_ACCESS_SECRET || 'dev-secret',
-      signOptions: { expiresIn: '15m' },
-    }),
-  ],
   controllers: [AuthController],
-  providers: [
-    AuthService,
-    {
-      provide: Symbol('SmsProvider'),
-      useClass: MockSmsAdapter,
-    },
-  ],
-  exports: [AuthService],
+  providers: [AuthService, JwtAccessGuard, RolesGuard],
+  exports: [AuthService, JwtAccessGuard, RolesGuard],
 })
 export class AuthModule {}

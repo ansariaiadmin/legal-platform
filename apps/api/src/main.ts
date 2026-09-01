@@ -1,30 +1,37 @@
+import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
+import { Logger } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
-import { ValidationPipe } from '@nestjs/common';
+import { EnvService } from './config/env';
+import { configureApp } from './setup';
 
-async function bootstrap() {
+const logger = new Logger('Bootstrap');
+
+async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
-  
-  app.enableCors();
-  app.useGlobalPipes(new ValidationPipe({ transform: true, whitelist: true }));
-  
-  // Enable Swagger only in non-production environments
-  if (process.env.NODE_ENV !== 'production') {
+  const env = app.get(EnvService);
+
+  configureApp(app, env);
+
+  if (!env.isProduction) {
     const config = new DocumentBuilder()
       .setTitle('Legal Platform API')
       .setDescription('Legal practice platform REST API')
       .setVersion('1.0')
       .addBearerAuth()
       .build();
-    
+
     const document = SwaggerModule.createDocument(app, config);
     SwaggerModule.setup('api/docs', app, document);
   }
-  
-  const port = process.env.PORT || 3001;
-  await app.listen(port);
-  console.log(`API listening on port ${port}`);
+
+  const port = Number(process.env.PORT) || 3001;
+  await app.listen(port, '0.0.0.0');
+  logger.log(`API listening on port ${port} (${env.nodeEnv})`);
 }
 
-bootstrap();
+bootstrap().catch((error: unknown) => {
+  logger.error('Failed to start API', error instanceof Error ? error.stack : String(error));
+  process.exit(1);
+});

@@ -76,6 +76,41 @@ legal-platform/
 - Minimum 4GB RAM (8GB with AI features)
 - 40GB free disk space
 
+## Development
+
+```bash
+npm ci                       # install every workspace
+npm run build:packages       # packages/domain, contracts, shared -> dist
+npm run typecheck            # all workspaces
+npm test                     # unit + contract suites
+npm run build                # packages, then apps/api and apps/web
+
+# Against a local PostgreSQL 16 with pgvector:
+npm run migrate:up -w @legal-platform/api
+npm run test:e2e -w @legal-platform/api      # full auth flow, real database
+npm run test:migrations -w @legal-platform/api  # up -> down -> up determinism
+```
+
+Shared packages are imported from `dist/`, so `build:packages` must run before
+the apps are typechecked. The test suites map `@legal-platform/*` to the
+packages' TypeScript sources, so a stale build can never make a test pass.
+
+## Continuous Integration
+
+See [.github/workflows/ci.yml](.github/workflows/ci.yml):
+
+| Job | Catches |
+|---|---|
+| `quality` | Type errors, failing unit tests, and a broken dependency graph (`test/app/bootstrap.spec.ts` builds the whole Nest graph) |
+| `migrations` | Schema drift - runs against a real `pgvector/pgvector:pg16`, applies up -> down -> up, then asserts the tables and uuid defaults exist |
+| `integration` | Behaviour - the full OTP login lifecycle against real PostgreSQL and Redis |
+| `docker` | Both images build and the API container boots and answers `/api/health` |
+
+CodeQL (`security-and-quality`) and Dependabot are configured under
+[.github/](.github). Branch protection has to be applied once by a repository
+admin - see [docs/GITHUB_SETUP.md](docs/GITHUB_SETUP.md).
+
 ## Documentation
 
-See [docs/SPEC.md](docs/SPEC.md) for the complete authoritative specification.
+See [docs/SPEC.md](docs/SPEC.md) for the complete authoritative specification
+and [docs/GITHUB_SETUP.md](docs/GITHUB_SETUP.md) for repository automation.

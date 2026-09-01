@@ -53,9 +53,9 @@ export class MockAIAdapter implements AIProvider {
   }
 
   async embedText(input: { text: string; model?: string }): Promise<EmbeddingResult> {
-    const dimension = this.configService.get<number>('AI_EMBEDDING_DIMENSION') ?? 1024;
-    
-    // Deterministic embedding based on text hash
+    // 0 means "not configured"; generation still needs a usable vector size.
+    const configured = this.embeddingDimension();
+    const dimension = configured > 0 ? configured : 1024;
     const embedding = this.generateDeterministicEmbedding(input.text, dimension);
     
     const usage: TokenUsage = {
@@ -80,7 +80,7 @@ export class MockAIAdapter implements AIProvider {
       };
     }
     
-    const dimension = this.configService.get<number>('AI_EMBEDDING_DIMENSION');
+    const dimension = this.embeddingDimension();
     if (!dimension || dimension <= 0) {
       return {
         valid: false,
@@ -92,7 +92,8 @@ export class MockAIAdapter implements AIProvider {
   }
 
   getMetadata(): AIProviderMetadata {
-    const dimension = this.configService.get<number>('AI_EMBEDDING_DIMENSION') ?? 1024;
+    const configured = this.embeddingDimension();
+    const dimension = configured > 0 ? configured : 1024;
     
     return {
       name: 'Mock AI Provider',
@@ -104,6 +105,17 @@ export class MockAIAdapter implements AIProvider {
       },
       defaultEmbeddingDimension: dimension,
     };
+  }
+
+  /**
+   * `process.env` values are always strings, so `get<number>()` does NOT coerce.
+   * Without Number() the dimension leaked as "1024" and broke the contract
+   * `embedding.length === dimension`.
+   */
+  private embeddingDimension(): number {
+    const raw = this.configService.get<number | string>('AI_EMBEDDING_DIMENSION');
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 0;
   }
 
   private generateDeterministicEmbedding(text: string, dimension: number): number[] {
