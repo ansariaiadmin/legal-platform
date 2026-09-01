@@ -1,0 +1,54 @@
+version: 2
+
+updates:
+  - package-ecosystem: 'npm'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+      day: 'saturday'
+      time: '04:00'
+      timezone: 'Asia/Tehran'
+    open-pull-requests-limit: 10
+    groups:
+      # Nest packages must move together.
+      nestjs:
+        patterns:
+          - '@nestjs/*'
+      typescript:
+        patterns:
+          - 'typescript'
+          - 'ts-node'
+          - 'ts-jest'
+      jest:
+        patterns:
+          - 'jest'
+          - '@types/jest'
+      next:
+        patterns:
+          - 'next'
+          - 'react'
+          - 'react-dom'
+          - '@types/react'
+          - '@types/react-dom'
+    ignore:
+      # node-pg-migrate majors have changed the migration loader before; bump manually.
+      - dependency-name: 'node-pg-migrate'
+        update-types: ['version-update:semver-major']
+
+  - package-ecosystem: 'github-actions'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+      day: 'saturday'
+      time: '04:00'
+      timezone: 'Asia/Tehran'
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: 'docker'
+    directory: '/infra/docker'
+    schedule:
+      interval: 'weekly'
+      day: 'saturday'
+      time: '04:00'
+      timezone: 'Asia/Tehran'
+    open-pull-requests-limit: 5

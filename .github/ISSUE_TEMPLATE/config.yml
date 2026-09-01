@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Read the specification first
+    url: https://github.com/ansariaiadmin/legal-platform/blob/main/docs/SPEC.md
+    about: docs/SPEC.md is the single source of truth for product scope, module boundaries, state machines and coding standards.
+  - name: Security problem involving credentials or client data
+    url: https://github.com/ansariaiadmin/legal-platform/security/advisories/new
+    about: Please open a private security advisory instead of a public issue.

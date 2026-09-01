@@ -1,0 +1,61 @@
+name: Feature request
+description: A new capability or a change to an existing one
+title: '[feature] '
+labels: ['enhancement', 'triage']
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the lawyer's or the operator's problem, not the implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behaviour
+    validations:
+      required: true
+  - type: dropdown
+    id: module
+    attributes:
+      label: SPEC module (section 2)
+      multiple: true
+      options:
+        - identity
+        - website
+        - cms
+        - booking
+        - crm
+        - wallet
+        - payments
+        - notifications
+        - ai
+        - law-monitor
+        - providers
+        - files
+        - diagnostics
+        - ops
+        - audit
+    validations:
+      required: true
+  - type: dropdown
+    id: tier
+    attributes:
+      label: Tier (SPEC section 1)
+      options:
+        - Basic
+        - Pro
+        - Smart AI
+    validations:
+      required: true
+  - type: textarea
+    id: data
+    attributes:
+      label: Data model impact
+      description: New tables or columns, state machines involved (SPEC section 6), indexes required (section 5).
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: Explicitly out of scope
+      description: What this must not become. Non-goals are in SPEC section 1.
