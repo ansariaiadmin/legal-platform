@@ -30,19 +30,26 @@ Hierarchical, specialized agents in `apps/agents/{branch}`. Each owns a
 All agents speak `IExpertAgent`; none call LLM SDKs directly — every AI call
 goes through `providers/ai` adapters (SPEC §8), which Phase 1/4 keeps mock-first.
 
-- [ ] **P1-T1** `apps/agents/civil-expert` (امور مدنی): skills = قراردادها،
-  مسئولیت مدنی، املاک. Capabilities + unit tests.
-- [ ] **P1-T2** `apps/agents/criminal-expert` (کیفری): آیین‌نامه دادرسی کیفری،
-  مجازات‌ها. Capabilities + unit tests.
-- [ ] **P1-T3** `apps/agents/family-expert` (خانواده): طلاق، حضانت، مهریه.
-- [ ] **P1-T4** `apps/agents/registration-expert` (ثبتی): سند، شرکت‌ها.
+- [x] **P1-T1** `apps/agents/civil-expert` (امور مدنی): contracts, property,
+  tort, inheritance skills + persona + tests.
+- [x] **P1-T2** `apps/agents/criminal-expert` (کیفری): defense, procedure,
+  sentencing, crimes + persona + tests.
+- [x] **P1-T3** `apps/agents/family-expert`: divorce, custody, dowry, support
+  + persona + tests.
+- [x] **P1-T4** `apps/agents/registration-expert`: deeds, companies, trademark,
+  vital + persona + tests.
+- [x] **P1-T12** `packages/shared/agent-kit.ts` — createExpertAgent is the
+  society's genome (ADR-007); per-agent deltas = capabilities + persona only.
+- [x] **P1-T13** `GET /dashboard/orchestrator/fleet` — society registry cards
+  (persona, skills, health, live grant counts).
 - [ ] **P1-T5** Agent `lifecycle.ts`: queued → running → done | failed with
   retry policy; emitted domain events (`agent.task.completed` …) on Redis queue.
 - [ ] **P1-T6** Orchestrator `expert-registry.ts`: static in-memory registry
   now, interface pinned so Phase 5 can swap to DB-backed without callers noticing.
 - [x] **P1-T7** Domain taxonomy in `packages/domain` (single home):
   `LegalField`, `IntentKind`, `AgentTier` — no enum duplication (SPEC §4).
-- [ ] **P1-T8** E2E: a query per expert routes correctly through the tree.
+- [x] **P1-T8** Fleet-routing suite: a Persian query per branch lands on the
+  right expert + right skill; per-field grants proven to be non-transferable.
 - [x] **P1-T9** Governance backbone (ADR-005): `AgentGrant` capability grants,
   dashboard issue/revoke/disable endpoints, `AI_AGENT_NOT_AUTHORIZED` gate.
 - [x] **P1-T10** Hybrid inference router (ADR-004): local/cloud with per-task

@@ -87,6 +87,19 @@ per-agent disable switch overrides even live grants. Phase-1 store is in-memory
 deliberately: a process restart revokes everything (fail-safe direction);
 persistence lands with the governance migration in P5-T3.
 
+## ADR-007: One genome per society — createExpertAgent kit (2026-09-05)
+
+**Context.** Four branch experts (civil/criminal/family/registration) all
+started as copies of the base skeleton. Copy-paste fleets drift; a luxury
+product cannot drift.
+
+**Decision.** `createExpertAgent(spec)` in `packages/shared/src/agent-kit.ts`
+is THE ONLY sanctioned way to build an expert. Per-member deltas are exactly
+three things: `capabilities.ts` (vocabulary), `persona`, `version`. Shared
+law — `requiresReview=true`, honest `grounded` flags, thresholded routing,
+closure-safe execute, compound-phrase-weighted `vocabularyScore()` — lives in
+one file. A bug fixed in the kit is fixed for the whole society at once.
+
 ## ADR-006: Live ops stream — agents cook in the open (2026-09-05)
 
 **Context.** The lawyer trusts what they can see. "پشت صحنه چه خبره" must be

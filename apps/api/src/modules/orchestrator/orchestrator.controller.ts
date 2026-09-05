@@ -18,6 +18,7 @@ import { OrchestratorService } from './orchestrator.service';
 import { HybridInferenceRouter } from './hybrid-inference-router';
 import { AgentGovernanceService } from './agent-governance.service';
 import { InProcessAgentEventBus } from './agent-event-bus';
+import { ExpertRegistry } from './expert-registry';
 import { LeaderVoiceService } from './leader-voice.service';
 import { GrantAgentDto, RouteQueryDto, VoiceTurnDto } from './dto/route.dto';
 import { AuditService } from '../audit/audit.service';
@@ -51,6 +52,7 @@ export class OrchestratorController {
     private readonly voice: LeaderVoiceService,
     private readonly bus: InProcessAgentEventBus,
     private readonly audit: AuditService,
+    private readonly registry: ExpertRegistry,
   ) {
     this.bus.subscribe((event) => this.eventStream.next(event));
   }
@@ -69,6 +71,26 @@ export class OrchestratorController {
   @ApiOperation({ summary: 'Ring buffer of recent agent events (dashboard initial paint)' })
   recentEvents() {
     return { events: this.bus.recent(100) };
+  }
+
+  @Get('fleet')
+  @Roles(UserRole.LAWYER_OWNER, UserRole.STAFF)
+  @ApiOperation({ summary: 'Society registry: persona cards, skills, grant & health per agent' })
+  async fleet() {
+    const [cards, grants] = await Promise.all([
+      this.registry.describeFleet(),
+      this.governance.listGrants(),
+    ]);
+    const now = new Date();
+    return {
+      agents: cards.map((c) => ({
+        ...c,
+        disabled: this.governance.isDisabled(c.agentId),
+        activeGrants: grants.filter(
+          (g) => g.agentId === c.agentId && !g.revokedAt && new Date(g.expiresAt) > now,
+        ).length,
+      })),
+    };
   }
 
   @Sse('events/stream')
@@ -105,7 +127,7 @@ export class OrchestratorController {
       taskId: dto.taskId ?? randomUUID(),
       query: dto.query,
       requestedBy: { userId: user.id, role: user.roles.join(',') },
-      budget: dto.sensitivity === 'privileged' ? { maxTokens: 1 } : undefined,
+      sensitivity: dto.sensitivity ?? 'normal',
     });
   }
 

@@ -12,6 +12,8 @@ export interface IExpertAgent extends IAgent {
   readonly field: string;
   /** Sub-specialization, e.g. 'contracts', 'custody'. Empty = whole field. */
   readonly subspecialties: readonly string[];
+  /** Fleet-card persona for the dashboard (displayName, motto). Optional. */
+  readonly persona?: { displayName: string; motto: string };
   /**
    * Whether this expert's answers may bypass lawyer review. Only true for
    * clearly-annotated informational skills; drafts must say false (SPEC §9).

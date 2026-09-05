@@ -9,11 +9,11 @@ you configure everything, and the Leader—governed by grants—runs the show.**
 | ایجنت | نقش | رئیس | نوع | اسکیل‌های کلیدی (capabilities.ts) |
 |---|---|---|---|---|
 | `orchestrator` (**The Leader**) | تشخیص قصد، مسیریابی، صدور/ابطال grant، پاسخ صوتی به مدیر | مدیر دفتر (LAWYER_OWNER) | leader (داخل api) | intent:classify، route:tree، grant:issue، voice:session |
-| `legal-expert-base` | اسکلت مرجع — جایگزین نمی‌شود، الگوست | Leader | expert | base:civil-qa، base:criminal-qa، base:family-qa |
-| `civil-expert` | امور مدنی؛ قرارداد، مالکیت، مسئولیت مدنی | Leader | expert | civil:contract-review، civil:property-law، civil:tort |
-| `criminal-expert` | کیفری؛ دادرسی، مجازات‌ها، دفاع | Leader | expert | criminal:defense-memo، criminal:procedure، criminal:sentencing |
-| `family-expert` | خانواده؛ طلاق، حضانت، مهریه | Leader | expert | family:divorce، family:custody، family:dowry |
-| `registration-expert` | ثبتی؛ سند، شرکت، ادغام | Leader | expert | reg:deeds، reg:companies |
+| `legal-expert-base` ✅ | اسکلت مرجع — جایگزین نمی‌شود، الگوست | Leader | expert | base:civil-qa، base:criminal-qa، base:family-qa |
+| `civil-expert` ✅ | امور مدنی؛ قرارداد، مالکیت، مسئولیت مدنی، ارث | Leader | expert | civil:contracts، civil:property، civil:tort، civil:inheritance — «کارشناس ارشد امور مدنی» |
+| `criminal-expert` ✅ | کیفری؛ دادرسی، مجازات‌ها، دفاع | Leader | expert | crim:defense، crim:procedure، crim:sentencing، crim:crimes — «کارشناس ارشد امور کیفری» |
+| `family-expert` ✅ | خانواده؛ طلاق، حضانت، مهریه | Leader | expert | fam:divorce، fam:custody، fam:dowry، fam:support — «کارشناس ارشد امور خانواده» |
+| `registration-expert` ✅ | ثبتی؛ سند، شرکت، علامت تجاری، احوال شخصیه | Leader | expert | reg:deeds، reg:companies، reg:trademark، reg:vital — «کارشناس ارشد امور ثبتی» |
 | `collector-rooznameh` | جمع‌آوری روزنامه رسمی و پایگاه‌های رسمی | Leader | collector | collect:rss، collect:http-fetch |
 | `validator-green-tick` | صدور «تیک سبز» — checksum+provenance | Leader | validator | validate:checksum، validate:trust-tier |
 | `updater-temporal` | نسخه‌گذاری زمانی قوانین (valid_from/to) | Leader | updater | diff:law-version، chain:supersede |

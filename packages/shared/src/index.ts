@@ -5,6 +5,26 @@ export function nowIso(): string {
 // Agentic Layer (SPEC §11a): IAgent / ISkill / IExpertAgent / collectors /
 // knowledge-graph ports live here so api, web and future clients share them.
 export * from './interfaces';
+export { createExpertAgent } from './agent-kit';
+export type { AgentPersona, ExpertAgentSpec } from './agent-kit';
+
+/**
+ * Shared scoring util — every agent's `capabilities.ts` matches on the SAME
+ * deterministic formula (society's common law), only vocabularies differ.
+ * Weighted: a matched COMPOUND phrase ("حضانت فرزند") counts double — common
+ * single words ("طلاق") must never out-talk a specific legal collocation.
+ * Score = min(0.95, 0.3 + 0.2 * weight); floor 0. Cap deliberately below 1:
+ * nothing here is ever fully certain — 1.0 belongs only to reviewed law.
+ */
+export function vocabularyScore(terms: readonly string[], query: string): number {
+  const q = query.toLowerCase();
+  let weight = 0;
+  for (const term of terms) {
+    const t = term.toLowerCase().trim();
+    if (t && q.includes(t)) weight += t.includes(' ') ? 2 : 1;
+  }
+  return weight === 0 ? 0 : Math.min(0.95, 0.3 + 0.2 * weight);
+}
 
 /**
  * Normalize Iranian phone numbers to +989xxxxxxxxx format

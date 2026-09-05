@@ -5,7 +5,7 @@
 ## Where we are
 
 - **Phase:** phase-1-expert-tree — Expert agents: civil, criminal, family, registration
-- **Last checkpoint:** 2026-09-05T10:49:21.164Z
+- **Last checkpoint:** 2026-09-05T11:09:34.244Z
 - **Git:** run `git log --oneline -3` to see the last commits.
 
 ## Protocol (non-negotiable)
@@ -18,14 +18,12 @@
 
 ## Pending (in order)
 
+- [ ] P1-T8: cross-field routing integration test (Nest module compile)
+- [ ] P1-T5: agent lifecycle queue
+- [ ] P1-T6: DB-backed registry swap
 
 ## Completed
 
-- [x] P0-T1: state engine (agent_state.json + checkpoint.mjs) (2026-09-05)
-- [x] P0-T2: handoff protocol (AGENTS.md + HANDOFF.md) (2026-09-05)
-- [x] P0-T3: roadmap (docs/ROADMAP.md) + ADR log (2026-09-05)
-- [x] P0-T4: core interfaces in packages/shared (IAgent, ISkill, IExpertAgent, ICollectorAgent, KnowledgeGraph) (2026-09-05)
-- [x] P0-T5: scaffold apps/agents/legal-expert-base with capabilities.ts + tests (2026-09-05)
 - [x] P0-T6: scaffold apps/api orchestrator module + tests (2026-09-05)
 - [x] P0-T7: root workspace wiring, build, typecheck, tests, commit (2026-09-05)
 - [x] P1-T7: domain taxonomy enums (LegalField, IntentKind, AgentTier) (2026-09-05)
@@ -34,6 +32,13 @@
 - [x] P1-T11: live ops stream — typed AgentEvents, ring buffer, SSE (2026-09-05)
 - [x] P1b-T1: LeaderVoiceService + honest mock VoiceEngine + voice endpoints (2026-09-05)
 - [x] P1b-X: AGENT_FLEET.md — fleet map, grants matrix, 3-tier recommended configs (2026-09-05)
+- [x] P1-T12: agent-kit factory in packages/shared (society standard) (2026-09-05)
+- [x] P1-T1: civil-expert package (persona + capabilities) (2026-09-05)
+- [x] P1-T2: criminal-expert package (2026-09-05)
+- [x] P1-T3: family-expert package (2026-09-05)
+- [x] P1-T4: registration-expert package (2026-09-05)
+- [x] P1-T8: cross-field routing integration test (2026-09-05)
+- [x] P1-T13: /fleet endpoint — dashboard cards data (2026-09-05)
 
 ## Architectural decisions
 
@@ -44,3 +49,4 @@
 - **ADR-004** — Hybrid local/cloud inference; privilege never leaves the box
 - **ADR-005** — Governed sub-agents — grants, never ambient authority
 - **ADR-006** — Live ops stream — agents cook in the open (SSE)
+- **ADR-007** — createExpertAgent kit is the society's genome: every expert descends from it, persona+vocab are the only per-member deltas

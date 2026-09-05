@@ -12,7 +12,7 @@
   ],
   "scripts": {
     "build:packages": "npm run build -w @legal-platform/domain -w @legal-platform/contracts -w @legal-platform/shared",
-    "build:agents": "npm run build -w @legal-platform/agent-legal-expert-base",
+    "build:agents": "npm run build -w @legal-platform/agent-legal-expert-base -w @legal-platform/agent-civil-expert -w @legal-platform/agent-criminal-expert -w @legal-platform/agent-family-expert -w @legal-platform/agent-registration-expert",
     "build:apps": "npm run build -w @legal-platform/api -w @legal-platform/web",
     "build": "npm run build:packages && npm run build:agents && npm run build:apps",
     "agent:state": "node scripts/checkpoint.mjs status",

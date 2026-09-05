@@ -16,6 +16,12 @@ export interface AgentTask {
   requestedBy?: { userId: string; role: string };
   /** Deadlines/limits the agent must respect. */
   budget?: { maxTokens?: number; maxLatencyMs?: number };
+  /**
+   * Privacy grade of the task. 'privileged' task data involves client matter
+   * secrets and NEVER leaves the deployment — the inference router pins such
+   * tasks to local compute unconditionally (ADR-004, SPEC §11a invariant i).
+   */
+  sensitivity?: 'privileged' | 'normal';
 }
 
 export interface AgentResult {

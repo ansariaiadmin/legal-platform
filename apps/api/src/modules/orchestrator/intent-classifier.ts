@@ -22,10 +22,10 @@ export interface IntentClassification {
 export const LOW_CONFIDENCE = 0.5;
 
 const FIELD_TERMS: ReadonlyArray<{ field: LegalField; terms: readonly string[] }> = [
-  { field: LegalField.CIVIL, terms: ['قانون مدنی', 'قرارداد', 'معامله', 'ملک', 'سند', 'اجاره', 'civil', 'contract', 'property', 'lease'] },
-  { field: LegalField.CRIMINAL, terms: ['کیفری', 'جرم', 'مجازات', 'دادسرا', 'بازداشت', 'criminal', 'penal', 'arrest'] },
-  { field: LegalField.FAMILY, terms: ['طلاق', 'حضانت', 'مهریه', 'ازدواج', 'نفقه', 'family', 'divorce', 'custody', 'alimony'] },
-  { field: LegalField.REGISTRATION, terms: ['ثبت', 'سند رسمی', 'شرکت', 'شناسه ملی', 'registration', 'notary', 'company'] },
+  { field: LegalField.CIVIL, terms: ['قانون مدنی', 'قرارداد', 'معامله', 'ملک', 'اجاره', 'ارث', 'خسارت', 'مسئولیت مدنی', 'سند', 'civil', 'contract', 'property', 'lease', 'inheritance'] },
+  { field: LegalField.CRIMINAL, terms: ['کیفری', 'جرم', 'مجازات', 'دادسرا', 'بازداشت', 'بازپرس', 'منعی تعقیب', 'حبس', 'کلاهبرداری', 'سرقت', 'criminal', 'penal', 'arrest', 'prosecutor'] },
+  { field: LegalField.FAMILY, terms: ['طلاق', 'حضانت', 'مهریه', 'ازدواج', 'نفقه', 'نکاح', 'اجرت‌المثل', 'family', 'divorce', 'custody', 'alimony', 'dowry'] },
+  { field: LegalField.REGISTRATION, terms: ['ثبت', 'سند رسمی', 'اسناد', 'وکالت‌نامه', 'دفترخانه', 'محضری', 'دفتر اسناد', 'شرکت', 'علامت تجاری', 'شناسه ملی', 'registration', 'notary', 'company', 'trademark'] },
   { field: LegalField.COMMERCIAL, terms: ['تجارت', 'چک', 'سفته', 'ورشکستگی', 'commercial', 'cheque', 'bankruptcy'] },
   { field: LegalField.LABOR, terms: ['کار', 'کارگر', 'حقوق', 'اضافه کاری', 'labor', 'employment', 'wage'] },
 ];

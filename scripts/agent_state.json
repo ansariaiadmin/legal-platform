@@ -80,9 +80,41 @@
     {
       "task": "P1b-X: AGENT_FLEET.md — fleet map, grants matrix, 3-tier recommended configs",
       "at": "2026-09-05T10:49:21.053Z"
+    },
+    {
+      "task": "P1-T12: agent-kit factory in packages/shared (society standard)",
+      "at": "2026-09-05T11:09:34.016Z"
+    },
+    {
+      "task": "P1-T1: civil-expert package (persona + capabilities)",
+      "at": "2026-09-05T11:09:34.048Z"
+    },
+    {
+      "task": "P1-T2: criminal-expert package",
+      "at": "2026-09-05T11:09:34.080Z"
+    },
+    {
+      "task": "P1-T3: family-expert package",
+      "at": "2026-09-05T11:09:34.114Z"
+    },
+    {
+      "task": "P1-T4: registration-expert package",
+      "at": "2026-09-05T11:09:34.145Z"
+    },
+    {
+      "task": "P1-T8: cross-field routing integration test",
+      "at": "2026-09-05T11:09:34.177Z"
+    },
+    {
+      "task": "P1-T13: /fleet endpoint — dashboard cards data",
+      "at": "2026-09-05T11:09:34.212Z"
     }
   ],
-  "pending_tasks": [],
+  "pending_tasks": [
+    "P1-T8: cross-field routing integration test (Nest module compile)",
+    "P1-T5: agent lifecycle queue",
+    "P1-T6: DB-backed registry swap"
+  ],
   "architectural_decisions": [
     {
       "id": "ADR-000",
@@ -118,9 +150,14 @@
       "id": "ADR-006",
       "reasoning": "Live ops stream — agents cook in the open (SSE)",
       "at": "2026-09-05T10:49:21.164Z"
+    },
+    {
+      "id": "ADR-007",
+      "reasoning": "createExpertAgent kit is the society's genome: every expert descends from it, persona+vocab are the only per-member deltas",
+      "at": "2026-09-05T11:09:34.244Z"
     }
   ],
-  "last_checkpoint": "2026-09-05T10:49:21.164Z",
-  "updated_at": "2026-09-05T10:49:21.164Z",
-  "update_count": 21
+  "last_checkpoint": "2026-09-05T11:09:34.244Z",
+  "updated_at": "2026-09-05T11:09:34.244Z",
+  "update_count": 38
 }

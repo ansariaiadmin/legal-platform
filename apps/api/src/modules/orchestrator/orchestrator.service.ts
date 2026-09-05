@@ -48,11 +48,11 @@ export class OrchestratorService {
     this.bus.emit({ ...event, at: new Date().toISOString() });
   }
 
-  async route(query: string): Promise<RouteResult> {
+  async route(query: string, taskId = 'route-only'): Promise<RouteResult> {
     const classification = this.classifier.classify(query);
     this.emit({
       kind: 'task.classified',
-      taskId: 'route-only',
+      taskId,
       agentId: null,
       detail: `field=${classification.field} kind=${classification.kind} confidence=${classification.confidence.toFixed(2)}`,
     });
@@ -89,7 +89,7 @@ export class OrchestratorService {
       };
     this.emit({
       kind: 'task.routed',
-      taskId: 'route-only',
+      taskId,
       agentId: result.agentId,
       detail: result.skillId ? `skill=${result.skillId} score=${result.score.toFixed(2)}` : 'no expert matched',
     });
@@ -101,7 +101,7 @@ export class OrchestratorService {
     const started = Date.now();
     this.emit({ kind: 'task.accepted', taskId: task.taskId, agentId: null, detail: redact(task.query) });
 
-    const routing = await this.route(task.query);
+    const routing = await this.route(task.query, task.taskId);
     if (!routing.agentId) {
       this.emit({ kind: 'task.failed', taskId: task.taskId, agentId: null, detail: 'no_route' });
       return {
@@ -140,7 +140,8 @@ export class OrchestratorService {
     // Gate 3 — hybrid inference placement (ADR-004). Emitted live so the
     // dashboard shows where the answer is being cooked.
     const inference = await this.inferenceRouter.decide({
-      taskSensitivity: task.budget?.maxTokens ? 'privileged' : 'normal',
+      taskSensitivity: task.sensitivity ?? 'normal',
+      estimatedTokens: task.budget?.maxTokens,
     });
     this.emit({
       kind: 'inference.decided',

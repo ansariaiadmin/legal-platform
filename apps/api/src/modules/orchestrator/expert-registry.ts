@@ -38,4 +38,37 @@ export class ExpertRegistry {
   list(): IExpertAgent[] {
     return [...this.experts.values()];
   }
+
+  /** Fleet cards for the dashboard: identity, persona, live health. The
+   *  dashboard paints WHO the society members are from this alone. */
+  async describeFleet(): Promise<
+    Array<{
+      agentId: string;
+      field: string;
+      version: string;
+      persona: string;
+      motto: string;
+      skills: string[];
+      healthy: boolean;
+      requiresReview: boolean;
+      kind: string;
+    }>
+  > {
+    const cards = [];
+    for (const agent of this.experts.values()) {
+      const health = await agent.health().catch(() => ({ healthy: false as const }));
+      cards.push({
+        agentId: agent.agentId,
+        field: agent.field,
+        version: agent.version,
+        persona: agent.persona?.displayName ?? agent.agentId,
+        motto: agent.persona?.motto ?? '',
+        skills: agent.capabilities().map((s) => s.id),
+        healthy: health.healthy,
+        requiresReview: agent.requiresReview,
+        kind: agent.kind,
+      });
+    }
+    return cards;
+  }
 }

@@ -1,13 +1,17 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { LegalExpertBaseAgent } from '@legal-platform/agent-legal-expert-base';
+import { civilExpert } from '@legal-platform/agent-civil-expert';
+import { criminalExpert } from '@legal-platform/agent-criminal-expert';
+import { familyExpert } from '@legal-platform/agent-family-expert';
+import { registrationExpert } from '@legal-platform/agent-registration-expert';
 import { ExpertRegistry } from './expert-registry';
 
 /**
  * Static expert registration at boot (SPEC §11a, ADR-002).
  *
- * Phase 0/1 pattern: each apps/agents/* package contributes one wiring line
- * here. Registry throws on duplicate ids, so a wiring mistake fails the API
- * at startup — loud and safe, exactly when it should.
+ * General fallback (`legal-expert-base`) registers LAST so field-specialized
+ * experts always win equal-score comparisons (first-best-wins order).
+ * Registry throws on duplicate ids: wiring mistakes fail the API at startup.
  */
 @Injectable()
 export class AgentsBootstrap implements OnModuleInit {
@@ -16,7 +20,9 @@ export class AgentsBootstrap implements OnModuleInit {
   constructor(private readonly registry: ExpertRegistry) {}
 
   onModuleInit(): void {
-    this.registry.register(new LegalExpertBaseAgent());
+    for (const expert of [civilExpert, criminalExpert, familyExpert, registrationExpert, new LegalExpertBaseAgent()]) {
+      this.registry.register(expert);
+    }
     this.logger.log(`registered ${this.registry.list().length} expert agent(s)`);
   }
 }
