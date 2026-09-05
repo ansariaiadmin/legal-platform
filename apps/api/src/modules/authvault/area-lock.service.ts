@@ -1,10 +1,26 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { createHmac, randomBytes, randomUUID, scryptSync, timingSafeEqual } from 'node:crypto';
+import { createHmac, randomBytes, randomUUID, scrypt, timingSafeEqual } from 'node:crypto';
 import { ConfigService } from '@nestjs/config';
 import { ERROR_CODES } from '@legal-platform/contracts';
 import { STORAGE_PROVIDER } from '../../providers/provider.tokens';
 import type { StorageProvider } from '../../providers/storage/storage.provider';
 import { RateLimitService } from '../../common/rate-limit.service';
+import { promisify } from 'node:util';
+
+const scryptAsync = promisify(scrypt) as (
+  password: string, salt: Buffer | string, keylen: number, opts: { N: number; maxmem: number },
+) => Promise<Buffer>;
+
+/**
+ * FIELD REVIEW 2026-09-05 #7 — area-lock KDF calibration:
+ *  - N=32768 (2^15), r=8, p=1: ~64 MB work set, ~80-150 ms/attempt on modern
+ *    x86. Well above the Node default 2^14 (which was the "weak AND slow"
+ *    compromise), still sane under the 5/min/ip rate limiter on these routes.
+ *  - ASYNC scrypt: the work happens on the libuv thread pool, NOT the main
+ *    event loop — password guessing can no longer wedge the whole API.
+ *  - maxmem explicitly 128 MB so Node never kills mid-hash with ENOMEM.
+ */
+const SCRYPT_OPTS = { N: 32768, maxmem: 128 * 1024 * 1024 } as const;
 
 /**
  * P8-T2 area locks — a SECOND, independent layer for the sensitive surfaces
@@ -82,7 +98,7 @@ export class AreaLockService {
       throw err;
     }
     const salt = randomBytes(16);
-    const hash = scryptSync(password, salt, 32);
+    const hash = await scryptAsync(password, salt, 32, SCRYPT_OPTS);
     const prev = this.locks.get(area);
     this.locks.set(area, {
       area,
@@ -126,7 +142,7 @@ export class AreaLockService {
         code: ERROR_CODES.AUTH_INVALID_CREDENTIALS,
       });
     }
-    const hash = scryptSync(password, Buffer.from(rec.saltHex, 'hex'), 32);
+    const hash = await scryptAsync(password, Buffer.from(rec.saltHex, 'hex'), 32, SCRYPT_OPTS);
     const ok = timingSafeEqual(hash, Buffer.from(rec.hashHex, 'hex'));
     if (!ok) {
       const err = new Error('wrong area password');
