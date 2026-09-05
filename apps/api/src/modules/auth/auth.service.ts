@@ -689,20 +689,41 @@ export class AuthService {
     return crypto.createHmac('sha256', this.otpKey()).update(code).digest('hex');
   }
 
-  private otpKey(): string {
-    return (
+  /**
+   * FIELD REVIEW #14 — pepper separation: OTP codes sign with a DEDICATED
+   * key (OTP_HASH_PEPPER) so rotating JWT secrets never burns a user mid-
+   * challenge. Verification accepts the legacy key for one OTP lifetime
+   * (challenges die in minutes anyway) — a seamless rotation seam, not a
+   * security hole, because an attacker still needs the code.
+   */
+  private otpKeysForVerify(): string[] {
+    const keys: string[] = [];
+    const dedicated = this.configService.get<string>('OTP_HASH_PEPPER');
+    if (dedicated) keys.push(dedicated);
+    keys.push(
       this.configService.get<string>('ENCRYPTION_MASTER_KEY') ||
       this.configService.get<string>('JWT_ACCESS_SECRET') ||
-      'development-only-otp-key'
+      'development-only-otp-key',
     );
+    return keys;
+  }
+
+  private otpKey(): string {
+    return this.otpKeysForVerify()[0];
   }
 
   private hashMatches(code: string, expectedHash: string): boolean {
-    const actual = Buffer.from(this.hashCode(code), 'hex');
     const expected = Buffer.from(expectedHash, 'hex');
-    if (actual.length !== expected.length) {
-      return false;
+    // Try dedicated pepper first, then the legacy key (one-challenge window).
+    for (const key of this.otpKeysForVerify()) {
+      const actual = Buffer.from(
+        crypto.createHmac('sha256', key).update(code).digest('hex'),
+        'hex',
+      );
+      if (actual.length === expected.length && crypto.timingSafeEqual(actual, expected)) {
+        return true;
+      }
     }
-    return crypto.timingSafeEqual(actual, expected);
+    return false;
   }
 }
