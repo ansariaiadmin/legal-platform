@@ -6,6 +6,7 @@ import { FileIntelligenceService, type FileRecord } from './file-intelligence.se
 import { PlacementService, type PlacementSuggestion } from './placement.service';
 import { InProcessAgentEventBus } from './agent-event-bus';
 import { ConfigHubService } from './config-hub.service';
+import { SessionMemoryService } from './session-memory.service';
 import { parseConfigIntent, isConfigConfirmation, type ConfigProposal } from './config-intent';
 
 export interface ConvTurn {
@@ -59,6 +60,8 @@ export class LeaderConversationService {
     private readonly placement: PlacementService,
     private readonly bus: InProcessAgentEventBus,
     private readonly configHub: ConfigHubService,
+    /** P3-T3: cross-restart short-term memory — optional for hermetic specs */
+    private readonly memory?: SessionMemoryService,
   ) {}
 
   open(ownerId: string): Conversation {
@@ -155,12 +158,16 @@ export class LeaderConversationService {
 
     // 4) Dispatch through the normal governed path — chat never bypasses
     // grants/governance (SPEC §11a laws).
+    // P3-T3: durable recent-turns context comes BEFORE today's turn's files —
+    // the expert reads what the office said a minute ago, honestly trimmed.
+    const remembered = this.memory ? await this.memory.contextLines(user.id) : [];
+
     const text = input.text.trim() || (attachments.length ? `تحلیل فایل(های) پیوست‌شده` : '');
     const routing = await this.orchestrator.route(text, `conv-${conv.conversationId}`);
     const { result, inference } = await this.orchestrator.dispatch({
       taskId: randomUUID(),
       query: text,
-      context,
+      context: [...remembered, ...context],
       requestedBy: { userId: user.id, role: user.role },
       sensitivity: input.sensitivity ?? 'normal',
     });
@@ -187,6 +194,11 @@ export class LeaderConversationService {
       agentId: routing.agentId,
       detail: `conversation turn files=${attachments.length}`,
     });
+
+    if (this.memory) {
+      await this.memory.remember(user.id, 'lawyer', text);
+      await this.memory.remember(user.id, 'leader', leaderText);
+    }
 
     const grounded = Boolean(
       (result.meta as { grounded?: boolean } | undefined)?.grounded,

@@ -28,6 +28,7 @@ import { MetricsAggregatorService } from './metrics-aggregator.service';
 import { EvaluatorService } from './evaluator.service';
 import { EvolutionService } from './evolution.service';
 import { ModelAssignmentService } from './model-assignment.service';
+import { BudgetGateService } from './budget-gate.service';
 import { FileIntelligenceService, type UploadedFilePayload } from './file-intelligence.service';
 import { LeaderConversationService } from './leader-conversation.service';
 import {
@@ -67,6 +68,7 @@ export class OrchestratorController {
     private readonly orchestrator: OrchestratorService,
     private readonly governance: AgentGovernanceService,
     private readonly inferenceRouter: HybridInferenceRouter,
+    private readonly budgetGate: BudgetGateService,
     private readonly voice: LeaderVoiceService,
     private readonly bus: InProcessAgentEventBus,
     private readonly audit: AuditService,
@@ -325,6 +327,28 @@ export class OrchestratorController {
   }
 
   // ---- the Leader conversation surface (ADR-013) --------------------------
+
+  /** P3-T4 visibility: per-feature spend vs quota for the dashboard. */
+  @Get('budget')
+  @Roles(UserRole.LAWYER_OWNER, UserRole.STAFF)
+  budget(@CurrentUser() user: AuthenticatedUser, @Param() _params?: unknown) {
+    void user;
+    void _params;
+    return this.budgetGate.all(['tiebreak']);
+  }
+
+  /** P3-T1..T5 dry-run: route a query, see the full candidate trace —
+   *  deterministic path AND llm fallback (when it fired) included. */
+  @Post('dry-run')
+  @Roles(UserRole.LAWYER_OWNER, UserRole.STAFF)
+  async dryRun(@Body() body: { query: string }) {
+    const routing = await this.orchestrator.route(body.query, `dry-${Date.now()}`);
+    return {
+      routing,
+      trace: routing.trace ?? [],
+      wouldLlmFallback: routing.needsLlmTiebreak,
+    };
+  }
 
   @Get('files')
   @Roles(UserRole.LAWYER_OWNER, UserRole.STAFF)

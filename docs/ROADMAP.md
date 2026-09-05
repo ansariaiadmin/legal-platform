@@ -234,16 +234,25 @@ Law versioning = temporal (valid_from/valid_to), never overwrite history.
 Deterministic intent classification first; LLM only as tie-breaker (SPEC §9
 "Layered AI"). Routes to shortest matching path in the expert tree.
 
-- [ ] **P3-T1** `intent-classifier.ts`: weighted Persian/English keyword +
-  structure scoring → `IntentKind` + `LegalField` + confidence.
-- [ ] **P3-T2** Router: tree walk, deterministic rules → LLM schema-validated
-  fallback (JSON only) via AIProvider; `habitual_offender` guard = never route
-  legal advice to tier-3 sources.
-- [ ] **P3-T3** Session context: Redis-backed short-term memory per user
-  (with TTL), PRO added on Phase 5 auth pairing.
-- [ ] **P3-T4** Budget gate: per-feature quota check before any LLM call;
-  `budget_exhausted → deterministic-only mode`.
-- [ ] **P3-T5** Dashboard endpoints: route, agents list, dry-run with trace.
+- [x] **P3-T1** `intent-classifier.ts` (landed Phase 1; verified): weighted
+  Persian/English keyword + structure scoring → `IntentKind` + `LegalField` +
+  confidence (PURE, no I/O; covered by `intent-classifier.spec.ts`).
+- [x] **P3-T2** Router: deterministic tree walk first; below LOW_CONFIDENCE
+  `LlmTiebreakerService` (behind `providers/ai`, JSON-only, schema-validated,
+  timeout 4s) may re-classify once and re-route. Privileged input ⇒ skip
+  BEFORE any network byte (ADR-018). Tier-3 corpus hits never answer alone —
+  grounding is verified-only by default (ADR-016).
+- [x] **P3-T3** `SessionMemoryService`: per-user last-10 turns, 30-min TTL
+  evaluated at read time, persisted through StorageProvider so the Leader
+  conversation resumes after restarts; leader chat folds memory into
+  `task.context` before today's files. Redis transport = later swap, same CPU.
+- [x] **P3-T4** `BudgetGateService`: per-feature, per-day token quota from
+  `AI_FEATURE_QUOTA_TOKENS`; `check()` runs BEFORE the call; exhausted → LLM
+  skippage announced on the event stream; spend persisted via StorageProvider.
+  Dashboard readout: `GET /dashboard/orchestrator/budget`.
+- [x] **P3-T5** Dashboard endpoints: `POST /dashboard/orchestrator/route`
+  (with full candidate `trace[]`), `GET /fleet` (agents), `POST
+  /dashboard/orchestrator/dry-run` (route + trace + wouldLlmFallback).
 
 ## Phase 4 — RAG Pipeline (تولید سند با استناد)
 

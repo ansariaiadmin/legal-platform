@@ -8,15 +8,20 @@ import { HybridInferenceRouter } from './hybrid-inference-router';
 import { AgentGovernanceService } from './agent-governance.service';
 import { InProcessAgentEventBus } from './agent-event-bus';
 import { CorpusService, type SearchHit } from '../corpus/corpus.service';
+import { LlmTiebreakerService } from './llm-tiebreaker.service';
+import { BudgetGateService } from './budget-gate.service';
 
 export interface RouteResult {
   agentId: string | null;
   skillId: string | null;
   score: number;
   classification: IntentClassification;
-  /** true when deterministic confidence was low (ADR-003); P3 wires the LLM
-   *  tiebreaker behind the AI provider — never outside it (§8). */
+  /** true when deterministic confidence was low (ADR-003); P3-T2 wires the
+   *  LLM tiebreaker behind the AI provider — never outside it (§8). */
   needsLlmTiebreak: boolean;
+  /** P3-T5: every candidate the tree walk considered, with its score —
+   *  the dry-run trace the dashboard renders verbatim. */
+  trace?: Array<{ agentId: string; skillId: string; score: number }>;
 }
 
 function redact(query: string): string {
@@ -44,14 +49,20 @@ export class OrchestratorService {
     private readonly bus: InProcessAgentEventBus,
     private readonly classifier: IntentClassifier = new IntentClassifier(),
     @Optional() @Inject(forwardRef(() => CorpusService)) private readonly corpus?: CorpusService,
+    @Optional() private readonly tiebreaker?: LlmTiebreakerService,
+    @Optional() private readonly budgetGate?: BudgetGateService,
   ) {}
 
   private emit(event: Omit<AgentEvent, 'at'>): void {
     this.bus.emit({ ...event, at: new Date().toISOString() });
   }
 
-  async route(query: string, taskId = 'route-only'): Promise<RouteResult> {
-    const classification = this.classifier.classify(query);
+  async route(
+    query: string,
+    taskId = 'route-only',
+    classificationHint?: IntentClassification,
+  ): Promise<RouteResult> {
+    const classification = classificationHint ?? this.classifier.classify(query);
     this.emit({
       kind: 'task.classified',
       taskId,
@@ -65,11 +76,13 @@ export class OrchestratorService {
       .filter((a) => !this.governance.isDisabled(a.agentId));
 
     let best: RouteResult | null = null;
+    const trace: Array<{ agentId: string; skillId: string; score: number }> = [];
     for (const agent of scoped) {
       // Unhealthy OR disabled agents are skipped, not fatal (SPEC §2).
       if (!(await agent.health()).healthy) continue;
       const r = await agent.route({ query });
       if (!r) continue;
+      trace.push({ agentId: agent.agentId, skillId: r.skillId, score: r.score });
       if (!best || r.score > best.score) {
         best = {
           agentId: agent.agentId,
@@ -89,6 +102,7 @@ export class OrchestratorService {
         classification,
         needsLlmTiebreak: classification.confidence < LOW_CONFIDENCE,
       };
+    result.trace = trace;
     this.emit({
       kind: 'task.routed',
       taskId,
@@ -120,7 +134,26 @@ export class OrchestratorService {
       task = { ...task, context };
     }
 
-    const routing = await this.route(task.query, task.taskId);
+    let routing = await this.route(task.query, task.taskId);
+
+    // P3-T2/T4: deterministic came back doubtful → a paid LLM second opinion,
+    // BEHIND the budget gate and NEVER on privileged input. Outcome goes to
+    // the trace either way — including when the LLM's JSON was garbage.
+    if (routing.needsLlmTiebreak && this.tiebreaker) {
+      const feature = 'tiebreak';
+      const allowed = this.budgetGate ? await this.budgetGate.check(feature) : true;
+      if (!allowed) {
+        this.emit({ kind: 'task.classified', taskId: task.taskId, agentId: null, detail: 'tiebreak skipped: budget exhausted' });
+      } else {
+        const tb = await this.tiebreaker.resolve(task.query, routing.classification, task.sensitivity);
+        this.emit({ kind: 'task.classified', taskId: task.taskId, agentId: null, detail: `tiebreaker=${tb.outcome}${tb.model ? ` via ${tb.model}` : ''}` });
+        if (tb.usage) await this.budgetGate?.consume(feature, tb.usage);
+        if (tb.changed) {
+          routing = await this.route(task.query, task.taskId, tb.classification);
+        }
+      }
+    }
+
     if (!routing.agentId) {
       this.emit({ kind: 'task.failed', taskId: task.taskId, agentId: null, detail: 'no_route' });
       return {

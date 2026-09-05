@@ -17,6 +17,9 @@ import { FileIntelligenceService } from './file-intelligence.service';
 import { PlacementService } from './placement.service';
 import { LeaderConversationService } from './leader-conversation.service';
 import { ConfigHubService } from './config-hub.service';
+import { LlmTiebreakerService } from './llm-tiebreaker.service';
+import { BudgetGateService } from './budget-gate.service';
+import { SessionMemoryService } from './session-memory.service';
 import { ConfigHubController } from './config-hub.controller';
 import { AuditModule } from '../audit/audit.module';
 import { CorpusModule } from '../corpus/corpus.module';
@@ -42,6 +45,9 @@ import { CorpusModule } from '../corpus/corpus.module';
     PlacementService,
     LeaderConversationService,
     ConfigHubService,
+    LlmTiebreakerService,
+    BudgetGateService,
+    SessionMemoryService,
   ],
   exports: [
     OrchestratorService,
@@ -55,6 +61,9 @@ import { CorpusModule } from '../corpus/corpus.module';
     FileIntelligenceService,
     LeaderConversationService,
     ConfigHubService,
+    LlmTiebreakerService,
+    BudgetGateService,
+    SessionMemoryService,
   ],
 })
 export class OrchestratorModule {}

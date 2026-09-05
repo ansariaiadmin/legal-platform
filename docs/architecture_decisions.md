@@ -5,6 +5,57 @@ a new ADR. `scripts/agent_state.json.architectural_decisions` mirrors this file.
 
 ---
 
+## ADR-018: The Leader asks twice only when confused — bounded LLM tiebreak, budget gates, honest memory (P3, 2026-09-05)
+
+**Status**: accepted · **Area**: orchestration / dispatch · **Phase**: P3
+
+**Context.** Layered AI (SPEC §9) says deterministic first, LLM second. The
+Planner tree had a `needsLlmTiebreak` FLAG since Phase 1, but nothing ever
+paid it off: no LLM consultation existed, no per-feature budget existed,
+and conversation memory died with the process. Phase 3 completes the loop.
+
+**Decision.**
+1. **The tiebreaker is a service, not a mood.** `LlmTiebreakerService.resolve`
+   fires ONLY when the deterministic classifier returns confidence <
+   LOW_CONFIDENCE. The prompt demands a single JSON object; response is
+   regex-extracted, schema-validated against the REAL `LegalField`/`IntentKind`
+   enums (out-of-vocab = `llm_rejected`); a valid answer bumps confidence to
+   exactly `LOW_CONFIDENCE+0.15` — a hint's-worth, never a crown. Every call
+   records an outcome: `not_needed | unavailable | skipped_privileged |
+   llm_rejected | llm_applied`.
+2. **Secrecy law beats even the agent who's "just asking who to call".**
+   `sensitivity: 'privileged'` → outcome `skipped_privileged` BEFORE any
+   network activity; no probe, no bytes leave the box (ADR-004 §11a-i).
+3. **Per-feature budget is a gate, not an afterthought** (`BudgetGateService`):
+   quotas from `AI_FEATURE_QUOTA_TOKENS` JSON map; spend per (feature, UTC
+   day) persisted via StorageProvider (`runtime/budget/*`); `check('tiebreak')`
+   runs BEFORE any paid call, and a spent-over-quota feature flips to
+   deterministic-only — the dispatcher simply skips the consult and the live
+   stream says so.
+4. **Memory is honest about its horizon.** `SessionMemoryService` keeps the
+   last ≤10 turns per user with a 30-minute TTL evaluated AT READ TIME
+   (no fake persistence, no memory of a restart-stale thread); it persists
+   per user (`runtime/sessions/<user>.json`) so the Leader conversation
+   RESUMES after a server restart. API: remember / recall / contextLines /
+   clear — no more.
+5. **Route carries its defense**: every candidate the tree walk considered
+   is returned as `trace[]` (P3-T5) — exposed via `POST
+   /dashboard/orchestrator/dry-run` so the dashboard shows WHY the chosen
+   expert won (dry-run never executes a grant-gated dispatch).
+
+**Consequences.**
+- Routing is now double-entry accountable: deterministic vocabulary first,
+  wits-paid LLM second, both visible on the kitchen stream.
+- Mock adapter power: tiebreak works sandbox-wide with the mock AI
+  provider plumbing already present — provider-swap out of scope of belief.
+
+**Tests** — `test/orchestrator/p3-tiebreak-memory.spec.ts` (11 specs:
+tiebreak never-fires-on-confident, happy apply, JSON garbage/out-of-enum
+rejection, privileged skip, providerless honesty, budget exhaust/recovery
+across restarts, TTL expiry, restart continuity, window cap).
+
+---
+
 ## ADR-017: Collection loop — mock-first adapters, a state machine that owns up to halves, retry that links back (P2, 2026-09-05)
 
 **Status**: accepted · **Area**: corpus / ingestion · **Phase**: P2-T2/T5/T6

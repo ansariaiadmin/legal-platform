@@ -291,7 +291,8 @@
     "P2-T3 agents data-validator + law-updater under apps/agents (ICollectorAgent interface conformance: validator enforces sha256 uniqueness, min length, Persian ratio, tier rules; updater temporal-append versioning valid_from/valid_to)",
     "P2-T4 corpus grounding layer: orchestrator dispatch attaches meta.citations (docTitle, chunkPreview, trustTier) + meta.grounded=true only when deterministic corpus hits exist — LLM untouched",
     "P2-T5 dashboard tab «کتابخانه» (corpus): list docs + trust tier chip + verify button + ingest-from-file + search; bus events corpus.ingested/corpus.validated",
-    "P2-T6 tests (corpus search scoring, tier gates, workflow ingest→validate→cite, updater temporal) + ADR-016 + ROADMAP Phase2 + docs + checkpoint sync + push"
+    "P2-T6 tests (corpus search scoring, tier gates, workflow ingest→validate→cite, updater temporal) + ADR-016 + ROADMAP Phase2 + docs + checkpoint sync + push",
+    "P3[done] Tiebreaker(budget-gated,schema-validated,privileged-skipped)+SessionMemory(TTL)+BudgetGate+route trace/dry-run — ADR-018"
   ],
   "architectural_decisions": [
     {
@@ -383,9 +384,14 @@
       "id": "ADR-017",
       "reasoning": "Collection loop — mock-first adapters, honest partial_success state machine, linked retries CollectorSourceAdapter port + rooznameh-mock fixtures; ingestion worker persisted via StorageProvider with (source,window)-keyed idempotency; diagnostics read model + retry; Redis = later transport swap",
       "at": "2026-09-05T13:52:38.142Z"
+    },
+    {
+      "id": "ADR-018",
+      "reasoning": "LLM tiebreak bounded behind providers/ai: JSON-schema validated, budget-gated, privilege-skipped; session memory TTL; route trace SPEC §9 deterministic-first honored; low confidence alone buys an LLM opinion; spend is recorded; privileged bytes never leave for routing",
+      "at": "2026-09-05T14:09:04.798Z"
     }
   ],
-  "last_checkpoint": "2026-09-05T13:52:38.142Z",
-  "updated_at": "2026-09-05T13:52:38.142Z",
-  "update_count": 125
+  "last_checkpoint": "2026-09-05T14:09:04.798Z",
+  "updated_at": "2026-09-05T14:09:04.798Z",
+  "update_count": 127
 }
