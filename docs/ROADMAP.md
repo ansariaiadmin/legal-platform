@@ -415,9 +415,9 @@ Done 2026-09-05 (ADR-022):
 
 ## Phase 12 — بدهی‌های باز رسمی (از نقد ۲۰۲۶-۰۹-۰۵)
 
-- [x] #6-subset step-up برای اعمال مرگبار ✓ (ops backup/restore + vault rotate-all پشت قفل ناحیه) — فاکتور ایمیل به‌عنوان مرز اصلی همچنان باز
+- [x] #6-subset step-up برای اعمال مرگبار ✓ (ops backup/restore + vault rotate-all پشت قفل ناحیه) — فاکتور ایمیل (برای لاگین) از P10 موجود است؛ بازماندهٔ واقعی: passkey-first login (مرز دوم اصلی احراز)
 - [x] #10 حساسیت فایل ماندگار روی رکورد است و نوبت چت را به local-only ارتقا می‌دهد ✓ (`f351a2b`)
-- [ ] #2b docker profile `mock-zarinpal` برای smoke استقرار (request→sandbox verify→credit) در CI
-- [ ] #5c مهاجرت لجر کیف پول به Postgres (FOR UPDATE + دفتر append-only) — فعلاً single-replica gate
+- [x] #2b stub درگاه: `scripts/mock-gateway/zarinpal-stub.server.mjs` + پروفایل compose (--profile mock-gateways) + ۳ تست قرارداد سیمی واقعی علیه آداپتور واقعی (`5bcab9e`)
+- [x] #5c لجر کیف پول روی Postgres: `wallet_accounts`+`wallet_entries` append-only، FOR UPDATE، اِعمال idempotency با ایندکس نیمه‌منحصر — + ۴ تست core (`5bcab9e`); منeJSON در sandbox فعال است
 - [ ] #7 کالیبراسیون KDF قفل حوزه + انتقال به worker thread + لیمیتر اختصاصی
 - [x] #12/#13/#15 اسکن نگهبان پیش‌فرض روشن (روزانه) + رگرسیون/خرابی به کانال critical می‌رود؛ ALERT_WEBHOOK_URL جزئیات را به کانال دفتر می‌برد؛ بودجه‌ی AI دو سیاست واقعی گرفت: لجر توکن ماهانه (تنزل به محلی) + HARD_STOP دلار قیمت‌داری (امتناع صریح) ✓ (`140642d` `87e538c` `bcbc5cb`)
