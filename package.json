@@ -23,7 +23,9 @@
     "test": "npm run test --workspaces --if-present",
     "test:e2e": "npm run test:e2e -w @legal-platform/api",
     "migrate:up": "npm run migrate:up -w @legal-platform/api",
-    "migrate:down": "npm run migrate:down -w @legal-platform/api"
+    "migrate:down": "npm run migrate:down -w @legal-platform/api",
+    "security:secrets": "node tools/security/secret-scan.mjs",
+    "test:py": "cd apps/workers/py && python3 -m pytest tests/ -q"
   },
   "engines": {
     "node": ">=20"

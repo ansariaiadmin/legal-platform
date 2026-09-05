@@ -28,7 +28,8 @@ export type AgentEventKind =
   | 'draft.created'
   | 'draft.generated'
   | 'draft.reviewed'
-  | 'usage.alerted';
+  | 'usage.alerted'
+  | 'security.scanned';
 
 export interface AgentEvent {
   kind: AgentEventKind;

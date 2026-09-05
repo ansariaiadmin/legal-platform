@@ -13,7 +13,11 @@ export type PyToolName =
   | 'word_count'
   | 'ask_model'
   | 'file_digest'
-  | 'extract_any';
+  | 'extract_any'
+  // P6: always-on worker contract — liveness + static sec scan + no-model QA
+  | 'ping'
+  | 'security_scan'
+  | 'local_answer';
 
 export interface PyJobHandle {
   jobId: string;
@@ -59,4 +63,47 @@ export class PythonWorkerService {
       return null; // unavailable result store = unknown, not success
     }
   }
+
+  /**
+   * Liveness probe (P6-S4): enqueue `ping`, poll result up to `timeoutMs`.
+   * Any silence/latency/queue failure ⇒ alive:false with an honest reason —
+   * the Security Guardian shows this, dashboards never pretend the local
+   * floor stands when the queue is down.
+   */
+  async probe(timeoutMs = 2_500): Promise<{ alive: boolean; detail?: string }> {
+    const handle = await this.enqueue('ping', {});
+    if (!handle.queued) {
+      return { alive: false, detail: 'redis queue unreachable (enqueue failed)' };
+    }
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      const res = await this.result(handle.jobId);
+      if (res) {
+        if (res.ok) return { alive: true, detail: JSON.stringify(res.output ?? {}) };
+        return { alive: false, detail: res.error ?? 'workers answered with failure' };
+      }
+      await new Promise((r) => setTimeout(r, 150));
+    }
+    return { alive: false, detail: `no ping answer within ${timeoutMs}ms` };
+  }
+
+  /** Fire-and-collect convenience for callers that need the tool output
+   *  (security_scan, local_answer). Returns null when the queue/store is
+   *  unreachable or the job times out — callers degrade, callers never fake. */
+  async runTool(
+    tool: PyToolName,
+    input: Record<string, unknown>,
+    timeoutMs = 8_000,
+  ): Promise<PyJobResult | null> {
+    const handle = await this.enqueue(tool, input);
+    if (!handle.queued) return null;
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      const res = await this.result(handle.jobId);
+      if (res) return res;
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    return null;
+  }
 }
+

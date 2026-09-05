@@ -15,6 +15,11 @@ interface EnvConfig {
   AI_ROUTING_MODE: string;
   AI_EMBEDDING_DIMENSION: number;
   LOG_LEVEL: string;
+  /** P6-S1 hardening knobs — 'off' disables, anything else enables. */
+  SECURITY_HEADERS: string;
+  GLOBAL_RATE_LIMIT_PER_MIN: string;
+  /** Python worker hard-requirement probe cadence (ms); 0 disables. */
+  WORKER_PROBE_INTERVAL_MS: number;
 }
 
 /**
@@ -53,6 +58,9 @@ export class EnvService {
       AI_ROUTING_MODE: process.env.AI_ROUTING_MODE || 'iranian_gateway',
       AI_EMBEDDING_DIMENSION: Number(process.env.AI_EMBEDDING_DIMENSION) || 1024,
       LOG_LEVEL: process.env.LOG_LEVEL || 'info',
+      SECURITY_HEADERS: process.env.SECURITY_HEADERS || 'on',
+      GLOBAL_RATE_LIMIT_PER_MIN: process.env.GLOBAL_RATE_LIMIT_PER_MIN || '',
+      WORKER_PROBE_INTERVAL_MS: Number(process.env.WORKER_PROBE_INTERVAL_MS) || 60_000,
     };
 
     this.validate();

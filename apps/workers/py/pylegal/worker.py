@@ -19,6 +19,11 @@ from . import QUEUE_KEY, RESULT_PREFIX, __version__
 from . import persian_tools as tools
 from . import file_extract
 from . import model_client
+from . import security_tools
+from . import local_answer
+import os as _os
+import sys as _sys
+_STARTED_AT = time.time()
 from .resp_client import RespClient, RespError
 
 REDIS_URL = os.environ.get("REDIS_URL", "redis://127.0.0.1:6379")
@@ -48,7 +53,27 @@ def _ask_model(text: str, *, system: str = "", max_tokens: str = "800", **_: obj
     }
 
 
+def _ping(**_k: object) -> dict:
+    """Liveness + provenance (P6-S4): the Security Guardian's workers probe.
+    Reports version, uptime, pid — observable truth, not a static 'ok'.
+    Also reports whether a model is configured so the posture check knows
+    the local-intelligence storey is actually standing."""
+    cfg = model_client.config_from_env()
+    return {
+        "pong": True,
+        "workerVersion": __version__,
+        "uptimeS": int(time.time() - _STARTED_AT),
+        "pid": _os.getpid(),
+        "modelConfigured": cfg is not None,
+        "localModelUrl": bool(_os.environ.get("AI_LOCAL_BASE_URL", "")),
+    }
+
+
 TOOLS = {
+    # P6 always-on contract
+    "ping": _ping,
+    "security_scan": security_tools.security_scan,
+    "local_answer": local_answer.local_answer,
     "normalize_persian": lambda text, **k: {"normalized": tools.normalize_persian(text)},
     "chunk_legal_text": lambda text, **k: {
         "chunks": tools.chunk_legal_text(

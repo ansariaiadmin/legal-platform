@@ -2,6 +2,9 @@ import { ValidationPipe, type INestApplication } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import type { Request, Response, NextFunction } from 'express';
 import type { EnvService } from './config/env';
+import { RateLimitService } from './common/rate-limit.service';
+import { securityHeadersMiddleware } from './common/security-headers.middleware';
+import { globalRateLimitMiddleware, GLOBAL_RATE_LIMIT_ENV } from './common/global-rate-limit.middleware';
 
 /** Comma-separated allow-list; APP_URL is always permitted. */
 export function corsOrigins(env: EnvService): string[] {
@@ -24,6 +27,20 @@ export function configureApp(app: INestApplication, env: EnvService): void {
   // nginx sits in front and forwards the real client address; without this
   // `@Ip()` - and therefore OTP rate limiting - sees the proxy for everyone.
   app.getHttpAdapter().getInstance().set('trust proxy', 1);
+
+  // P6-S1: disclose nothing, then rate-limit everything. x-powered-by off
+  // (fingerprint minimization), security headers for every response, global
+  // per-IP bucket before any controller — feature limiters still apply AFTER.
+  app.getHttpAdapter().getInstance().disable('x-powered-by');
+  if ((env.get('SECURITY_HEADERS') || 'on') !== 'off') {
+    app.use(securityHeadersMiddleware(env.isProduction));
+  }
+  app.use(
+    globalRateLimitMiddleware(
+      app.get(RateLimitService),
+      Number(env.get(GLOBAL_RATE_LIMIT_ENV)) || 300,
+    ),
+  );
 
   // Every request gets an id so logs can be correlated (SPEC section 10).
   app.use((req: Request & { id?: string }, res: Response, next: NextFunction) => {

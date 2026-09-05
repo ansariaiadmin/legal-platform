@@ -5,6 +5,75 @@ a new ADR. `scripts/agent_state.json.architectural_decisions` mirrors this file.
 
 ---
 
+## ADR-021: Standing guard — security as a resident agent, not a quarterly ritual (P6, 2026-09-05)
+
+**Status**: accepted · **Area**: security / fleet governance · **Phase**: P6
+
+**Context.** The user demanded: security at *a literal ten out of ten*, a
+resident security agent continuously in charge, checked against *current*
+standards, reporting to the Leader, and intelligence that survives total
+cloud loss via the python workers. Audits-as-PDFs rot; a guard that runs
+the checks every day does not.
+
+**Decision.**
+1. **The posture score is math on probes, not sentiment.**
+   `standards.ts` pins 10 checks with real references (OWASP API 2023, ASVS
+   4.0, CWE, NIST CSF 2.0) whose weights **sum to exactly 10** — jest pins
+   the sum. `SecurityAuditService` *runs* each probe against the live
+   configuration: headers middleware present, HSTS emitted only in prod,
+   CORS free of wildcards, OTP throttling demonstrated by feeding the very
+   RateLimitService OTP uses, global per-IP floor, placeholder-secrets
+   boot-guard, machine-token hygiene (expired-live tokens get auto-revoked
+   during the scan — the audit *repairs as it measures*), body bounds,
+   worker liveness, scan freshness. `not_applicable` is excluded from the
+   denominator, never awarded (a dev box can't score HSTS points it can't
+   earn).
+2. **The guardian is a fleet member, and it reports to the Leader through
+   the shared bus.** `SecurityGuardianAgent` (kind `guardian`, field
+   GENERAL) registers into the same `ExpertRegistry` — one tree, one
+   dashboard. Every manual/scheduled/agent-initiated scan emits
+   `security.scanned` with `posture=x/10`, counts, regenerated-vs-previous
+   deltas, and the report id. Evidence strings NEVER ride the bus; they sit
+   in the persisted report (StorageProvider ring of 60) behind
+   LAWYER_OWNER/STAFF.
+3. **Transport hygiene is enforced in one place used by prod AND tests**
+   (`configureApp`): x-powered-by off, security headers as hand-written
+   deterministic middleware (no dependency whose defaults we can't audit),
+   global rate floor, and — found by our own spec — body-parser errors now
+   map to `VALIDATION_MALFORMED_JSON`(400)/`VALIDATION_BODY_TOO_LARGE`(413);
+   before this they surfaced as `SYSTEM_INTERNAL_ERROR` at 400, telling
+   callers *our* server broke on *their* payload.
+4. **Repo secret hygiene is a build gate.** `tools/security/secret-scan.mjs`
+   scans git-tracked code for credential-shaped literals; jest runs it, so
+   a leaked key fails CI AND local `npm test`. The scanner carries a
+   `--self-test` so a broken regex can't masquerade as a clean repo.
+5. **Python workers are a first-class availability surface— AND the
+   intelligence floor.** Three new stdlib-only tools:
+   - `ping` liveness/provenance (version, uptime, configured-model flags);
+   - `security_scan` — deterministic regex rules over caller-supplied files
+     (the worker never reads disk itself);
+   - `local_answer` — BM25-lite extractive QA.
+   When every AI provider fails, `DraftingService` falls back to
+   `local_answer` over the JUST-retrieved corpus hits: output header says
+   plainly it is extraction, not composed advice; `provenance.model =
+   'local_rules_extractive'`, `degraded: true`; and — this matters most —
+   the draft still lands in **awaiting_review**: the lawyer gate is never
+   bypassed by a rescue path. Workers down + provider down ⇒ the OLD honest
+   `DRAFT_AI_UNAVAILABLE`, never invented spans.
+
+**Tests** — 31 new jest specs (headers/CORS/429/400/413 envelope, standards
+weights, every probe family incl. wildcard-CORS fail and zombie-token
+auto-revoke, persistence+deltas, bus reporting, routing, scheduler state,
+secret-scan gate + self-test, degraded drafting ×3) and 8 new python specs.
+283 jest + 45 py green.
+
+**Consequences.** "10/10" is now a number the platform computes about
+itself; when reality drifts (a token without expiry, CORS loosened, workers
+silent) the number drops and the owner SEES it drop, with Persian
+remediation text per check. Extensions = append a StandardCheckDef + probe.
+
+---
+
 ## ADR-020: The surface er kümmert sich um Notarization — OpenAPI everywhere, SSE for drafts, machine tokens with math, i18n keys (P5, 2026-09-05)
 
 **Status**: accepted · **Area**: API surface / SDK-readiness · **Phase**: P5

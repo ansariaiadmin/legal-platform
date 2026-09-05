@@ -8,7 +8,7 @@ Design rules:
   stays with the Leader (ADR-004/005).
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 QUEUE_KEY = "legal:workers:queue"
 RESULT_PREFIX = "legal:workers:result:"

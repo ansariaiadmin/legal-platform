@@ -8,7 +8,6 @@ export const ERROR_PREFIXES = {
   AI: 'AI_',
   DB: 'DB_',
   BACKUP: 'BACKUP_',
-  SECURITY: 'SECURITY_',
   SYSTEM: 'SYSTEM_',
   // P2a — commerce & consultation
   WALLET: 'WALLET_',
@@ -20,6 +19,7 @@ export const ERROR_PREFIXES = {
   COMMS: 'COMMS_',
   DRAFT: 'DRAFT_',
   MACHINE_TOKEN: 'MACHINE_TOKEN_',
+  SECURITY: 'SECURITY_',
 } as const;
 
 export type ErrorCodePrefix = (typeof ERROR_PREFIXES)[keyof typeof ERROR_PREFIXES];
@@ -85,6 +85,11 @@ export const ERROR_CODES = {
   // P5 machine tokens — gate failures are AUTH-class, never 500
   MACHINE_TOKEN_INVALID: 'MACHINE_TOKEN_INVALID',
   MACHINE_TOKEN_REQUIRED: 'MACHINE_TOKEN_REQUIRED',
+  // P6 hardening — transport/payload hygiene must never surface as 500
+  VALIDATION_MALFORMED_JSON: 'VALIDATION_MALFORMED_JSON',
+  VALIDATION_BODY_TOO_LARGE: 'VALIDATION_BODY_TOO_LARGE',
+  SECURITY_RATE_LIMITED: 'SECURITY_RATE_LIMITED',
+  SECURITY_SCAN_FAILED: 'SECURITY_SCAN_FAILED',
 } as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES];
@@ -140,6 +145,9 @@ export function httpStatusForCode(code: string): number {
   if (code === ERROR_CODES.AUTH_RATE_LIMITED || code === ERROR_CODES.AUTH_RESEND_COOLDOWN) return 429;
   if (code === ERROR_CODES.AUTH_INSUFFICIENT_ROLE) return 403;
   if (code.startsWith(ERROR_PREFIXES.MACHINE_TOKEN)) return 401;
+  if (code === ERROR_CODES.SECURITY_SCAN_FAILED) return 500;
+  if (code === ERROR_CODES.SECURITY_RATE_LIMITED) return 429;
+  if (code === ERROR_CODES.VALIDATION_BODY_TOO_LARGE) return 413;
   if (code.startsWith(ERROR_PREFIXES.AUTH)) return 401;
   if (code.endsWith('_NOT_FOUND')) return 404;
   // P4 drafting: blocked generation is "valid request, missing citations";

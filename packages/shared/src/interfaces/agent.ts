@@ -48,7 +48,7 @@ export interface ISkill {
   match(task: Pick<AgentTask, 'query'>): number;
 }
 
-export type AgentKind = 'expert' | 'collector' | 'validator' | 'updater';
+export type AgentKind = 'expert' | 'collector' | 'validator' | 'updater' | 'guardian';
 
 /** The root contract. `capabilities()` is the legal equivalent of a class's
  *  public API — orchestrator + tests interrogate it, never guess. */

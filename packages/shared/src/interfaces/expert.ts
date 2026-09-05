@@ -1,4 +1,4 @@
-import type { AgentResult, AgentTask, IAgent } from './agent';
+import type { AgentKind, AgentResult, AgentTask, IAgent } from './agent';
 
 /**
  * A specialized expert in the tree (apps/agents/{branch}). The `field` is the
@@ -6,7 +6,7 @@ import type { AgentResult, AgentTask, IAgent } from './agent';
  * the highest-scoring skill inside the winning agent.
  */
 export interface IExpertAgent extends IAgent {
-  readonly kind: 'expert';
+  readonly kind: AgentKind;
   /** One of the values of domain's LegalField (imported loosely to keep this
    *  package dependency-free; validated at registration time). */
   readonly field: string;

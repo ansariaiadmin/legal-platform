@@ -95,6 +95,25 @@ export class AllExceptionsFilter implements ExceptionFilter {
         }
       }
 
+      // Nest wraps body-parser parse errors into a 400 HttpException whose
+      // message is the raw parser text ('Unexpected token...') — classify the
+      // truth instead of shipping 400/INTERNAL (P6-S1).
+      const httpMsg = exception.message || '';
+      if (status === 400 && /unexpected token|invalid json|json/i.test(httpMsg)) {
+        return {
+          status: 400,
+          code: ERROR_CODES.VALIDATION_MALFORMED_JSON,
+          message: 'Request body is not valid JSON',
+        };
+      }
+      if (status === 413) {
+        return {
+          status: 413,
+          code: ERROR_CODES.VALIDATION_BODY_TOO_LARGE,
+          message: 'Request body exceeds the allowed size',
+        };
+      }
+
       return {
         status,
         code: ERROR_CODES.SYSTEM_INTERNAL_ERROR,
@@ -103,12 +122,33 @@ export class AllExceptionsFilter implements ExceptionFilter {
     }
 
     // Non-HTTP throwables (provider errors, pg errors, bugs)
-    const anyError = exception as { code?: string; message?: string };
+    const anyError = exception as { code?: string; message?: string; status?: unknown; type?: string };
     if (anyError && typeof anyError.code === 'string' && isKnownErrorCode(anyError.code)) {
       return {
         status: httpStatusForCode(anyError.code),
         code: anyError.code,
         message: anyError.message ?? 'Operation failed',
+      };
+    }
+
+    // body-parser (P6-S1): malformed JSON / oversize bodies arrive as plain
+    // errors carrying `status` (400/413) + `type` ('entity.parse.failed' …).
+    // Before this mapping they fell through to 500 SYSTEM_INTERNAL_ERROR,
+    // telling clients OUR server broke on THEIR bad payload — a lie and a
+    // log-noise vector.
+    const bodyStatus = typeof anyError?.status === 'number' ? anyError.status : 0;
+    if (bodyStatus === 400 && anyError.type === 'entity.parse.failed') {
+      return {
+        status: 400,
+        code: ERROR_CODES.VALIDATION_MALFORMED_JSON,
+        message: 'Request body is not valid JSON',
+      };
+    }
+    if (bodyStatus === 413 || anyError.type === 'entity.too.large') {
+      return {
+        status: 413,
+        code: ERROR_CODES.VALIDATION_BODY_TOO_LARGE,
+        message: 'Request body exceeds the allowed size',
       };
     }
 

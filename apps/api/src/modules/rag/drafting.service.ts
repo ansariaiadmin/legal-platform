@@ -11,6 +11,7 @@ import { RerankerService, type RerankedHit } from './reranker.service';
 import { UsageMeterService } from './usage-meter.service';
 import { AI_PROVIDER } from '../../providers/provider.tokens';
 import type { AIProvider } from '../../providers/ai/ai.provider';
+import { PythonWorkerService } from '../orchestrator/python-worker.service';
 
 /**
  * P4-T3: drafting WITH citations — the pipeline where a machine may write
@@ -41,6 +42,8 @@ export interface DraftProvenanceBundle {
   usage?: { totalTokens?: number } | null;
   seed?: number;
   rerankComponents?: RerankedHit['components'][];
+  /** P6-S4: true when no model served and output is verbatim extraction only. */
+  degraded?: boolean;
 }
 
 export interface DraftRecord {
@@ -99,6 +102,10 @@ export class DraftingService {
     private readonly meter: UsageMeterService,
     @Optional() @Inject(forwardRef(() => InProcessAgentEventBus)) private readonly bus?: InProcessAgentEventBus,
     @Optional() @Inject(AI_PROVIDER) private readonly ai?: AIProvider,
+    // P6-S4: python workers are the intelligence floor — when every model
+    // (cloud AND local box) is gone, drafts degrade to verbatim extractive
+    // spans instead of dying. Never presented as composed advice (SPEC §9).
+    @Optional() private readonly workers?: PythonWorkerService,
   ) {}
 
   private async ensure(): Promise<void> {
@@ -222,6 +229,8 @@ export class DraftingService {
 
     // 3) actually generate — behind providers/ai, citation-required tone
     if (!this.ai) {
+      const degraded = await this.tryLocalDegradedDraft(d, ranked, citations);
+      if (degraded) return degraded;
       this.move(d, DraftRequestState.CREATED);
       d.error = ERROR_CODES.DRAFT_AI_UNAVAILABLE;
       d.provenance = { query: d.prompt, retrieved: citations, model: null, usage: null };
@@ -259,12 +268,72 @@ export class DraftingService {
       };
       this.move(d, DraftRequestState.AWAITING_REVIEW);
     } catch (e) {
+      // Provider down mid-call (cloud outage, local box dead): the platform
+      // stays intelligent — extractive fallback from the SAME corpus hits.
+      const degraded = await this.tryLocalDegradedDraft(d, ranked, citations);
+      if (degraded) return degraded;
       this.move(d, DraftRequestState.CREATED);
       d.error = (e as Error).message.slice(0, 200);
     }
     this.bus?.emit({ kind: 'draft.generated', at: new Date().toISOString(), taskId: d.draftId, agentId: 'legal-leader', detail: `${draftId} → ${d.state}` });
     await this.persist();
     return { ...d };
+  }
+
+  /**
+   * P6-S4 degraded drafting: py worker `local_answer` picks verbatim spans
+   * from the JUST-RETRIEVED corpus hits (BM25-lite, stdlib). Markers:
+   *  - output header says plainly this is machine-extracted, model absent;
+   *  - provenance.model = 'local_rules_extractive';
+   *  - state AWAITING_REVIEW still applies — the lawyer gate is NOT bypassed
+   *    by degradation (that would be the worst kind of rescue).
+   */
+  private async tryLocalDegradedDraft(
+    d: DraftRecord,
+    ranked: RerankedHit[],
+    citations: DraftCitation[],
+  ): Promise<DraftRecord | null> {
+    if (!this.workers) return null;
+    try {
+      const res = await this.workers.runTool('local_answer', {
+        question: d.prompt.slice(0, 800),
+        passages: citations.map((c) => `${c.title}: ${c.preview}`),
+        top_k: 3,
+      }, 8_000);
+      const out = res?.output as
+        | { answered?: boolean; spans?: Array<{ passageIndex: number; sentence: string; score: number }> }
+        | undefined;
+      if (!out?.answered || !out.spans || out.spans.length === 0) return null;
+
+      const lines = out.spans
+        .map((sp, i) => `${i + 1}. ${sp.sentence} [${sp.passageIndex + 1}] (امتیاز بازیابی: ${sp.score})`)
+        .join('\n');
+      d.output =
+        '⚠️ حالت پایدار بدون مدل: کلاد/مدل محلی در دسترس نبود؛ متن زیر عیناً از منابع بازیابی‌شده استخراج شده و «پاسخ دانش‌آموخته» نیست.\n\n' +
+        lines +
+        '\n\nمنابع: ' + citations.map((_, i) => `[${i + 1}]`).join(' ');
+      d.error = null;
+      d.provenance = {
+        query: d.prompt,
+        retrieved: citations,
+        model: 'local_rules_extractive',
+        usage: null,
+        rerankComponents: ranked.map((r) => r.components),
+        degraded: true,
+      };
+      this.move(d, DraftRequestState.AWAITING_REVIEW);
+      this.bus?.emit({
+        kind: 'draft.generated',
+        at: new Date().toISOString(),
+        taskId: d.draftId,
+        agentId: 'legal-leader',
+        detail: `${d.draftId} → degraded local_rules_extractive (no model)`,
+      });
+      await this.persist();
+      return { ...d };
+    } catch {
+      return null; // fallback must never break the honest error path
+    }
   }
 
   async get(draftId: string): Promise<DraftRecord | null> {

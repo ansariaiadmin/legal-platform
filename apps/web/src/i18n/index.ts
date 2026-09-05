@@ -17,6 +17,22 @@ export const fa = {
   'tab.telecoms': 'مخابرات مشاوره',
   'tab.library': 'کتابخانه',
   'tab.drafts': 'پیش‌نویس‌ها',
+  'tab.security': 'امنیت',
+
+  // security (P6-S3 — guardian + standards matrix)
+  'security.title': 'امنیت — نگهبان و تطابق استانداردها',
+  'security.posture': 'امتیاز وضعیت امنیتی',
+  'security.lastScan': 'آخرین بازرسی',
+  'security.neverScanned': 'هنوز بازرسی نشده — نگهبان روزانه اجرا می‌شود',
+  'security.standardsVersion': 'نسخه مجموعه استانداردها',
+  'security.rescan': 'اجرای فوری بازرسی',
+  'security.regressed': 'رگرسیون نسبت به دوره قبل',
+  'security.improved': 'بهبود نسبت به دوره قبل',
+  'security.check': 'کنترل',
+  'security.refs': 'ارجاع استاندارد',
+  'security.status': 'وضعیت',
+  'security.evidence': 'شاهد / رفع',
+  'security.notScannedYet': '— در انتظار اجرای بازرسی',
 
   // library (P5-T4 sweep — keys, not literals)
   'library.fake.title': 'کتابخانهٔ دانش',

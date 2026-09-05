@@ -295,6 +295,30 @@ Telegram mini-app, تلفن و… consume it identically.
 
 ## Phase 6 — Hardening (ده از ده)
 
+**Security tranche (P6-S, ADR-021) — done 2026-09-05:**
+
+- [x] **P6-S1** Transport hardening: security headers middleware (CSP/HSTS-prod/
+  nosniff/frame/permissions), x-powered-by off, global per-IP rate floor
+  (env-tunable), body-parser errors → honest `VALIDATION_MALFORMED_JSON`(400)/
+  `VALIDATION_BODY_TOO_LARGE`(413) envelope (was a lying SYSTEM 400). Specs pin
+  all of it against the REAL `configureApp` pipeline.
+- [x] **P6-S2** Repo secret scan (`tools/security/secret-scan.mjs`) as a jest
+  gate + `npm run security:secrets`; `--self-test` guards the guard.
+- [x] **P6-S3** Security Guardian agent (kind `guardian`, fleet-registered):
+  10-check standards matrix (OWASP API 2023 / ASVS 4.0 / CWE / NIST CSF 2.0,
+  weights Σ=10.0 pinned), probes run against live config, expired machine
+  tokens auto-revoked during scan, reports persisted (ring of 60) with
+  deltas, daily scheduler (`SECURITY_SCAN_INTERVAL_MS`), `security.scanned`
+  bus events to the Leader cockpit, dashboard tab 🛡️ with posture gauge.
+  Endpoints: `/api/dashboard/security/{posture,standards,reports,reports/latest,scan,schedule}`.
+- [x] **P6-S4** Python workers always-on contract: `ping` liveness probe,
+  `security_scan` deterministic static rules, `local_answer` BM25-lite
+  extractive QA; `PythonWorkerService.{probe,runTool}`; DraftingService
+  degrades to verbatim extraction when ALL models die (`degraded:true`,
+  review gate intact — rescue never bypasses the lawyer).
+
+**Remaining original rows:**
+
 - [ ] **P6-T1** Coverage gate ≥ target on new packages; provider-contract tests
   extended to orchestrator fixtures.
 - [ ] **P6-T2** Chaos tests: AI provider down ⇒ graceful degradation, no crash

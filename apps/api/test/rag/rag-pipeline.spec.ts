@@ -197,3 +197,75 @@ describe('P4-T5 — usage metering & alert (no invisible spend)', () => {
     expect(twice.length).toBe(1); // never an alert-spamming
   });
 });
+
+describe('P6-S4 — cloud loss ≠ intelligence loss (degraded local_rules draft)', () => {
+  it('AI provider THROWING still yields a verbatim extractive draft, marked degraded', async () => {
+    const { storage, corpus, index, reranker, meter, bus } = buildRag();
+    await corpus.ingestDocument({ sourceKey: 'r', canonicalTitle: 'قانون مدنی', bodyRaw: LAW_A, trustTier: 1, ingestedBy: 't' });
+    const doc = (await corpus.list())[0];
+    await corpus.markVerified(doc.documentId, 't');
+    await index.rebuild();
+
+    // provider explodes at generate time (network cut, quota, …)
+    const ai = toyAi();
+    ai.generateText = async () => { throw new Error('cloud unreachable'); };
+
+    // the python floor answers with a real span from the same corpus hits
+    const workers = {
+      runTool: async (tool: string, input: Record<string, unknown>) => {
+        expect(tool).toBe('local_answer');
+        return {
+          jobId: 'py-x', ok: true,
+          output: {
+            answered: true, engine: 'local_rules_extractive',
+            spans: [{ passageIndex: 0, sentence: 'مادهٔ ۱ — عقد قرارداد ملک می‌تواند با ثبت سند رسمی انجام شود', score: 2.4 }],
+          },
+        };
+      },
+    } as never;
+
+    const drafting = new DraftingService(storage, corpus, index, reranker, meter, bus, ai, workers);
+    const created = await drafting.create({ prompt: 'عقد ملک چگونه انجام می‌شود؟', createdBy: 'u1' });
+    const run = await drafting.generate(created.draftId);
+
+    expect(run.state).toBe('awaiting_review'); // NOT created-with-error
+    expect(run.error).toBeNull();
+    expect(run.provenance?.degraded).toBe(true);
+    expect(run.provenance?.model).toBe('local_rules_extractive');
+    expect(run.output).toContain('بدون مدل'); // honest header
+    expect(run.output).toContain('عقد قرارداد ملک'); // verbatim from source
+  });
+
+  it('no AI AND no workers ⇒ the OLD honest error, nothing faked', async () => {
+    const { storage, corpus, index, reranker, meter, bus } = buildRag();
+    await corpus.ingestDocument({ sourceKey: 'r', canonicalTitle: 'قانون مدنی', bodyRaw: LAW_A, trustTier: 1, ingestedBy: 't' });
+    const doc = (await corpus.list())[0];
+    await corpus.markVerified(doc.documentId, 't');
+    await index.rebuild();
+
+    const drafting = new DraftingService(storage, corpus, index, reranker, meter, bus, undefined, undefined);
+    const created = await drafting.create({ prompt: 'عقد ملک چگونه انجام می‌شود؟', createdBy: 'u1' });
+    const run = await drafting.generate(created.draftId);
+    expect(run.state).toBe('created');
+    expect(run.error).toBe(ERROR_CODES.DRAFT_AI_UNAVAILABLE);
+    expect(run.provenance?.degraded).toBeUndefined();
+  });
+
+  it('workers alive but zero overlap ⇒ still honest failure, no invented spans', async () => {
+    const { storage, corpus, index, reranker, meter, bus } = buildRag();
+    await corpus.ingestDocument({ sourceKey: 'r', canonicalTitle: 'قانون مدنی', bodyRaw: LAW_A, trustTier: 1, ingestedBy: 't' });
+    const doc = (await corpus.list())[0];
+    await corpus.markVerified(doc.documentId, 't');
+    await index.rebuild();
+
+    const workers = {
+      runTool: async () => ({ jobId: 'py-y', ok: true, output: { answered: false, reason: 'zero_overlap', engine: 'local_rules_extractive' } }),
+    } as never;
+
+    const drafting = new DraftingService(storage, corpus, index, reranker, meter, bus, undefined, workers);
+    const created = await drafting.create({ prompt: 'عقد ملک چگونه انجام می‌شود؟', createdBy: 'u1' });
+    const run = await drafting.generate(created.draftId);
+    expect(run.state).toBe('created');
+    expect(run.error).toBe(ERROR_CODES.DRAFT_AI_UNAVAILABLE);
+  });
+});

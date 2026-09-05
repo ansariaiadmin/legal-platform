@@ -27,8 +27,10 @@ class TestHandle(unittest.TestCase):
     def test_tools_registry_pure(self):
         self.assertEqual(
             sorted(TOOLS.keys()),
+            # P6-S4 added the always-on contract: ping / security_scan / local_answer
             ["article_refs", "ask_model", "chunk_legal_text", "extract_any",
-             "file_digest", "normalize_persian", "word_count"],
+             "file_digest", "local_answer", "normalize_persian", "ping",
+             "security_scan", "word_count"],
         )
 
     def test_ask_model_without_config_is_honest(self):
