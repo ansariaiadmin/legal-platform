@@ -5,7 +5,7 @@
 ## Where we are
 
 - **Phase:** phase-1-expert-tree — Expert agents: civil, criminal, family, registration
-- **Last checkpoint:** 2026-09-05T14:09:04.798Z
+- **Last checkpoint:** 2026-09-05T14:26:27.935Z
 - **Git:** run `git log --oneline -3` to see the last commits.
 
 ## Protocol (non-negotiable)
@@ -48,6 +48,7 @@
 - [ ] P2-T5 dashboard tab «کتابخانه» (corpus): list docs + trust tier chip + verify button + ingest-from-file + search; bus events corpus.ingested/corpus.validated
 - [ ] P2-T6 tests (corpus search scoring, tier gates, workflow ingest→validate→cite, updater temporal) + ADR-016 + ROADMAP Phase2 + docs + checkpoint sync + push
 - [ ] P3[done] Tiebreaker(budget-gated,schema-validated,privileged-skipped)+SessionMemory(TTL)+BudgetGate+route trace/dry-run — ADR-018
+- [ ] P4[done] Embedding index + reranker (config weights) + drafting state machine with citation-fee + review console + usage metering — ADR-019
 
 ## Completed
 
@@ -88,3 +89,4 @@
 - **ADR-016** — Corpus shelf: trust tiers, validator-only ticks, temporal truth, deterministic grounding StorageProvider-persisted now with SQL shapes in 006; validator owns verified_at; updater appends versions; dispatcher folds hits into context and only then claims grounded=true
 - **ADR-017** — Collection loop — mock-first adapters, honest partial_success state machine, linked retries CollectorSourceAdapter port + rooznameh-mock fixtures; ingestion worker persisted via StorageProvider with (source,window)-keyed idempotency; diagnostics read model + retry; Redis = later transport swap
 - **ADR-018** — LLM tiebreak bounded behind providers/ai: JSON-schema validated, budget-gated, privilege-skipped; session memory TTL; route trace SPEC §9 deterministic-first honored; low confidence alone buys an LLM opinion; spend is recorded; privileged bytes never leave for routing
+- **ADR-019** — RAG: citation is the entry fee; lineage-visible drafts; metering records every paid token composable retrieval + config-driven rerank + state-machine drafting + lawyer review; failed drafts honestly re-runnable in created with DRAFT_NO_CITATIONS

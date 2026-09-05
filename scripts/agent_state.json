@@ -292,7 +292,8 @@
     "P2-T4 corpus grounding layer: orchestrator dispatch attaches meta.citations (docTitle, chunkPreview, trustTier) + meta.grounded=true only when deterministic corpus hits exist — LLM untouched",
     "P2-T5 dashboard tab «کتابخانه» (corpus): list docs + trust tier chip + verify button + ingest-from-file + search; bus events corpus.ingested/corpus.validated",
     "P2-T6 tests (corpus search scoring, tier gates, workflow ingest→validate→cite, updater temporal) + ADR-016 + ROADMAP Phase2 + docs + checkpoint sync + push",
-    "P3[done] Tiebreaker(budget-gated,schema-validated,privileged-skipped)+SessionMemory(TTL)+BudgetGate+route trace/dry-run — ADR-018"
+    "P3[done] Tiebreaker(budget-gated,schema-validated,privileged-skipped)+SessionMemory(TTL)+BudgetGate+route trace/dry-run — ADR-018",
+    "P4[done] Embedding index + reranker (config weights) + drafting state machine with citation-fee + review console + usage metering — ADR-019"
   ],
   "architectural_decisions": [
     {
@@ -389,9 +390,14 @@
       "id": "ADR-018",
       "reasoning": "LLM tiebreak bounded behind providers/ai: JSON-schema validated, budget-gated, privilege-skipped; session memory TTL; route trace SPEC §9 deterministic-first honored; low confidence alone buys an LLM opinion; spend is recorded; privileged bytes never leave for routing",
       "at": "2026-09-05T14:09:04.798Z"
+    },
+    {
+      "id": "ADR-019",
+      "reasoning": "RAG: citation is the entry fee; lineage-visible drafts; metering records every paid token composable retrieval + config-driven rerank + state-machine drafting + lawyer review; failed drafts honestly re-runnable in created with DRAFT_NO_CITATIONS",
+      "at": "2026-09-05T14:26:27.935Z"
     }
   ],
-  "last_checkpoint": "2026-09-05T14:09:04.798Z",
-  "updated_at": "2026-09-05T14:09:04.798Z",
-  "update_count": 127
+  "last_checkpoint": "2026-09-05T14:26:27.935Z",
+  "updated_at": "2026-09-05T14:26:27.935Z",
+  "update_count": 129
 }

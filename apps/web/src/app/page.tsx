@@ -11,8 +11,9 @@ import { FilesTab } from '@/features/files-tab';
 import { KitchenTab } from '@/features/kitchen-tab';
 import { TelecomsTab } from '@/features/telecoms-tab';
 import { LibraryTab } from '@/features/library-tab';
+import { DraftsTab } from '@/features/drafts-tab';
 
-type TabId = 'home' | 'brain' | 'fleet' | 'chat' | 'files' | 'kitchen' | 'telecoms' | 'library';
+type TabId = 'home' | 'brain' | 'fleet' | 'chat' | 'files' | 'kitchen' | 'telecoms' | 'library' | 'drafts';
 
 const TABS: Array<{ id: TabId; icon: string }> = [
   { id: 'home', icon: '🏠' },
@@ -23,6 +24,7 @@ const TABS: Array<{ id: TabId; icon: string }> = [
   { id: 'kitchen', icon: '🍳' },
   { id: 'telecoms', icon: '📞' },
   { id: 'library', icon: '📚' },
+  { id: 'drafts', icon: '✍️' },
 ];
 
 export default function Dashboard() {
@@ -96,6 +98,7 @@ export default function Dashboard() {
           {tab === 'kitchen' && <KitchenTab />}
           {tab === 'telecoms' && <TelecomsTab />}
           {tab === 'library' && <LibraryTab />}
+          {tab === 'drafts' && <DraftsTab />}
         </>
       )}
     </div>

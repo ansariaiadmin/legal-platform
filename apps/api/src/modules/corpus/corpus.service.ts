@@ -59,6 +59,9 @@ export interface SearchHit {
   verified: boolean;
   score: number;
   preview: string; // dashboard-safe excerpt (~200 chars)
+  /** distinct QUERY terms this doc matched — coverage, the signal a draft
+   *  candidate must prove (single-term بپاس can be a false friend) */
+  matchedTerms: number;
 }
 
 const CHUNK_CHARS = 900;
@@ -271,6 +274,7 @@ export class CorpusService {
       const tierBoost = doc.trustTier === 1 ? 1.6 : doc.trustTier === 2 ? 1.0 : 0.5;
       score *= tierBoost;
       if (score <= 0) continue;
+      const matchedTerms = [...terms].filter((t) => bodyNorm.includes(t)).length;
 
       const previewStart = bodyNorm.indexOf([...terms][0] ?? '') ?? 0;
       scored.push({
@@ -280,6 +284,7 @@ export class CorpusService {
         verified: doc.verifiedAt !== null,
         score: Math.round(score * 100) / 100,
         preview: doc.bodyRaw.slice(Math.max(0, previewStart), Math.max(0, previewStart) + 220),
+        matchedTerms,
       });
     }
     return scored.sort((a, b) => b.score - a.score).slice(0, limit);

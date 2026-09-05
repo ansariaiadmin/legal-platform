@@ -18,6 +18,7 @@ export const ERROR_PREFIXES = {
   PURCHASE: 'PURCHASE_',
   SUBSCRIPTION: 'SUBSCRIPTION_',
   COMMS: 'COMMS_',
+  DRAFT: 'DRAFT_',
 } as const;
 
 export type ErrorCodePrefix = (typeof ERROR_PREFIXES)[keyof typeof ERROR_PREFIXES];
@@ -75,6 +76,11 @@ export const ERROR_CODES = {
   SUBSCRIPTION_EXPIRED: 'SUBSCRIPTION_EXPIRED',
   COMMS_NOT_CONFIGURED: 'COMMS_NOT_CONFIGURED',
   SYSTEM_NOT_IMPLEMENTED: 'SYSTEM_NOT_IMPLEMENTED',
+  // P4 — drafting with citations
+  DRAFT_NOT_FOUND: 'DRAFT_NOT_FOUND',
+  DRAFT_NO_CITATIONS: 'DRAFT_NO_CITATIONS',
+  DRAFT_ILLEGAL_TRANSITION: 'DRAFT_ILLEGAL_TRANSITION',
+  DRAFT_AI_UNAVAILABLE: 'DRAFT_AI_UNAVAILABLE',
 } as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES];
@@ -131,6 +137,11 @@ export function httpStatusForCode(code: string): number {
   if (code === ERROR_CODES.AUTH_INSUFFICIENT_ROLE) return 403;
   if (code.startsWith(ERROR_PREFIXES.AUTH)) return 401;
   if (code.endsWith('_NOT_FOUND')) return 404;
+  // P4 drafting: blocked generation is "valid request, missing citations";
+  // an illegal workflow hop conflicts with state; the AI seam being absent is upstream.
+  if (code === ERROR_CODES.DRAFT_NO_CITATIONS) return 422;
+  if (code === ERROR_CODES.DRAFT_ILLEGAL_TRANSITION) return 409;
+  if (code === ERROR_CODES.DRAFT_AI_UNAVAILABLE) return 502;
   if (code === ERROR_CODES.PAYMENT_GATEWAY_ERROR) return 502; // upstream payment hub failed, not the client's syntax
   if (code.startsWith(ERROR_PREFIXES.PROVIDER) || code.startsWith(ERROR_PREFIXES.AI)) return 502;
   return 500;

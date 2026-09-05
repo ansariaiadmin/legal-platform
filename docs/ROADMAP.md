@@ -259,13 +259,28 @@ Deterministic intent classification first; LLM only as tie-breaker (SPEC §9
 pipelinespec §9 verbatim: ingest → normalize → chunk → embed → pgvector →
 retrieve → rerank → draft WITH citations → **lawyer review (mandatory)**.
 
-- [ ] **P4-T1** Retrieval module: vector search over `document_chunks`
-  (cosine, dimension from provider metadata; never assume 1536).
-- [ ] **P4-T2** Reranker: trust-tier boost + recency + jurisdiction filters.
-- [ ] **P4-T3** Drafting: `DraftRequest` state machine enforcement,
-  citation-required generation prompt, output = draft + provenance bundle.
-- [ ] **P4-T4** Review console API: approve/reject/supersede, audit-logged.
-- [ ] **P4-T5** Metering: `usage_records` per call; monthly budget alert.
+- [x] **P4-T1** `EmbeddingIndexService`: cosine over provider embeddings
+  (dimension from provider metadata — never hardcoded); degraded honestly
+  when no AI provider; StorageProvider-persisted now, pgvector=swap; rebuild is
+  idempotent (no stale accretion).
+- [x] **P4-T2** `RerankerService`: pure-fn fusion of lexical+vector with
+  trust-tier boost (1.6/1/0.5), recency half-life decay, weights READ from
+  `RAG_RERANK_WEIGHTS` env (evolution by config); jurisdiction filters ride
+  the `kindHint` field on candidates (parsed kinds land with P4c enrichment).
+- [x] **P4-T3** `DraftingService`: state machine from `packages/domain`
+  (no local fork), citation-required prompt, provenance bundle shows ONLY the
+  `[n]` citations the model really used; blocked drafts land back in
+  `created` with honest error (DRAFT_NO_CITATIONS / DRAFT_AI_UNAVAILABLE);
+  term-coverage gate ≥2 distinct terms.
+- [x] **P4-T4** Review console: `POST /dashboard/rag/drafts/:id/review`
+  (approve | reject | supersede), illegal hops throw DRAFT_ILLEGAL_TRANSITION
+  → 409 envelope; supersede spawns linked successor; kitchen events
+  `draft.reviewed`. Audit-service wiring (DB appender) hooks in via the
+  tenant hook P6 (single audit emitter).
+- [x] **P4-T5** `UsageMeterService`: per (month, feature, model) rollups via
+  StorageProvider (SQL `usage_records` shape in 007); pricing config never
+  invents USD (null when unknown); monthly threshold alert once/day via bus
+  (`usage.alerted`). Dashboard reads `GET /dashboard/rag/usage/monthly`.
 
 ## Phase 5 — Platform-Agnostic Surface (API یکپارچه)
 

@@ -24,7 +24,11 @@ export type AgentEventKind =
   | 'conversation.turn'
   | 'queue.updated'
   | 'corpus.ingested'
-  | 'corpus.validated';
+  | 'corpus.validated'
+  | 'draft.created'
+  | 'draft.generated'
+  | 'draft.reviewed'
+  | 'usage.alerted';
 
 export interface AgentEvent {
   kind: AgentEventKind;

@@ -5,6 +5,60 @@ a new ADR. `scripts/agent_state.json.architectural_decisions` mirrors this file.
 
 ---
 
+## ADR-019: Citation is the entry fee — composable retrieval, provenance-bound drafting, money metering (P4, 2026-09-05)
+
+**Status**: accepted · **Area**: RAG pipeline / drafting · **Phase**: P4
+
+**Context.** SPEC §9's drafting law: ingest → normalize → chunk → embed →
+retrieve → rerank → draft WITH citations → **lawyer review mandatory**. P4
+also owed metering (usage_records + monthly alert) and review console API.
+
+**Decision.**
+1. **Composable retrieval pipeline.** `EmbeddingIndexService` (cosine over
+   `providers/ai` embeddings, dimension from PROVIDER metadata — never
+   hardcoded 1536) feeds the same candidates' pool as lexical
+   `CorpusService.search`; `RerankerService` fuses BOTH with config-driven
+   weights (`RAG_RERANK_WEIGHTS` JSON: lexical/vector blends + tierBoost
+   table + recency half-life). Evolvable: swap the vector store for pgvector,
+   the blend weights, or add BM25 — the same contract surface stays.
+2. **Citations carry COVERAGE, not merely existence.** `SearchHit.matchedTerms`
+   counts DISTINCT query terms a document covers; drafting refuses entry
+   unless the top hit covers ≥2 distinct terms (`REVIEW_MIN_TERM_COVERAGE`)
+   AND retrieval is non-empty (≥ REVIEW_MIN_CITATIONS). Otherwise the draft
+   lands back in `created` with `DRAFT_NO_CITATIONS` — a lone «قانون» word
+   can never feather a law.
+3. **State machine is domain-typed, and you can NEVER fork it.**
+   `DraftRequestState` from `packages/domain` governs with an `ALLOWED`
+   transition table: created → retrieving → generating → awaiting_review →
+   approved | rejected; approved → superseded (spawning a fresh `created`
+   successor linked by `supersedesId`). `DraftRequestState` in the domain
+   package has NO `failed` member, and SPEC §4 forbids local forks — so a
+   blocked/failed run returns to `created` with `error` set (re-runnable).
+4. **AI output is never sold as fact.** The citation-required system prompt
+   demands a numbered منابع section; after generation we verify which
+   `[n]` tags the model actually referenced and keep only those in the
+   provenance bundle (`retrieved[]` reflects what was ACTUALLY cited, not
+   what was on offer).
+5. **Metering as a toll booth.** Every paid call passes
+   `UsageMeterService.recordCall` (drafting/tiebreak/embedding), rolled
+   monthly per (feature, model); pricing from `AI_TOKEN_PRICING_USD` (missing
+   price ⇒ cost null, never invented); `AI_MONTHLY_ALERT_THRESH_USD` crossing
+   fires `usage.alerted` once per day max.
+6. **Dashboard consumables**: `GET|POST /dashboard/rag/index/rebuild`,
+   `GET /drafts`, `POST /drafts/:id/generate`, `POST /drafts/:id/review`,
+   `GET /usage/monthly`; plus the «پیش‌نویس‌ها» tab with provenance tiles.
+7. **SQL shapes now** (migration 007: draft_requests w/ state CHECK + supersede
+   FK + jsonb provenance, draft_reviews, usage_records UNIQUE(month,feature,
+   model)) — runtime still StorageProvider-persisted; production swap touches
+   storage only.
+
+**Tests** — `test/rag/rag-pipeline.spec.ts` (9 suites: honest empty index,
+cosine ranking, deterministic rebuild, tier boost & env-weights, blocked
+drafts, full review pipeline inc. illegal-hop errors, metering rollup and
+one-a-day alert).
+
+---
+
 ## ADR-018: The Leader asks twice only when confused — bounded LLM tiebreak, budget gates, honest memory (P3, 2026-09-05)
 
 **Status**: accepted · **Area**: orchestration / dispatch · **Phase**: P3
