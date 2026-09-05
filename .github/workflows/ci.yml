@@ -82,8 +82,19 @@ jobs:
       - name: "Run migrations (idempotency proof: up, then down:all, then up again)"
         working-directory: apps/api
         env:
-          DATABASE_URL: postgres://legal:ci-legal-password@127.0.0.1:5432/legal_platform_test
-        run: npm run migrate:up && npm run migrate:down:all && npm run migrate:up
+          DATABASE_URL: postgres://legal:ci-legal-password@localhost:5432/legal_platform_test
+        run: |
+          set -x
+          node -v
+          npx node-pg-migrate --version
+          node -e "
+            const { Client } = require('pg');
+            const c = new Client(process.env.DATABASE_URL);
+            c.connect().then(() => c.query('SELECT 1 AS ok')).then(() => c.end()).then(() => console.log('DB-CONNECT-OK'));
+          "
+          npm run migrate:up
+          npm run migrate:down:all
+          npm run migrate:up
 
       - name: E2E integration suite (auth full flow + wallet ledger on REAL Postgres)
         working-directory: apps/api
