@@ -111,6 +111,9 @@ jobs:
           NODE_ENV: production
           DEV_DASHBOARD_TOKEN: should-fail-the-gate
         run: |
-          npx ts-node src/preflight.ts; rc=$?
+          set +e
+          npx ts-node src/preflight.ts
+          rc=$?
+          set -e
           if [ $rc -eq 0 ]; then echo "PREFLIGHT SHOULD HAVE FAILED"; exit 1; fi
           echo "preflight failed honestly ✓ (exit $rc)"
