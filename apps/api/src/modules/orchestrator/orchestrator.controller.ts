@@ -386,7 +386,7 @@ export class OrchestratorController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     if (!file) throw new BadRequestException('file field is required');
-    const record = await this.files.register(file, user.id);
+    const record = await this.files.register(file, user.id, sensitivity);
     // The Leader READS before anyone talks about the file (product law).
     const analyzed = await this.files.analyze(record.fileId);
     await this.auditSafe(user.id, 'orchestrator.file.upload', record.fileId, {

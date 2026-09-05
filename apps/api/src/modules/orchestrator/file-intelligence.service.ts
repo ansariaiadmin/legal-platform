@@ -23,6 +23,13 @@ export interface FileRecord {
   storageKey: string;
   uploadedBy: string;
   uploadedAt: string;
+  /**
+   * FIELD REVIEW 2026-09-05 #10: sensitivity moves WITH the file, not only
+   * with the upload call. A privileged brief later attached to a chat must
+   * force the task local-only — the caller's default 'normal' must never
+   * silently downshift it.
+   */
+  sensitivity: 'privileged' | 'normal';
   /** filled once analysis lands (python or inline pre-read) */
   analysis: {
     status: AnalysisStatus;
@@ -55,7 +62,11 @@ export class FileIntelligenceService {
     @Optional() private readonly bus?: InProcessAgentEventBus,
   ) {}
 
-  async register(file: UploadedFilePayload, uploadedBy: string): Promise<FileRecord> {
+  async register(
+    file: UploadedFilePayload,
+    uploadedBy: string,
+    sensitivity: 'privileged' | 'normal' = 'normal',
+  ): Promise<FileRecord> {
     const sha256 = createHash('sha256').update(file.buffer).digest('hex');
     const safeName = file.originalname.replace(/[^\w.\-آ-ی]+/g, '_').slice(0, 120);
     const key = `uploads/${sha256}/${safeName}`;
@@ -75,6 +86,7 @@ export class FileIntelligenceService {
       storageKey: key,
       uploadedBy,
       uploadedAt: new Date().toISOString(),
+      sensitivity,
       analysis: null,
     };
     this.records.set(record.fileId, record);

@@ -169,7 +169,12 @@ export class LeaderConversationService {
       query: text,
       context: [...remembered, ...context],
       requestedBy: { userId: user.id, role: user.role },
-      sensitivity: input.sensitivity ?? 'normal',
+      // FIELD REVIEW #10: sensitivity is file-derived AND turn-derived, and
+      // privilege is sticky UP — one privileged attachment => the whole turn
+      // stays local-only, even if the form sent 'normal'.
+      sensitivity: attachments.some((a) => a.sensitivity === 'privileged')
+        ? 'privileged'
+        : (input.sensitivity ?? 'normal'),
     });
 
     const leaderText = composeLeaderText(result.output, attachments, placements, routing.agentId);

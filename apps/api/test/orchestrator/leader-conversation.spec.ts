@@ -206,4 +206,68 @@ describe('Leader conversation — THE sandbox (P1e / ADR-013)', () => {
       conversations.acceptProposal(reply.configProposal!.proposalId, 'intruder'),
     ).rejects.toThrow('another user');
   });
+
+  it('FIELD REVIEW #10: an attachment marked privileged escalates the whole turn to local-only', async () => {
+    const { conversations, files, orchestrator } = await bootstrap();
+    const rec = await files.register(
+      {
+        originalname: 'سند-محرمانه.txt',
+        mimetype: 'text/plain',
+        size: 0,
+        buffer: Buffer.from('قرارداد محرمانه با مشتری استراتژیک که هرگز نباید از دستگاه خارج شود'),
+      },
+      OWNER.id,
+      'privileged', // registered as privileged at upload time
+    );
+    expect(rec.sensitivity).toBe('privileged');
+
+    const seen: Array<Record<string, unknown>> = [];
+    const spy = jest.spyOn(orchestrator, 'dispatch').mockImplementation((async (task: Record<string, unknown>) => {
+      seen.push(task);
+      return {
+        routing: { agentId: 'civil-expert', skillId: null, confidence: 0.9 },
+        inference: { target: 'local', model: 'stub' },
+        result: { ok: true, output: 'خواندم.' },
+      } as never;
+    }));
+
+    const conv = conversations.open(OWNER.id);
+    // IMPORTANT: the form did NOT mark the turn privileged — the FILE must.
+    await conversations.chat(
+      { conversationId: conv.conversationId, text: 'نکته کلیدی چیست؟', fileIds: [rec.fileId] },
+      OWNER,
+    );
+    expect(seen).toHaveLength(1);
+    expect(seen[0].sensitivity).toBe('privileged');
+    spy.mockRestore();
+  });
+
+  it('FIELD REVIEW #10: normal files keep the caller-provided sensitivity', async () => {
+    const { conversations, files, orchestrator } = await bootstrap();
+    const rec = await files.register(
+      {
+        originalname: 'سند-عمومی.txt',
+        mimetype: 'text/plain',
+        size: 0,
+        buffer: Buffer.from('متن عمومی آزمایشی'),
+      },
+      OWNER.id, // no sensitivity → defaults to 'normal'
+    );
+    expect(rec.sensitivity).toBe('normal');
+
+    const seen: Array<Record<string, unknown>> = [];
+    const spy = jest.spyOn(orchestrator, 'dispatch').mockImplementation((async (task: Record<string, unknown>) => {
+      seen.push(task);
+      return {
+        routing: { agentId: 'civil-expert', skillId: null, confidence: 0.9 },
+        inference: { target: 'cloud', model: 'stub' },
+        result: { ok: true, output: 'خواندم.' },
+      } as never;
+    }));
+
+    const conv = conversations.open(OWNER.id);
+    await conversations.chat({ conversationId: conv.conversationId, text: 'x', fileIds: [rec.fileId] }, OWNER);
+    expect(seen[0].sensitivity).toBe('normal');
+    spy.mockRestore();
+  });
 });
