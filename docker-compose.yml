@@ -149,6 +149,30 @@ services:
     networks:
       - legal-network
 
+
+  # FIELD REVIEW #2b — the ZarinPal-shaped stub for smoke/CI. Profile-gated:
+  # `docker compose --profile mock-gateways up mock-zarinpal` only. The API
+  # can point PAYMENT_ADAPTER=zarinpal + ZARINPAL_BASE_URL=http://mock-zarinpal:8085/pg/v4/payment
+  # so extract.io runs the FULL request→verify→credit loop in CI.
+  mock-zarinpal:
+    image: node:20-alpine
+    profiles: [mock-gateways]
+    working_dir: /srv
+    command: ["node", "scripts/mock-gateway/zarinpal-stub.server.mjs"]
+    environment:
+      PORT: "8085"
+    volumes:
+      - .:/srv:ro
+    ports:
+      - "8085:8085"
+    networks:
+      - legal-network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://127.0.0.1:8085/health"]
+      interval: 5s
+      timeout: 2s
+      retries: 10
+
 volumes:
   postgres_data:
   redis_data:

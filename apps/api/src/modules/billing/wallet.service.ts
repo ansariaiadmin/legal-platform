@@ -35,7 +35,7 @@ const TXN_CAP = 500;
  * fall back to a query-style read. Anything else (network, refusal) fails
  * closed — a wallet never guesses.
  */
-async function verifyTopupPayment(
+export async function verifyTopupPayment(
   payment: PaymentProvider,
   sessionId: string,
   expectedToman: number,
