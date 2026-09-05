@@ -2,6 +2,10 @@ export function nowIso(): string {
   return new Date().toISOString();
 }
 
+// Agentic Layer (SPEC §11a): IAgent / ISkill / IExpertAgent / collectors /
+// knowledge-graph ports live here so api, web and future clients share them.
+export * from './interfaces';
+
 /**
  * Normalize Iranian phone numbers to +989xxxxxxxxx format
  * Accepts: 09xxxxxxxxx, 9xxxxxxxxx, +989xxxxxxxxx, 00989xxxxxxxxx

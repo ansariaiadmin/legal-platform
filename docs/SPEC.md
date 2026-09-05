@@ -161,6 +161,25 @@ AiDraftCreated, AiDraftApproved, BackupCompleted, BackupFailed.
 Exponential backoff for transient provider failures; never blindly retry
 non-idempotent payment confirmation; dead-letter after max retries.
 
+## 11a. Agentic Layer (v1.1, per ADR-000)
+Decentralized multi-agent ecosystem on top of — never instead of — the rules
+above. Three pillars.
+(1) Expert Tree: specialized agents in `apps/agents/{branch}` (civil, criminal,
+family, registration). Each is a runnable unit with a mandatory
+`capabilities.ts` exposing its `ISkill[]` per the interfaces in
+`packages/shared/src/interfaces`. Agents never embed LLM SDKs or provider
+keys; every AI call transits `providers/ai` and its routing modes (§8).
+(2) Data Lifecycle: collector agents (`ICollectorAgent`) ingest official
+sources; validators award a "verified" green-tick only when trust-tier and
+provenance checks pass; updaters maintain temporal law versioning
+(valid_from/valid_to, superseded_by — history is never overwritten).
+(3) Orchestrator (`modules/orchestrator`): deterministic intent classification
+first (ADR-003), shortest-path routing through the Expert Tree, budget gate
+before any LLM call. Agent output that constitutes a legal draft still requires
+lawyer review (§9) — autonomy never overrides that.
+State/memory: `scripts/agent_state.json` + `scripts/checkpoint.mjs` are the
+authoritative cross-session brain (ADR-001); roadmap in `docs/ROADMAP.md`.
+
 ## 12. Coding and Delivery Standards
 Strict typing; dependency injection for providers; no global mutable state.
 Every implementation batch MUST return this Output Contract:

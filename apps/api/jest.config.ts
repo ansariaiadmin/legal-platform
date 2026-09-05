@@ -22,6 +22,8 @@ const config: Config = {
     '^@/(.*)$': '<rootDir>/src/$1',
     // Unit tests compile workspace sources directly instead of requiring the
     // built dist/, so a stale build can never make a test pass.
+    // Agents (apps/agents/*) are workspace sources too — SPEC section 11a.
+    '^@legal-platform/agent-(.*)$': '<rootDir>/../../apps/agents/$1/src/index.ts',
     '^@legal-platform/(.*)$': '<rootDir>/../../packages/$1/src/index.ts',
   },
 };

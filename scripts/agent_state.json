@@ -1,0 +1,87 @@
+{
+  "project": "legal-platform",
+  "current_phase": "phase-0-foundation",
+  "phases": {
+    "phase-0-foundation": {
+      "name": "State engine, handoff protocol, agent interfaces, skeletons",
+      "status": "in_progress",
+      "started_at": "2026-09-05T06:00:00.000Z"
+    },
+    "phase-1-expert-tree": {
+      "name": "Expert agents: civil, criminal, family, registration",
+      "status": "pending"
+    },
+    "phase-2-data-lifecycle": {
+      "name": "Collectors, validators, law versioning (RAG corpus)",
+      "status": "pending"
+    },
+    "phase-3-orchestrator": {
+      "name": "Intent classification + live routing through the expert tree",
+      "status": "pending"
+    },
+    "phase-4-rag-pipeline": {
+      "name": "pgvector retrieval, grounded drafting with citations and review",
+      "status": "pending"
+    },
+    "phase-5-api-surface": {
+      "name": "Platform-agnostic agent API (REST, contract-first)",
+      "status": "pending"
+    }
+  },
+  "completed_tasks": [
+    {
+      "task": "P0-T1: state engine (agent_state.json + checkpoint.mjs)",
+      "at": "2026-09-05T10:32:54.532Z"
+    },
+    {
+      "task": "P0-T2: handoff protocol (AGENTS.md + HANDOFF.md)",
+      "at": "2026-09-05T10:32:54.563Z"
+    },
+    {
+      "task": "P0-T3: roadmap (docs/ROADMAP.md) + ADR log",
+      "at": "2026-09-05T10:32:54.595Z"
+    },
+    {
+      "task": "P0-T4: core interfaces in packages/shared (IAgent, ISkill, IExpertAgent, ICollectorAgent, KnowledgeGraph)",
+      "at": "2026-09-05T10:32:54.627Z"
+    },
+    {
+      "task": "P0-T5: scaffold apps/agents/legal-expert-base with capabilities.ts + tests",
+      "at": "2026-09-05T10:32:59.934Z"
+    },
+    {
+      "task": "P0-T6: scaffold apps/api orchestrator module + tests",
+      "at": "2026-09-05T10:32:59.970Z"
+    },
+    {
+      "task": "P0-T7: root workspace wiring, build, typecheck, tests, commit",
+      "at": "2026-09-05T10:35:22.942Z"
+    }
+  ],
+  "pending_tasks": [],
+  "architectural_decisions": [
+    {
+      "id": "ADR-000",
+      "reasoning": "The Agentic Layer is real and pinned in SPEC section 11a",
+      "at": "2026-09-05T10:33:00.009Z"
+    },
+    {
+      "id": "ADR-001",
+      "reasoning": "File-backed State Engine as cross-session memory (agent_state.json + checkpoint.mjs)",
+      "at": "2026-09-05T10:33:00.040Z"
+    },
+    {
+      "id": "ADR-002",
+      "reasoning": "Agents live in apps/agents/{branch}, not packages/",
+      "at": "2026-09-05T10:33:00.073Z"
+    },
+    {
+      "id": "ADR-003",
+      "reasoning": "Deterministic-first routing; LLM as bounded fallback",
+      "at": "2026-09-05T10:33:00.108Z"
+    }
+  ],
+  "last_checkpoint": "2026-09-05T10:35:22.942Z",
+  "updated_at": "2026-09-05T10:35:22.942Z",
+  "update_count": 11
+}

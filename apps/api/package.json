@@ -18,6 +18,7 @@
     "migrate:create": "node-pg-migrate --migration-file-language ts --migrations-dir src/database/migrations create"
   },
   "dependencies": {
+    "@legal-platform/agent-legal-expert-base": "0.1.0",
     "@legal-platform/contracts": "1.0.0",
     "@legal-platform/domain": "1.0.0",
     "@legal-platform/shared": "1.0.0",

@@ -51,3 +51,23 @@ export enum UserRole {
   CLIENT = 'client',
   OPERATOR = 'operator',
 }
+
+// Agentic Layer (SPEC §11a): single home for the legal-field taxonomy.
+// Nothing else may redefine these strings (SPEC §4: no duplicated enums).
+export enum LegalField {
+  CIVIL = 'civil',
+  CRIMINAL = 'criminal',
+  FAMILY = 'family',
+  REGISTRATION = 'registration',
+  COMMERCIAL = 'commercial',
+  LABOR = 'labor',
+  GENERAL = 'general',
+}
+
+export enum IntentKind {
+  QUESTION = 'question',
+  DRAFT_REQUEST = 'draft_request',
+  REVIEW_DOCUMENT = 'review_document',
+  SEARCH_LAW = 'search_law',
+  UNKNOWN = 'unknown',
+}

@@ -7,12 +7,16 @@
     "packages/contracts",
     "packages/shared",
     "apps/api",
-    "apps/web"
+    "apps/web",
+    "apps/agents/*"
   ],
   "scripts": {
     "build:packages": "npm run build -w @legal-platform/domain -w @legal-platform/contracts -w @legal-platform/shared",
+    "build:agents": "npm run build -w @legal-platform/agent-legal-expert-base",
     "build:apps": "npm run build -w @legal-platform/api -w @legal-platform/web",
-    "build": "npm run build:packages && npm run build:apps",
+    "build": "npm run build:packages && npm run build:agents && npm run build:apps",
+    "agent:state": "node scripts/checkpoint.mjs status",
+    "agent:checkpoint": "node scripts/checkpoint.mjs complete",
     "clean": "npm run clean --workspaces --if-present",
     "typecheck": "npm run build:packages && npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
