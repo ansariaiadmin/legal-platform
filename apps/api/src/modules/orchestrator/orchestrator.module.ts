@@ -1,5 +1,6 @@
 import { AuthVaultModule } from '../authvault/authvault.module';
 import { Module, forwardRef } from '@nestjs/common';
+import { AlertRelayService } from '../../common/alert-relay.service';
 import { OrchestratorController } from './orchestrator.controller';
 import { OrchestratorService } from './orchestrator.service';
 import { ExpertRegistry } from './expert-registry';
@@ -51,6 +52,7 @@ import { CorpusModule } from '../corpus/corpus.module';
     LlmTiebreakerService,
     BudgetGateService,
     SessionMemoryService,
+    AlertRelayService, // #13: bus-critical events → the channel the office reads
   ],
   exports: [
     OrchestratorService,
