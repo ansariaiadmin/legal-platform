@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Ip, Param, Post, Res, UseGuards } from '@nestjs/common';
+import { AreaLockGuard, AreaLocked } from './area-lock.guard';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { UserRole } from '@legal-platform/domain';
@@ -19,7 +20,7 @@ import { RotationService } from './rotation.service';
 @ApiTags('vault')
 @ApiBearerAuth()
 @Controller('dashboard/vault')
-@UseGuards(JwtAccessGuard, RolesGuard)
+@UseGuards(JwtAccessGuard, RolesGuard, AreaLockGuard)
 export class VaultController {
   constructor(
     private readonly locks: AreaLockService,
@@ -123,6 +124,7 @@ export class VaultController {
   }
 
   @Post('rotation/rotate-all')
+  @AreaLocked('vault')
   @Roles(UserRole.LAWYER_OWNER)
   @ApiOperation({ summary: 'ONE button: rotate every platform-owned credential; returns the ONE-SHOT credentials file' })
   rotateAll(@CurrentUser() user: AuthenticatedUser) {
@@ -130,6 +132,7 @@ export class VaultController {
   }
 
   @Post('rotation/rotate-all/download')
+  @AreaLocked('vault')
   @Roles(UserRole.LAWYER_OWNER)
   @ApiOperation({ summary: 'rotate-all AND download the credentials file as an attachment, in one move' })
   async rotateAllAndDownload(@CurrentUser() user: AuthenticatedUser, @Res() res: Response) {

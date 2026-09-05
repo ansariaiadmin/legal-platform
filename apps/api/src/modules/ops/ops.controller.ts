@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { AreaLockGuard, AreaLocked } from '../authvault/area-lock.guard';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { UserRole } from '@legal-platform/domain';
 import { JwtAccessGuard } from '../../security/jwt-access.guard';
@@ -20,7 +21,12 @@ import { ConfigService } from '@nestjs/config';
 @ApiTags('ops')
 @ApiBearerAuth()
 @Controller('dashboard/ops')
-@UseGuards(JwtAccessGuard, RolesGuard)
+// FIELD REVIEW 2026-09-05 #6: backup/restore moves EVERY office secret at
+// once. Sitting behind session auth alone made it one stolen-JWT away.
+// The ops AREA (second password, area ticket, epoch-pinned) now guards it —
+// offices that never enabled an ops lock keep the old reach; offices that
+// did get a hard step-up on exactly the mortal verbs.
+@UseGuards(JwtAccessGuard, RolesGuard, AreaLockGuard)
 export class OpsController {
   constructor(
     private readonly backup: BackupService,
@@ -28,6 +34,7 @@ export class OpsController {
   ) {}
 
   @Get('backup')
+  @AreaLocked('ops')
   @Roles(UserRole.LAWYER_OWNER)
   @ApiOperation({ summary: 'export all StorageProvider-backed runtime state as one portable JSON bundle (SQL NOT included — the bundle says so)' })
   download() {
@@ -35,6 +42,7 @@ export class OpsController {
   }
 
   @Post('backup/restore')
+  @AreaLocked('ops')
   @Roles(UserRole.LAWYER_OWNER)
   @ApiOperation({ summary: 'restore a bundle; wrong schema rejected, per-key failures are skipped and REPORTED, never silently half-written' })
   restore(@Body() body: unknown) {
