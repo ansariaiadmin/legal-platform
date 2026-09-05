@@ -423,12 +423,13 @@ export class AuthService {
     if (!idRl.allowed) throw new ForbiddenException(ERROR_CODES.AUTH_RATE_LIMITED);
 
     // find user WITHOUT creating — passkeys never mint accounts
-    const found = await this.pool.query<{ id: string }>(
+    // (requireDb per the P11 law: dead DB ⇒ honest 503, never a raw 500)
+    const found = await this.requireDb(this.pool.query<{ id: string }>(
       isMail
         ? `SELECT id FROM users WHERE email = $1 AND status = 'active'`
         : `SELECT id FROM users WHERE phone_normalized = $1 AND status = 'active'`,
       [normalized],
-    );
+    ));
     const userId = found.rows[0]?.id;
     if (!userId || !this.passkeys) {
       // neutral answer: same shape, zero keys — no oracle for account existence

@@ -177,6 +177,19 @@ describe('passkey-first login (P12-i)', () => {
       .rejects.toMatchObject({ code: 'AUTH_CHALLENGE_INVALID' });
   });
 
+  it('dead database ⇒ honest 503 AUTH_DEPENDENCY_DOWN, never a raw 500 at the door', async () => {
+    const { auth } = boot();
+    (auth as unknown as { pool: { query: () => Promise<never> } }).pool = {
+      query: async () => {
+        const err = new Error('ECONNREFUSED');
+        throw err;
+      },
+    };
+    await expect(auth.beginPasskeyLogin(OWNER_PHONE, '1.2.3.4')).rejects.toMatchObject({
+      status: 503,
+    });
+  });
+
   it('accounts without passkeys get a truthful empty allowlist', async () => {
     const { auth } = boot(); // u-owner has NO passkeys enrolled
     const begin = await auth.beginPasskeyLogin(OWNER_PHONE, '1.2.3.4');
