@@ -5,6 +5,70 @@ a new ADR. `scripts/agent_state.json.architectural_decisions` mirrors this file.
 
 ---
 
+## ADR-016: The corpus shelf — trust tiers, validator-only ticks, temporal truth, deterministic grounding (P2, 2026-09-05)
+
+**Status**: accepted · **Area**: corpus / RAG · **Phase**: P2 (data lifecycle)
+
+**Context.** SPEC §9 demands law be INGESTED as data, never recalled from a
+model: trust tiers (1 official / 2 office-approved / 3 general), sha256
+provenance, `verified_at` set ONLY by a validator, `valid_from`/`valid_to`
+temporal versioning, and answers grounded in retrievable chunks with the
+source named. Phase 2 builds that shelf.
+
+**Decision.**
+1. **Storage split** — relational SHAPES are written NOW (migration 006:
+   `knowledge_sources`, `legal_documents` with `sha256 UNIQUE` +
+   `valid_from`/`valid_to` + `supersedes_id`; `document_chunks` with a
+   `vector(1536)` placeholder on pgvector; `ingestion_jobs` with an honest
+   `partial_success` state), while the RUNTIME corpus persists through the
+   StorageProvider port (`runtime/corpus/store.json`). The service code is
+   storage-agnostic; the production swap touches storage only, never truth.
+2. **The validator is the only pen for the green tick.** CorpusService owns
+   no "force verify" path; `DataValidatorService.validate` checks body
+   length, recomputes sha256, enforces a Persian-content ratio, and for
+   tier 1 REQUIRES an official-publication marker («روزنامه رسمی» /
+   «مجلس شورای اسلامی» …). Failure returns human-readable reasons the
+   dashboard shows verbatim (ADR-013/1e honesty).
+3. **Temporal append, never overwrite.** Re-ingesting a canonical title
+   closes the previous row's `valid_to` and appends the new version with a
+   `supersedes_id` pointer; identical sha256 in the same title is an honest
+   "no change" (`LawUpdaterService.applyUpdate`). "The law as of day X"
+   stays answerable.
+4. **Deterministic retrieval.** `CorpusService.search` = zero-cost term
+   scoring + exact-phrase bonus + title bonus, weighted by trust tier
+   (1→×1.6, 2→×1, 3→×0.5), over NORMALIZED Persian (ك→ک, ي→ی, دو-فاصله/ZWNJ
+   می‌لغد). Search defaults to verified-only; `?all=true` is the explicit
+   escape hatch. pgvector lands in P4c; the contract surface stays stable.
+5. **Grounding is a pre-dispatch fold, not a post-hoc costume.** The
+   orchestrator asks the corpus BEFORE any expert runs; real hits are
+   appended to `task.context` as attributed lines («منبع معتبر …») and ONLY
+   then does `result.meta.grounded = true` with `meta.citations[]`
+   (title, tier, preview). No hit → no grounding claim. LLM text is never
+   rebranded as sourced fact.
+6. **Module topology**: `CorpusModule` is intentionally bus-fed from
+   OrchestratorModule via `forwardRef` (`corpus.ingested`/`corpus.validated`
+   events on the kitchen stream) while OrchestratorModule consumes
+   `CorpusService` for grounding — a declared two-way reference pinned by
+   forwardRef, NOT hidden plumbing; the dashboard controller lives in
+   `CorpusApiModule` above both, because it also needs
+   `FileIntelligenceService.shelfText()` (P2 adds FULL text extraction for
+   shelvers; analysis previews stay 400 chars for chat).
+
+**Consequences.**
+- 24 dashboard queries can show «چرا رد شد» instead of «خطا» — validator
+  reasons are Persian, end to end.
+- Grounded answers carry a citation list the UI can render without parsing.
+- Honest NOT-YET list: no collector AGENT loop yet (P3 wires scheduled
+  collection with per-source quality decay), embeddings are a placeholder
+  column until P4c, `test:migrations` needs a live DATABASE_URL (the
+  sandbox has none; 006 shipped after tsc + import checks like 001–005).
+
+**Tests** — `apps/api/test/corpus/corpus-grounding.spec.ts` (5 specs:
+dedupe-by-sha256, verified-only search, validator rejections with reasons,
+temporal supersession, dispatch grounding on/off).
+
+---
+
 ## ADR-015: Commerce, the consultation queue and the wired office (P2a, 2026-09-05)
 
 **Context.** The day-one public business is a click-and-pay product: from a

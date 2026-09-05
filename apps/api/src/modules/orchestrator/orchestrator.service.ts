@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional, Inject, forwardRef } from '@nestjs/common';
 import type { AgentEvent, AgentTask } from '@legal-platform/shared';
 import { LegalField } from '@legal-platform/domain';
 import { ERROR_CODES } from '@legal-platform/contracts';
@@ -7,6 +7,7 @@ import { IntentClassifier, LOW_CONFIDENCE, type IntentClassification } from './i
 import { HybridInferenceRouter } from './hybrid-inference-router';
 import { AgentGovernanceService } from './agent-governance.service';
 import { InProcessAgentEventBus } from './agent-event-bus';
+import { CorpusService, type SearchHit } from '../corpus/corpus.service';
 
 export interface RouteResult {
   agentId: string | null;
@@ -42,6 +43,7 @@ export class OrchestratorService {
     private readonly inferenceRouter: HybridInferenceRouter,
     private readonly bus: InProcessAgentEventBus,
     private readonly classifier: IntentClassifier = new IntentClassifier(),
+    @Optional() @Inject(forwardRef(() => CorpusService)) private readonly corpus?: CorpusService,
   ) {}
 
   private emit(event: Omit<AgentEvent, 'at'>): void {
@@ -96,10 +98,27 @@ export class OrchestratorService {
     return result;
   }
 
-  /** Route AND execute behind the governance + inference gates. */
+  /** Route AND execute behind the governance + inference gates.
+   *
+   *  GROUNDING (P2-T4): before any expert runs, the corpus shelf is asked
+   *  for verified documents matching the query. Real hits are folded into
+   *  the task context as attributed lines — and ONLY then does meta.grounded
+   *  flip true with citations (title, preview, trust tier). No hits, no
+   *  grounding claim: honesty beats branding. LLM output itself is never
+   *  dressed up as law.
+   */
   async dispatch(task: AgentTask) {
     const started = Date.now();
     this.emit({ kind: 'task.accepted', taskId: task.taskId, agentId: null, detail: redact(task.query) });
+
+    const citations = (await this.corpus?.search(task.query, { verifiedOnly: true, limit: 3 }).catch(() => [])) ?? [];
+    if (citations.length > 0) {
+      const context = [
+        ...citations.map((c) => `منبع معتبر «${c.canonicalTitle}» (رده اعتماد ${c.trustTier}): ${c.preview}`),
+        ...(task.context ?? []),
+      ];
+      task = { ...task, context };
+    }
 
     const routing = await this.route(task.query, task.taskId);
     if (!routing.agentId) {
@@ -167,10 +186,22 @@ export class OrchestratorService {
     this.logger.log(
       `dispatched task=${task.taskId} → ${routing.agentId}/${routing.skillId} via ${inference.target} (${inference.reason})`,
     );
+    const groundedMeta =
+      citations.length > 0
+        ? {
+            grounded: true,
+            citations: citations.map((c: SearchHit) => ({
+              documentId: c.documentId,
+              title: c.canonicalTitle,
+              trustTier: c.trustTier,
+              preview: c.preview.slice(0, 160),
+            })),
+          }
+        : { grounded: false };
     return {
       routing,
       inference,
-      result: { ...result, meta: { ...result.meta, grantId: decision.grant.grantId } },
+      result: { ...result, meta: { ...result.meta, ...groundedMeta, grantId: decision.grant.grantId } },
     };
   }
 

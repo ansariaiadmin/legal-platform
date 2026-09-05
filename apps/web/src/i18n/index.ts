@@ -15,6 +15,7 @@ export const fa = {
   'tab.files': 'فایل‌ها',
   'tab.kitchen': 'آشپزخانه زنده',
   'tab.telecoms': 'مخابرات مشاوره',
+  'tab.library': 'کتابخانه',
 
   // home
   'home.title': 'دفتر حقوقی تو، با یک جامعه‌ای از کارشناس‌ها',

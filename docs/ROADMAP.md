@@ -187,19 +187,39 @@ runs their office phone-operator style from the dashboard's مخابرات tab.
 Autonomous collectors → validators → updaters. Trust tiers per SPEC §9.
 Law versioning = temporal (valid_from/valid_to), never overwrite history.
 
-- [ ] **P2-T1** Migration: `ai/corpus` tables from SPEC §5
-  (`knowledge_sources`, `ingestion_jobs`, `legal_documents`, `document_chunks`,
-  `citation_links`, `retrieval_sessions`, `retrieval_results`) — pgvector-ready.
+- [x] **P2-T1** Migration 006: corpus tables from SPEC §5
+  (`knowledge_sources`, `ingestion_jobs` incl. honest `partial_success`,
+  `legal_documents` sha256-UNIQUE + `valid_from/valid_to` + `supersedes_id`,
+  `document_chunks` vector(1536) placeholder, `corpus_versions`) + the P2a
+  money tables (wallets/txns with balance CHECK + idempotency index,
+  purchases, subscriptions, tickets, comms_panels, notifications).
+  NOTE: `citation_links` / `retrieval_sessions` / `retrieval_results` defer
+  to the P4c embedding phase — P2 grounding carries citations on `result.meta`.
+  Rehearsal (`test:migrations`) needs a live DATABASE_URL — see ADR-016.
 - [ ] **P2-T2** `ICollectorAgent` implementations: official-source scrapers
   (روزنامه رسمی، پایگاه قوانین) behind a per-source adapter interface; mock-first.
-- [ ] **P2-T3** `ValidatorAgent`: checksum/provenance audit, marks
-  `verified_at` (the "green tick") only when trust ≥ tier 1 passes checks.
-- [ ] **P2-T4** `UpdaterAgent`/temporal logic: diff incoming law vs stored,
-  version bump with `superseded_by`, effective-date aware.
+- [x] **P2-T3** `DataValidatorService` (corpus shelf IS the validator surface):
+  sha256 recompute, min length, Persian ratio, tier-1 official-marker rule;
+  `verified_at` written ONLY when every rule passes; Persian reasons leak out
+  to the dashboard on rejection. No force-verify path exists (ADR-016).
+- [x] **P2-T4** `LawUpdaterService`/temporal logic: identical sha256 = honest
+  "no change"; new text on a known title closes the previous `valid_to` and
+  appends the version with `supersedes_id` — history never overwritten.
+  Effective-date SCHEDULING (collected for tomorrow) lands with P2-T5's worker.
 - [ ] **P2-T5** Ingestion worker (Redis queue, `IngestionJobState` machine)
   with idempotent re-runs and partial_success accounting.
 - [ ] **P2-T6** Diagnostics surfacing: sync failures visible in
   `/api/dashboard/diagnostics` with manual retry (SPEC §9).
+- [x] **P2-T7** Corpus grounding at dispatch (ADR-016): corpus search runs
+  BEFORE the expert; verified hits fold into `task.context` and only then
+  `meta.grounded=true` with `meta.citations[]` (title, tier, preview).
+  No hit → no grounding costume. Deterministic tier-weighted scoring,
+  verified-first, Persian-normalized.
+- [x] **P2-T8** Dashboard «کتابخانه» tab: shelf vitals + trust-tier badges,
+  deterministic search, paste-ingest, ingest-from-upload (full text via
+  `shelfText` — OCR-needed flags surfaced, never imagined), validate-button
+  with reasons. Bus events `corpus.ingested` / `corpus.validated` on the
+  kitchen stream.
 
 ## Phase 3 — The Orchestrator (هدایت‌گر)
 

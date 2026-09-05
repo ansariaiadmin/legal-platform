@@ -236,6 +236,30 @@
     {
       "task": "P2a-T8",
       "at": "2026-09-05T13:12:30.449Z"
+    },
+    {
+      "task": "P2-T1",
+      "at": "2026-09-05T13:39:57.769Z"
+    },
+    {
+      "task": "P2-T2",
+      "at": "2026-09-05T13:39:57.807Z"
+    },
+    {
+      "task": "P2-T3",
+      "at": "2026-09-05T13:39:57.848Z"
+    },
+    {
+      "task": "P2-T4",
+      "at": "2026-09-05T13:39:57.879Z"
+    },
+    {
+      "task": "P2-T5",
+      "at": "2026-09-05T13:39:57.911Z"
+    },
+    {
+      "task": "P2-T6",
+      "at": "2026-09-05T13:39:57.942Z"
     }
   ],
   "pending_tasks": [
@@ -261,7 +285,13 @@
     "P2a-T5 NotificationService: in-app ring (client polls GET /client/notifications) + SMS via configured panel + telephony outbound call when ticket reaches up_next; events emitted to agent bus for kitchen visibility",
     "P2a-T6 apps/client PWA (separate Next server, port 3100): manifest+sw+install, OTP sign-in (client role), home shop cards 10/20/30 + AI subscription grid, wallet topup+balance, queue status page (position, ETA, notify list), call join placeholder",
     "P2a-T7 dashboard tab «مخابرات مشاوره»: online/offline switch, queue open/close, next/skip with live list, plan minutes editor, SMS/call panel forms with test buttons",
-    "P2a-T8 jest suites (billing/queue/comms/notifications), ADR-015, ROADMAP Phase2a, .env.example, checkpoint sync, commit+push"
+    "P2a-T8 jest suites (billing/queue/comms/notifications), ADR-015, ROADMAP Phase2a, .env.example, checkpoint sync, commit+push",
+    "P2-T1 Migration 006: ai/corpus (knowledge_sources, ingestion_jobs, legal_documents w/ trust_tier+verified_at, document_chunks, corpus_versions temporal) + billing tables (wallets, wallet_txns, purchases, subscriptions, consultation_tickets, comms_panels, notifications)",
+    "P2-T2 modules/corpus: CorpusService (docs+chunks into StorageProvider-persisted store now, SQL-shaped for the P2-T1 swap; Persian-aware deterministic search with phrase boost + trust-tier weighting); ingest(fileId→legal_document pending_validation trust 2)",
+    "P2-T3 agents data-validator + law-updater under apps/agents (ICollectorAgent interface conformance: validator enforces sha256 uniqueness, min length, Persian ratio, tier rules; updater temporal-append versioning valid_from/valid_to)",
+    "P2-T4 corpus grounding layer: orchestrator dispatch attaches meta.citations (docTitle, chunkPreview, trustTier) + meta.grounded=true only when deterministic corpus hits exist — LLM untouched",
+    "P2-T5 dashboard tab «کتابخانه» (corpus): list docs + trust tier chip + verify button + ingest-from-file + search; bus events corpus.ingested/corpus.validated",
+    "P2-T6 tests (corpus search scoring, tier gates, workflow ingest→validate→cite, updater temporal) + ADR-016 + ROADMAP Phase2 + docs + checkpoint sync + push"
   ],
   "architectural_decisions": [
     {
@@ -343,9 +373,14 @@
       "id": "ADR-015",
       "reasoning": "Commerce+telecoms: WalletService (per-user lock, idempotent topup, WALLET_INSUFFICIENT_FUNDS 402), BillingService (plans 10/20/30 lawyer-edited + per-feature AI subscriptions 1/3/12m, duplicate-active 409), ConsultationQueueService (join⇒paid-and-online, honest ETA, lifecycle + refund on cancel, queue.updated bus events), CommsSettingsService (sms+call panels masked persisted, REAL test shots), NotificationService (in-app + SMS + outbound call at up_next) Client site = OWN Next server apps/client (PWA installable, 4 tabs, manifest+SW, 12s queue polling); dashboard gains telecoms tab; error codes prefix-mapped",
       "at": "2026-09-05T13:12:30.482Z"
+    },
+    {
+      "id": "ADR-016",
+      "reasoning": "Corpus shelf: trust tiers, validator-only ticks, temporal truth, deterministic grounding StorageProvider-persisted now with SQL shapes in 006; validator owns verified_at; updater appends versions; dispatcher folds hits into context and only then claims grounded=true",
+      "at": "2026-09-05T13:39:57.975Z"
     }
   ],
-  "last_checkpoint": "2026-09-05T13:12:30.482Z",
-  "updated_at": "2026-09-05T13:12:30.482Z",
-  "update_count": 110
+  "last_checkpoint": "2026-09-05T13:39:57.976Z",
+  "updated_at": "2026-09-05T13:39:57.976Z",
+  "update_count": 123
 }

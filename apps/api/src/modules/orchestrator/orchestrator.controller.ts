@@ -326,6 +326,13 @@ export class OrchestratorController {
 
   // ---- the Leader conversation surface (ADR-013) --------------------------
 
+  @Get('files')
+  @Roles(UserRole.LAWYER_OWNER, UserRole.STAFF)
+  @ApiOperation({ summary: 'List the caller’s uploaded files (id, name, chars, needs-ocr) for corpus shelvers' })
+  listFiles(@CurrentUser() user: AuthenticatedUser) {
+    return { files: this.files.listByUser(user.id) };
+  }
+
   @Post('files')
   @Roles(UserRole.LAWYER_OWNER, UserRole.STAFF)
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))

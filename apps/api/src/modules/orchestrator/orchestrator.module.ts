@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { OrchestratorController } from './orchestrator.controller';
 import { OrchestratorService } from './orchestrator.service';
 import { ExpertRegistry } from './expert-registry';
@@ -19,9 +19,10 @@ import { LeaderConversationService } from './leader-conversation.service';
 import { ConfigHubService } from './config-hub.service';
 import { ConfigHubController } from './config-hub.controller';
 import { AuditModule } from '../audit/audit.module';
+import { CorpusModule } from '../corpus/corpus.module';
 
 @Module({
-  imports: [AuditModule],
+  imports: [AuditModule, forwardRef(() => CorpusModule)],
   controllers: [OrchestratorController, ConfigHubController],
   providers: [
     OrchestratorService,

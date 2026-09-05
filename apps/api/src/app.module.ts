@@ -6,6 +6,7 @@ import { AuditModule } from './modules/audit/audit.module';
 import { ProvidersModule } from './modules/providers/providers.module';
 import { OrchestratorModule } from './modules/orchestrator/orchestrator.module';
 import { BillingModule } from './modules/billing/billing.module';
+import { CorpusApiModule } from './modules/corpus/corpus-api.module';
 import { ConsultationModule } from './modules/consultation/consultation.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { ClientModule } from './modules/billing/client.module';
@@ -31,6 +32,7 @@ import { AuthJwtModule } from './security/jwt.module';
     ProvidersModule,
     OrchestratorModule,
     BillingModule,
+    CorpusApiModule,
     NotificationsModule,
     ConsultationModule,
     ClientModule,

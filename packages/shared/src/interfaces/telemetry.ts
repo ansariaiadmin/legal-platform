@@ -22,7 +22,9 @@ export type AgentEventKind =
   | 'file.uploaded'
   | 'file.analyzed'
   | 'conversation.turn'
-  | 'queue.updated';
+  | 'queue.updated'
+  | 'corpus.ingested'
+  | 'corpus.validated';
 
 export interface AgentEvent {
   kind: AgentEventKind;

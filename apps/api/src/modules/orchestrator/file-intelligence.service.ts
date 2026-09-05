@@ -146,6 +146,59 @@ export class FileIntelligenceService {
     return record;
   }
 
+  /**
+   * FULL text extraction for the corpus shelf (P2-T5). Unlike `analyze`
+   * which keeps a 400-char preview for chat, this returns the whole body —
+   * or nothing, honestly, when the file kind cannot be read now. Returns
+   * {text|null, reason} so the caller never shelves imagined content.
+   */
+  async shelfText(fileId: string): Promise<{ text: string | null; reason: string; filename: string }> {
+    const record = this.records.get(fileId);
+    if (!record) return { text: null, reason: 'فایل یافت نشد', filename: '' };
+    const buffer = await this.storage.get(record.storageKey);
+
+    const texty =
+      record.mimetype.startsWith('text/') ||
+      ['.txt', '.md', '.json', '.csv'].some((ext) => record.filename.toLowerCase().endsWith(ext));
+    if (texty) {
+      return { text: buffer.toString('utf8'), reason: 'ok', filename: record.filename };
+    }
+
+    // binary → the python sidecar is the only honest extractor
+    const job = await this.pyj.enqueue('extract_any', {
+      data_b64: buffer.toString('base64'),
+      filename: record.filename,
+    });
+    if (job.queued) {
+      const result = await this.poll(job.jobId);
+      if (result?.ok) {
+        const text = String(result.output?.text ?? '');
+        if (text.trim().length > 0) {
+          return {
+            text,
+            reason: 'ok',
+            filename: record.filename,
+          };
+        }
+        return { text: null, reason: 'استخراج متن خالی برگشت', filename: record.filename };
+      }
+    }
+    return {
+      text: null,
+      reason:
+        record.analysis?.needsOcr ?? record.mimetype.includes('image')
+          ? 'فایل نیاز به OCR دارد؛ ابتدا OCR را روشن کنید'
+          : 'کارگر پایتون در دسترس نیست؛ فعلاً نمی‌توان متن را استخراج کرد',
+      filename: record.filename,
+    };
+  }
+
+  /** existence probe for the corpus controller (read-only). */
+  probe(fileId: string): { uploadedBy: string; filename: string } | null {
+    const r = this.records.get(fileId);
+    return r ? { uploadedBy: r.uploadedBy, filename: r.filename } : null;
+  }
+
   private async poll(jobId: string): Promise<Awaited<ReturnType<PythonWorkerService['result']>>> {
     const deadline = Date.now() + POLL_TIMEOUT_MS;
     while (Date.now() < deadline) {

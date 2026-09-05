@@ -5,7 +5,7 @@
 ## Where we are
 
 - **Phase:** phase-1-expert-tree — Expert agents: civil, criminal, family, registration
-- **Last checkpoint:** 2026-09-05T13:12:30.482Z
+- **Last checkpoint:** 2026-09-05T13:39:57.976Z
 - **Git:** run `git log --oneline -3` to see the last commits.
 
 ## Protocol (non-negotiable)
@@ -41,15 +41,15 @@
 - [ ] P2a-T6 apps/client PWA (separate Next server, port 3100): manifest+sw+install, OTP sign-in (client role), home shop cards 10/20/30 + AI subscription grid, wallet topup+balance, queue status page (position, ETA, notify list), call join placeholder
 - [ ] P2a-T7 dashboard tab «مخابرات مشاوره»: online/offline switch, queue open/close, next/skip with live list, plan minutes editor, SMS/call panel forms with test buttons
 - [ ] P2a-T8 jest suites (billing/queue/comms/notifications), ADR-015, ROADMAP Phase2a, .env.example, checkpoint sync, commit+push
+- [ ] P2-T1 Migration 006: ai/corpus (knowledge_sources, ingestion_jobs, legal_documents w/ trust_tier+verified_at, document_chunks, corpus_versions temporal) + billing tables (wallets, wallet_txns, purchases, subscriptions, consultation_tickets, comms_panels, notifications)
+- [ ] P2-T2 modules/corpus: CorpusService (docs+chunks into StorageProvider-persisted store now, SQL-shaped for the P2-T1 swap; Persian-aware deterministic search with phrase boost + trust-tier weighting); ingest(fileId→legal_document pending_validation trust 2)
+- [ ] P2-T3 agents data-validator + law-updater under apps/agents (ICollectorAgent interface conformance: validator enforces sha256 uniqueness, min length, Persian ratio, tier rules; updater temporal-append versioning valid_from/valid_to)
+- [ ] P2-T4 corpus grounding layer: orchestrator dispatch attaches meta.citations (docTitle, chunkPreview, trustTier) + meta.grounded=true only when deterministic corpus hits exist — LLM untouched
+- [ ] P2-T5 dashboard tab «کتابخانه» (corpus): list docs + trust tier chip + verify button + ingest-from-file + search; bus events corpus.ingested/corpus.validated
+- [ ] P2-T6 tests (corpus search scoring, tier gates, workflow ingest→validate→cite, updater temporal) + ADR-016 + ROADMAP Phase2 + docs + checkpoint sync + push
 
 ## Completed
 
-- [x] P1e-T6 (2026-09-05)
-- [x] P1f-T1 (2026-09-05)
-- [x] P1f-T2 (2026-09-05)
-- [x] P1f-T3 (2026-09-05)
-- [x] P1f-T4 (2026-09-05)
-- [x] P1f-T5 (2026-09-05)
 - [x] P1f-T6 (2026-09-05)
 - [x] P2a-T1 (2026-09-05)
 - [x] P2a-T2 (2026-09-05)
@@ -59,6 +59,12 @@
 - [x] P2a-T6 (2026-09-05)
 - [x] P2a-T7 (2026-09-05)
 - [x] P2a-T8 (2026-09-05)
+- [x] P2-T1 (2026-09-05)
+- [x] P2-T2 (2026-09-05)
+- [x] P2-T3 (2026-09-05)
+- [x] P2-T4 (2026-09-05)
+- [x] P2-T5 (2026-09-05)
+- [x] P2-T6 (2026-09-05)
 
 ## Architectural decisions
 
@@ -78,3 +84,4 @@
 - **ADR-013** — Uploaded files → Leader conversation sandboxes: FileIntelligenceService (sha256-first, py tools preferred, inline-TEXT fallback when queue down with honest status) PlacementService vocabularyScore ties into same fleet routing; LeaderConversationService owner-scoped chat+voice, turns cap=100, no grant bypass
 - **ADR-014** — Owner configures platform by talking: ConfigHubService (runtime brain overrides via StorageProvider, masked secrets, presets) + conversational config (deterministic Persian intents → proposal → confirm) + DEV_DASHBOARD_TOKEN sandbox door (prod-impotent) + SSE dashboard kitchen via node:http raw proxy (Next patched-fetch buffers event streams) Dashboard Next.js fa/RTL six tabs zero new deps; router consults hub peek first; secrecy law has no UI switch
 - **ADR-015** — Commerce+telecoms: WalletService (per-user lock, idempotent topup, WALLET_INSUFFICIENT_FUNDS 402), BillingService (plans 10/20/30 lawyer-edited + per-feature AI subscriptions 1/3/12m, duplicate-active 409), ConsultationQueueService (join⇒paid-and-online, honest ETA, lifecycle + refund on cancel, queue.updated bus events), CommsSettingsService (sms+call panels masked persisted, REAL test shots), NotificationService (in-app + SMS + outbound call at up_next) Client site = OWN Next server apps/client (PWA installable, 4 tabs, manifest+SW, 12s queue polling); dashboard gains telecoms tab; error codes prefix-mapped
+- **ADR-016** — Corpus shelf: trust tiers, validator-only ticks, temporal truth, deterministic grounding StorageProvider-persisted now with SQL shapes in 006; validator owns verified_at; updater appends versions; dispatcher folds hits into context and only then claims grounded=true
