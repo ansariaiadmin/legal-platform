@@ -23,7 +23,7 @@ import type { MigrationBuilder } from 'node-pg-migrate' with { 'resolution-mode'
 export const up = (pgm: MigrationBuilder) => {
   // ---------- corpus -----------------------------------------------
   pgm.createTable('knowledge_sources', {
-    id: { type: 'uuid', notNull: true },
+    id: { type: 'uuid', primaryKey: true, notNull: true },
     source_key: { type: 'text', notNull: true },
     display_name: { type: 'text', notNull: true },
     base_url: { type: 'text' },
@@ -42,7 +42,7 @@ export const up = (pgm: MigrationBuilder) => {
   );
 
   pgm.createTable('ingestion_jobs', {
-    id: { type: 'uuid', notNull: true },
+    id: { type: 'uuid', primaryKey: true, notNull: true },
     source_id: { type: 'uuid', notNull: true, references: 'knowledge_sources(id)', onDelete: 'CASCADE' },
     kind: { type: 'text', notNull: true }, // full_sync | manual_file | reindex
     status: { type: 'text', notNull: true }, // running | succeeded | partial_success | failed
@@ -57,7 +57,7 @@ export const up = (pgm: MigrationBuilder) => {
   pgm.addConstraint('ingestion_jobs', 'ingestion_jobs_status_domain', "CHECK (status IN ('running','succeeded','partial_success','failed'))");
 
   pgm.createTable('legal_documents', {
-    id: { type: 'uuid', notNull: true },
+    id: { type: 'uuid', primaryKey: true, notNull: true },
     source_id: { type: 'uuid', notNull: true, references: 'knowledge_sources(id)' },
     canonical_title: { type: 'text', notNull: true }, // نقش «شناسه‌ی قانون»
     body_raw: { type: 'text', notNull: true },
@@ -78,7 +78,7 @@ export const up = (pgm: MigrationBuilder) => {
   pgm.createIndex('legal_documents', ['trust_tier', 'verified_at']);
 
   pgm.createTable('document_chunks', {
-    id: { type: 'uuid', notNull: true },
+    id: { type: 'uuid', primaryKey: true, notNull: true },
     document_id: { type: 'uuid', notNull: true, references: 'legal_documents(id)', onDelete: 'CASCADE' },
     position: { type: 'int', notNull: true },
     content: { type: 'text', notNull: true },
@@ -91,7 +91,7 @@ export const up = (pgm: MigrationBuilder) => {
   pgm.createIndex('document_chunks', 'document_id');
 
   pgm.createTable('corpus_versions', {
-    id: { type: 'uuid', notNull: true },
+    id: { type: 'uuid', primaryKey: true, notNull: true },
     canonical_title: { type: 'text', notNull: true },
     incoming_id: { type: 'uuid', notNull: true, references: 'legal_documents(id)' },
     supersedes_id: { type: 'uuid', references: 'legal_documents(id)' },
@@ -104,7 +104,7 @@ export const up = (pgm: MigrationBuilder) => {
 
   // ---------- money & queue -----------------------------------------
   pgm.createTable('wallets', {
-    id: { type: 'uuid', notNull: true },
+    id: { type: 'uuid', primaryKey: true, notNull: true },
     user_id: { type: 'uuid', notNull: true },
     balance_toman: { type: 'bigint', notNull: true },
     updated_at: { type: 'timestamptz', notNull: true },
@@ -114,7 +114,7 @@ export const up = (pgm: MigrationBuilder) => {
   pgm.addConstraint('wallets', 'wallets_balance_never_negative', 'CHECK (balance_toman >= 0)');
 
   pgm.createTable('wallet_txns', {
-    id: { type: 'uuid', notNull: true },
+    id: { type: 'uuid', primaryKey: true, notNull: true },
     wallet_id: { type: 'uuid', notNull: true, references: 'wallets(id)', onDelete: 'CASCADE' },
     kind: { type: 'text', notNull: true }, // topup | purchase | refund | subscription
     amount_toman: { type: 'bigint', notNull: true }, // signed: credit +, debit −
@@ -129,7 +129,7 @@ export const up = (pgm: MigrationBuilder) => {
   pgm.createIndex('wallet_txns', ['external_ref', 'kind'], { name: 'wallet_txns_ref_kind_unique_partially', unique: true, where: "external_ref IS NOT NULL" });
 
   pgm.createTable('purchases', {
-    id: { type: 'uuid', notNull: true },
+    id: { type: 'uuid', primaryKey: true, notNull: true },
     user_id: { type: 'uuid', notNull: true },
     kind: { type: 'text', notNull: true }, // consultation | subscription
     label: { type: 'text', notNull: true },
@@ -145,7 +145,7 @@ export const up = (pgm: MigrationBuilder) => {
   pgm.addConstraint('purchases', 'purchases_minutes_domain', "CHECK (minutes IS NULL OR minutes IN (10,20,30))");
 
   pgm.createTable('subscriptions', {
-    id: { type: 'uuid', notNull: true },
+    id: { type: 'uuid', primaryKey: true, notNull: true },
     user_id: { type: 'uuid', notNull: true },
     feature: { type: 'text', notNull: true }, // ai_chat | ai_filelab | ai_kitchen | ai_voice
     months: { type: 'smallint', notNull: true },
@@ -159,7 +159,7 @@ export const up = (pgm: MigrationBuilder) => {
   pgm.createIndex('subscriptions', ['user_id', 'feature']);
 
   pgm.createTable('consultation_tickets', {
-    id: { type: 'uuid', notNull: true },
+    id: { type: 'uuid', primaryKey: true, notNull: true },
     user_id: { type: 'uuid', notNull: true },
     phone: { type: 'text', notNull: true },
     purchase_id: { type: 'uuid', notNull: true, references: 'purchases(id)' },
@@ -177,7 +177,7 @@ export const up = (pgm: MigrationBuilder) => {
   pgm.createIndex('consultation_tickets', ['status', 'joined_at']);
 
   pgm.createTable('comms_panels', {
-    id: { type: 'uuid', notNull: true },
+    id: { type: 'uuid', primaryKey: true, notNull: true },
     kind: { type: 'text', notNull: true }, // sms | call
     owner_id: { type: 'text', notNull: true }, // lawyer who wired it
     base_url: { type: 'text', notNull: true },
@@ -191,7 +191,7 @@ export const up = (pgm: MigrationBuilder) => {
   pgm.addConstraint('comms_panels', 'comms_panels_kind_unique', 'UNIQUE (kind)'); // one panel per kind per office (v1)
 
   pgm.createTable('notifications', {
-    id: { type: 'uuid', notNull: true },
+    id: { type: 'uuid', primaryKey: true, notNull: true },
     user_id: { type: 'uuid', notNull: true },
     kind: { type: 'text', notNull: true },
     title_fa: { type: 'text', notNull: true },

@@ -24,6 +24,29 @@ describe('Database migrations', () => {
     }
   });
 
+  it('every uuid-PK table declares its primary key (CI caught 006 missing PKs on real PG)', () => {
+    // Regression: migration 006 created 12 tables with `id: {type:'uuid', notNull:true}`
+    // but NO primaryKey, then referenced those ids via FK → Postgres rejects the FK
+    // with "no unique constraint matching given keys". Unit suites never noticed because
+    // they stub the pool. Guard statically here AND with the real-PG e2e in CI.
+    for (const file of migrationFiles) {
+      const source = read(file);
+      const tableBlocks = source.split(/pgm\.createTable\('/).slice(1);
+      for (const block of tableBlocks) {
+        const tableName = block.slice(0, block.indexOf("'"));
+        const blockEnd = Math.min(block.indexOf('});'), block.length);
+        const body = block.slice(0, blockEnd);
+        const hasBareUuidId = /id:\s*\{[^}]*type:\s*'uuid'[^}]*notNull:\s*true[^}]*\}/.test(body)
+          && !/id:\s*\{[^}]*primaryKey:\s*true/.test(body);
+        if (!hasBareUuidId) {
+          continue;
+        }
+        const tableLevelPk = /primaryKey:\s*\[/.test(block.slice(0, block.indexOf('\n  );\n')));
+        expect({ file, table: tableName, ok: tableLevelPk }).toEqual({ file, table: tableName, ok: true });
+      }
+    }
+  });
+
   /**
    * The previous version of this test grepped for `export const up:` with a
    * colon, which no migration ever used - so it failed on every file. Importing

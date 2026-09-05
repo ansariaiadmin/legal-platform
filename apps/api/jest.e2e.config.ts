@@ -24,6 +24,8 @@ const config: Config = {
   },
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
+    // Agents are workspace sources too — same ordering rule as jest.config.ts.
+    '^@legal-platform/agent-(.*)$': '<rootDir>/../../apps/agents/$1/src/index.ts',
     '^@legal-platform/(.*)$': '<rootDir>/../../packages/$1/src/index.ts',
   },
 };
