@@ -58,3 +58,43 @@ nondeterminism on every request.
 (Persian + English) with typed output. The AIProvider is consulted ONLY below
 a confidence threshold, returning schema-validated JSON. Budget exhaustion
 forces deterministic-only mode (roadmap P3-T4), never a hard failure.
+
+## ADR-004: Hybrid local/cloud inference, privilege never leaves the box (2026-09-05)
+
+**Context.** Different customers have different wallets: some can afford cloud
+models, some must run a local GPU model, most want both. And Iranian client
+data is privileged — sending it to a cloud endpoint is a confidentiality breach.
+
+**Decision.** `HybridInferenceRouter` (`modules/orchestrator/hybrid-inference-
+router.ts`) decides per-task via `AI_HYBRID_POLICY`: `local_only` |
+`cloud_only` | `hybrid_local_first` (default) | `hybrid_cloud_first`.
+Hard invariant wired into code: `sensitivity=privileged` ⇒ `target=local`,
+even when local is degraded — it degrades loudly, never silently reroutes to
+cloud. Budget exhaustion demotes hybrid policies to local. Every decision is
+emitted to the live event bus with its reason + signals so the dashboard
+shows exactly WHERE an answer was computed.
+
+## ADR-005: Governed sub-agents — grants, never ambient authority (2026-09-05)
+
+**Context.** The Leader managing sub-agents requires *secure, delegable
+access*: the human office owner must be able to let "the civil expert draft
+contracts" without giving it the keys to validate the corpus.
+
+**Decision.** `AgentGovernanceService`: capability-scoped `AgentGrant`s with
+mandatory `expiresAt`, issued only by `LAWYER_OWNER`, revocable instantly,
+audit-logged. Dispatch without a grant ⇒ `AI_AGENT_NOT_AUTHORIZED`. A hard
+per-agent disable switch overrides even live grants. Phase-1 store is in-memory
+deliberately: a process restart revokes everything (fail-safe direction);
+persistence lands with the governance migration in P5-T3.
+
+## ADR-006: Live ops stream — agents cook in the open (2026-09-05)
+
+**Context.** The lawyer trusts what they can see. "پشت صحنه چه خبره" must be
+a first-class dashboard experience, not a log file.
+
+**Decision.** Every orchestrated step emits a serializable `AgentEvent`
+(task.accepted/classified/routed → inference.decided → skill.started/completed|
+failed; grant.issued/revoked) onto an `InProcessAgentEventBus` with a 200-event
+ring buffer. The dashboard paints from `GET …/events/recent` and tails
+`GET …/events/stream` (SSE). Event shapes stay plain-JSON so the bus can move
+to Redis pub/sub (P5-T2) without touching emitters or consumers.

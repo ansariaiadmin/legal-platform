@@ -1,15 +1,15 @@
 {
   "project": "legal-platform",
-  "current_phase": "phase-0-foundation",
+  "current_phase": "phase-1-expert-tree",
   "phases": {
     "phase-0-foundation": {
       "name": "State engine, handoff protocol, agent interfaces, skeletons",
-      "status": "in_progress",
+      "status": "done",
       "started_at": "2026-09-05T06:00:00.000Z"
     },
     "phase-1-expert-tree": {
       "name": "Expert agents: civil, criminal, family, registration",
-      "status": "pending"
+      "status": "in_progress"
     },
     "phase-2-data-lifecycle": {
       "name": "Collectors, validators, law versioning (RAG corpus)",
@@ -56,6 +56,30 @@
     {
       "task": "P0-T7: root workspace wiring, build, typecheck, tests, commit",
       "at": "2026-09-05T10:35:22.942Z"
+    },
+    {
+      "task": "P1-T7: domain taxonomy enums (LegalField, IntentKind, AgentTier)",
+      "at": "2026-09-05T10:49:20.857Z"
+    },
+    {
+      "task": "P1-T9: governance backbone — grants, revoke, disable, AI_AGENT_NOT_AUTHORIZED",
+      "at": "2026-09-05T10:49:20.903Z"
+    },
+    {
+      "task": "P1-T10: hybrid inference router (local/cloud, privilege pinning, budget demotion, tiers)",
+      "at": "2026-09-05T10:49:20.947Z"
+    },
+    {
+      "task": "P1-T11: live ops stream — typed AgentEvents, ring buffer, SSE",
+      "at": "2026-09-05T10:49:20.981Z"
+    },
+    {
+      "task": "P1b-T1: LeaderVoiceService + honest mock VoiceEngine + voice endpoints",
+      "at": "2026-09-05T10:49:21.020Z"
+    },
+    {
+      "task": "P1b-X: AGENT_FLEET.md — fleet map, grants matrix, 3-tier recommended configs",
+      "at": "2026-09-05T10:49:21.053Z"
     }
   ],
   "pending_tasks": [],
@@ -79,9 +103,24 @@
       "id": "ADR-003",
       "reasoning": "Deterministic-first routing; LLM as bounded fallback",
       "at": "2026-09-05T10:33:00.108Z"
+    },
+    {
+      "id": "ADR-004",
+      "reasoning": "Hybrid local/cloud inference; privilege never leaves the box",
+      "at": "2026-09-05T10:49:21.091Z"
+    },
+    {
+      "id": "ADR-005",
+      "reasoning": "Governed sub-agents — grants, never ambient authority",
+      "at": "2026-09-05T10:49:21.126Z"
+    },
+    {
+      "id": "ADR-006",
+      "reasoning": "Live ops stream — agents cook in the open (SSE)",
+      "at": "2026-09-05T10:49:21.164Z"
     }
   ],
-  "last_checkpoint": "2026-09-05T10:35:22.942Z",
-  "updated_at": "2026-09-05T10:35:22.942Z",
-  "update_count": 11
+  "last_checkpoint": "2026-09-05T10:49:21.164Z",
+  "updated_at": "2026-09-05T10:49:21.164Z",
+  "update_count": 21
 }

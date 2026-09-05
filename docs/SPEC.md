@@ -180,6 +180,22 @@ lawyer review (§9) — autonomy never overrides that.
 State/memory: `scripts/agent_state.json` + `scripts/checkpoint.mjs` are the
 authoritative cross-session brain (ADR-001); roadmap in `docs/ROADMAP.md`.
 
+Four invariants of the agentic layer:
+i. **Hybrid inference.** Every agent task is placed local-or-cloud by policy
+   (`AI_HYBRID_POLICY`), with this unwinnable law: `sensitivity=privileged`
+   ⇒ local, ALWAYS, even degraded — privilege never silently goes cloud.
+ii. **Governance.** Sub-agents execute ONLY inside unexpired capability grants
+   issued by LAWYER_OWNER (`AI_AGENT_NOT_AUTHORIZED` otherwise). Killswitches
+   outrank grants. (ADR-005)
+iii. **Open kitchen.** Every routing/inference/skill step is a typed live
+   event the dashboard streams; the lawyer watches answers being assembled.
+   (ADR-006)
+iv. **Purchasable tiers.** AGENT_TIER = spartan | counsel | senator sets the
+   default policy preset; any individual setting may still be overridden by
+   the operator (docs/AGENT_FLEET.md is the preset catalogue).
+Voice: the Leader holds voice sessions with LAWYER_OWNER only; current engine
+is an honest mock that never fabricates audio (real engines: roadmap P1b-T2).
+
 ## 12. Coding and Delivery Standards
 Strict typing; dependency injection for providers; no global mutable state.
 Every implementation batch MUST return this Output Contract:

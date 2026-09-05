@@ -3,3 +3,6 @@ export * from './agent';
 export * from './expert';
 export * from './collector';
 export * from './knowledge-graph';
+export * from './governance';
+export * from './inference';
+export * from './telemetry';

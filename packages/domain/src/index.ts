@@ -71,3 +71,12 @@ export enum IntentKind {
   SEARCH_LAW = 'search_law',
   UNKNOWN = 'unknown',
 }
+
+// Purchasable AI tiers (SPEC §1 "Tiers as feature flags" refined for the
+// agentic layer): everyone picks what their budget allows; presets in
+// docs/AGENT_FLEET.md map each tier to concrete per-agent config.
+export enum AgentTier {
+  SPARTAN = 'spartan', // اقتصادی — local-first, mock/minimal cloud
+  COUNSEL = 'counsel', // متعادل — hybrid, cloud fallback
+  SENATOR = 'senator', // قدرتمند — cloud-first, full fleet, voice
+}

@@ -4,8 +4,8 @@
 
 ## Where we are
 
-- **Phase:** phase-0-foundation — State engine, handoff protocol, agent interfaces, skeletons
-- **Last checkpoint:** 2026-09-05T10:35:22.942Z
+- **Phase:** phase-1-expert-tree — Expert agents: civil, criminal, family, registration
+- **Last checkpoint:** 2026-09-05T10:49:21.164Z
 - **Git:** run `git log --oneline -3` to see the last commits.
 
 ## Protocol (non-negotiable)
@@ -28,6 +28,12 @@
 - [x] P0-T5: scaffold apps/agents/legal-expert-base with capabilities.ts + tests (2026-09-05)
 - [x] P0-T6: scaffold apps/api orchestrator module + tests (2026-09-05)
 - [x] P0-T7: root workspace wiring, build, typecheck, tests, commit (2026-09-05)
+- [x] P1-T7: domain taxonomy enums (LegalField, IntentKind, AgentTier) (2026-09-05)
+- [x] P1-T9: governance backbone — grants, revoke, disable, AI_AGENT_NOT_AUTHORIZED (2026-09-05)
+- [x] P1-T10: hybrid inference router (local/cloud, privilege pinning, budget demotion, tiers) (2026-09-05)
+- [x] P1-T11: live ops stream — typed AgentEvents, ring buffer, SSE (2026-09-05)
+- [x] P1b-T1: LeaderVoiceService + honest mock VoiceEngine + voice endpoints (2026-09-05)
+- [x] P1b-X: AGENT_FLEET.md — fleet map, grants matrix, 3-tier recommended configs (2026-09-05)
 
 ## Architectural decisions
 
@@ -35,3 +41,6 @@
 - **ADR-001** — File-backed State Engine as cross-session memory (agent_state.json + checkpoint.mjs)
 - **ADR-002** — Agents live in apps/agents/{branch}, not packages/
 - **ADR-003** — Deterministic-first routing; LLM as bounded fallback
+- **ADR-004** — Hybrid local/cloud inference; privilege never leaves the box
+- **ADR-005** — Governed sub-agents — grants, never ambient authority
+- **ADR-006** — Live ops stream — agents cook in the open (SSE)

@@ -23,7 +23,7 @@ phase depends on these compile-checked contracts.
 - [x] **P0-T6** Orchestrator skeleton (`apps/api/src/modules/orchestrator`) + tests
 - [ ] **P0-T7** Workspace wiring, green build/typecheck/tests, checkpoint commit
 
-## Phase 1 — The Expert Tree (تخصص)
+## Phase 1 — The Expert Tree + Governance Backbone (تخصص + حکمرانی)
 
 Hierarchical, specialized agents in `apps/agents/{branch}`. Each owns a
 `capabilities.ts` (its skills) and registers with the orchestrator.
@@ -40,9 +40,26 @@ goes through `providers/ai` adapters (SPEC §8), which Phase 1/4 keeps mock-firs
   retry policy; emitted domain events (`agent.task.completed` …) on Redis queue.
 - [ ] **P1-T6** Orchestrator `expert-registry.ts`: static in-memory registry
   now, interface pinned so Phase 5 can swap to DB-backed without callers noticing.
-- [ ] **P1-T7** Persian intent taxonomy in `packages/contracts` (shared enums:
-  `IntentKind`, `LegalField`) — no enum duplication (SPEC §4).
+- [x] **P1-T7** Domain taxonomy in `packages/domain` (single home):
+  `LegalField`, `IntentKind`, `AgentTier` — no enum duplication (SPEC §4).
 - [ ] **P1-T8** E2E: a query per expert routes correctly through the tree.
+- [x] **P1-T9** Governance backbone (ADR-005): `AgentGrant` capability grants,
+  dashboard issue/revoke/disable endpoints, `AI_AGENT_NOT_AUTHORIZED` gate.
+- [x] **P1-T10** Hybrid inference router (ADR-004): local/cloud with per-task
+  privilege pinning, budget demotion, tier defaults — all tested.
+- [x] **P1-T11** Live ops stream (ADR-006): typed `AgentEvent`s, ring buffer +
+  SSE endpoints, dashboard-ready shapes.
+
+## Phase 1b — Voice & Fleet Personalities
+
+- [x] **P1b-T1** LeaderVoiceService + mock VoiceEngine (honest `mocked` flag,
+  never fakes audio bytes). Open-session / hear / speak endpoints.
+- [ ] **P1b-T2** Real STT/TTS engines behind the VoiceEngine port (Whisper
+  local box, admin-selectable per tier). Mock stays test-only.
+- [ ] **P1b-T3** Persian corporate-tone prompts per agent role ("همکار متخصص"
+  tone configs per agent — civil speaks contracts, criminal speaks procedure).
+
+## Phase 2 — Data Lifecycle (چرخه حیات داده)
 
 ## Phase 2 — Data Lifecycle (چرخه حیات داده)
 
