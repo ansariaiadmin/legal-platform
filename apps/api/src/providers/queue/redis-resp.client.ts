@@ -122,4 +122,13 @@ export class RedisRespClient {
     const v = await this.call('GET', key);
     return typeof v === 'string' ? v : null;
   }
+
+  /** Shared-rate-limit primitives (P9-T4): atomic INCR + PEXPIRE. */
+  async incr(key: string): Promise<number> {
+    return Number(await this.call('INCR', key));
+  }
+
+  async pexpire(key: string, ms: number): Promise<number> {
+    return Number(await this.call('PEXPIRE', key, String(ms)));
+  }
 }

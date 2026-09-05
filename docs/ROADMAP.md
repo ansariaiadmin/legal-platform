@@ -375,3 +375,13 @@ Done 2026-09-05 (ADR-022):
   (SPEC §2 failure domains).
 - [ ] **P6-T3** Audit trail: every agent decision replayable.
 - [ ] **P6-T4** Docs: operator runbook, per-agent README, ADR backlog closed.
+
+## Phase 9 — Durability & truth (زیر-۸ها تا ۸، بعد همه به ۱۰)
+
+- [x] ADR-024 + migration 008 (`runtime_state` KV در Postgres) + `PgStorageAdapter` با upsert اتمیک و ENOENT صادق (`STORAGE_DRIVER=pg`)
+- [x] ایزوله‌سازی مستأجری `TENANT_SLUG` در هر دو درایور فضا (pg tenant column + prefix `t/<slug>/` در local) با slug اعتبارسنجی‌شده
+- [x] درگاه‌های واقعی: ZarinPal (paid فقط با code 100/101)، Kavenegar (form-encoded)، OpenAI-compatible (chat+embeddings) — تست با HTTP واقعی روی stub داخل‌تستی، بدون private-poke، بدون تماس با سرویس واقعی
+- [x] Rate limiter مشترک روی Redis RESP2 (INCR/PEXPIRE) — fail-closed با retry ۵ ثانیه‌ای وقتی Redis خوابه؛ readout در `/dashboard/ops/deployment`
+- [x] `local_answer` v2 — normalize فارسی قبل از توکنایز + boost دوتایی‌های متوالی (عبارات حقوقی مثل «اجاره‌نامه» راست می‌آیند)
+- [ ] عامل احراز ایمیل/جیمیل (از P8 بدهکار)
+- [ ] Phase 10: پل pub/sub روی Redis برای event bus و رسیدن همهٔ ابعاد به ۱۰

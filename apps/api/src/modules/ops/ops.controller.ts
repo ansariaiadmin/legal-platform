@@ -49,17 +49,22 @@ export class OpsController {
     const redisConfigured = Boolean(this.config.get<string>('REDIS_URL'));
     // honesty invariant (ADR-023): claiming multi WITHOUT the shared queue
     // the design needs is an org misconfig — we surface it, we don't fake it
+    const rateDriver = this.config.get<string>('RATE_LIMIT_DRIVER') === 'redis' && redisConfigured ? 'redis' : 'memory';
     const warnings: string[] = [];
     if (mode === 'multi' && !redisConfigured) {
-      warnings.push('DEPLOYMENT_MODE=multi but REDIS_URL is unset — the in-process bus/rate-limiter are NOT shared between replicas; set Redis before adding a second replica');
+      warnings.push('DEPLOYMENT_MODE=multi but REDIS_URL is unset — in-process bus/limiter are NOT shared between replicas; set Redis before adding a second replica');
+    }
+    if (mode === 'multi' && rateDriver === 'memory') {
+      warnings.push('RATE_LIMIT_DRIVER=redis is the honest multi-node floor — memory limiter is per-replica only');
     }
     return {
       mode,
       capabilities: {
-        inProcessEventBus: true,        // SSE kitchen + security feed
-        inProcessRateLimiter: true,     // per-node; feature limiters identical per node
+        inProcessEventBus: true,             // SSE kitchen + security feed (P10: Redis pub/sub bridge)
+        rateLimiterDriver: rateDriver,     // redis = shared across replicas (P9-T4)
+        sharedStorageDriver: this.config.get<string>('STORAGE_DRIVER') === 'pg' ? 'pg' : 'local-files',
         redisBridgeReady: redisConfigured,
-        multiReplicaSafe: mode === 'single' || redisConfigured,
+        multiReplicaSafe: mode === 'single' || (redisConfigured && rateDriver === 'redis'),
       },
       warnings,
       note: 'Single-node is the blessed default. Scale-out is ENABLED by REDIS_URL + DEPLOYMENT_MODE=multi — no code change, config only.',

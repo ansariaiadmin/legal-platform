@@ -97,3 +97,23 @@ def test_local_answer_deterministic():
     a = local_answer.local_answer("حق فسخ کارگر", passages=PASSAGES)
     b = local_answer.local_answer("حق فسخ کارگر", passages=PASSAGES)
     assert a == b
+
+
+class TestLocalAnswerV2(P9T5 := type('ns', (), {})):  # noqa: N801 — simple grouping
+    pass
+
+
+def test_p9_local_answer_normalizes_arabic_variants():
+    from pylegal import local_answer as la
+    out = la.local_answer('اجاره‌نامه فسخ', passages=['اين اجاره‌نامه با شرط فسخ فوري امضا شد', 'فوتبال سرگرمی است'])
+    assert out['answered']
+    assert 'اجاره‌نامه' in out['spans'][0]['sentence']
+
+
+def test_p9_local_answer_bigram_beats_bag_of_words():
+    from pylegal import local_answer as la
+    scattered = 'واژه‌های اجاره و فسخ پراکنده‌اند اجاره فسخ اجاره فسخ اجاره فسخ'
+    phrase = 'قانون می‌گوید فسخ اجاره‌نامه در ماده کذایی آمده است'
+    out = la.local_answer('فسخ اجاره‌نامه', passages=[scattered, phrase])
+    assert out['answered']
+    assert out['spans'][0]['sentence'] == phrase

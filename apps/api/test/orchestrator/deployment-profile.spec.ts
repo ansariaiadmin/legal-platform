@@ -24,6 +24,9 @@ describe('P7 deployment profile', () => {
     process.env.DEV_DASHBOARD_TOKEN = DEV_TOKEN;
     process.env.SECURITY_SCAN_INTERVAL_MS = '0';
     process.env.GLOBAL_RATE_LIMIT_PER_MIN = '100000';
+    // P9 fix: hermetic runtime state — never read another spec's disk.
+    const os = require('os'); const fs = require('fs'); const path = require('path');
+    process.env.LOCAL_STORAGE_PATH = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-profile-'));
 
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = moduleRef.createNestApplication();

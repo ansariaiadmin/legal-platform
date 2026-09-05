@@ -744,3 +744,55 @@ failed; grant.issued/revoked) onto an `InProcessAgentEventBus` with a 200-event
 ring buffer. The dashboard paints from `GET …/events/recent` and tails
 `GET …/events/stream` (SSE). Event shapes stay plain-JSON so the bus can move
 to Redis pub/sub (P5-T2) without touching emitters or consumers.
+
+## ADR-024: Durability, real gateways, a shared floor, and tenant namespaces (P9, 2026-09-05)
+
+**Context.** The P8 scorecard plate — security 9, auth 8.5, UI/i18n 8, tests
+8.5 — rested on pillars that lied by omission: runtime state died with the
+disk (durability 4), payment/SMS/AI "adapters" were mocks with production
+makeup (gateways 4), the rate-limit floor was per-process (multi-replica 4),
+two offices on one volume shared keys silently (multi-tenancy 3). The
+director's order: every sub-8 first to 8, then everything to 10.
+
+**Decision.**
+
+1. **Durable state by one swap (T1).** Migration 008 (`runtime_state`:
+   tenant+key PK, bytea content, jsonb metadata) plus `PgStorageAdapter`
+   implementing the SAME `StorageProvider` port — atomic upsert, key-cursor
+   pagination, ENOENT on missing get, loud ProviderError when the table/db is
+   absent (a lying empty list is the file adapter's trap, not ours).
+   `STORAGE_DRIVER=pg` selects it; production with `DATABASE_URL` auto-picks
+   it and the ops readout says so.
+
+2. **Tenancy as a namespace, not a hope (T2).** `TENANT_SLUG` (validated
+   `[a-z0-9][a-z0-9-]{0,62}`, shared regex for both drivers) scopes the pg
+   tenant column AND wraps local storage as `t/<slug>/` key prefixes. A
+   cross-office read fails loudly with ENOENT — never silent crosstalk.
+   `default` stays unscoped: single-office boxes keep byte-compatibility with
+   pre-P9 data.
+
+3. **Gateways that call reality (T3).** `OpenAiCompatibleAIAdapter` (chat +
+   embeddings, verbatim-or-undefined usage, typed 429/5xx/401 errors,
+   mandatory timeout), `ZarinPalAdapter` (request/verify; paid ONLY on code
+   100/101 — 101 = already-verified ⇒ native idempotency; refund/query
+   honestly UNSUPPORTED rather than guessed), `KavenegarSmsAdapter`
+   (form-encoded, real messageid). Tests run REAL HTTP against in-test stub
+   servers via `*_BASE_URL` override seams — zero private-field poking, zero
+   calls to real vendors, zero fake greens.
+
+4. **A shared floor (T4).** `RedisRateLimitService` over the raw RESP2 client
+   (INCR + PEXPIRE fixed-window): every replica enforces ONE bucket when
+   `RATE_LIMIT_DRIVER=redis`. Redis down ⇒ fail CLOSED (deny, 5s retry,
+   loudly logged) — the perimeter never silently opens because infra hiccuped.
+
+5. **Local intelligence, upgraded honestly (T5).** `local_answer` now
+   normalizes Persian BEFORE tokenizing (Arabic-ی/ک fold, ZWNJ) and boosts
+   consecutive-token bigrams — phrase evidence outranks bag-of-words noise on
+   legal text. Still deterministic, still stdlib-only, still no LLM.
+
+**Consequences.** Storage driver, rate-limit driver, and slug are ALL visible
+on `/dashboard/ops/deployment`; a multi-node box without
+`RATE_LIMIT_DRIVER=redis` reports `multiReplicaSafe:false` with a warning,
+not a green tick. The mocks survive — as test doubles and dev conveniences —
+but production rejects them (existing guard) and now has real alternatives
+for every category it sells.

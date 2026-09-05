@@ -17,14 +17,23 @@ from __future__ import annotations
 import math
 import re
 
+from .persian_tools import normalize_persian  # حق standard از transform هر token
+
 _TOKEN = re.compile(r"[\wآ-یٔ]+", re.UNICODE)
 
 _K1 = 1.5
 _B = 0.75
+_BIGRAM_BOOST = 1.4  # consecutive-term matches compound legal phrases harder
 
 
 def _tokens(text: str) -> list[str]:
-    return [t.lower() for t in _TOKEN.findall(text)]
+    # normalize BEFORE tokenize — ی/ک variants and ZWNJ fold to canonical forms
+    # so «اجاره‌نامه» and «اجاره نامه» meet on the same term.
+    return [t.lower() for t in _TOKEN.findall(normalize_persian(text or ''))]
+
+
+def _bigrams(toks: list[str]) -> set[tuple[str, str]]:
+    return {(toks[i], toks[i + 1]) for i in range(len(toks) - 1)}
 
 
 def _sentences(text: str) -> list[str]:
@@ -45,7 +54,9 @@ def score_sentences(question: str, passages: list[str]) -> list[dict]:
     if not units:
         return []
 
-    q_toks = set(_tokens(question))
+    q_toks_list = _tokens(question)
+    q_toks = set(q_toks_list)
+    q_bigrams = _bigrams(q_toks_list)
     if not q_toks:
         return []
 
@@ -69,6 +80,9 @@ def score_sentences(question: str, passages: list[str]) -> list[dict]:
         for t, f in tf.items():
             idf = math.log(1 + (n - df[t] + 0.5) / (df[t] + 0.5))
             score += idf * (f * (_K1 + 1)) / (f + _K1 * (1 - _B + _B * len(toks) / avgdl))
+        # ordered phrase evidence beats bag-of-words noise on legal text
+        if q_bigrams and (q_bigrams & _bigrams(toks)):
+            score *= _BIGRAM_BOOST
         scored.append({"passageIndex": p_idx, "sentence": sent, "score": round(score, 4)})
     scored.sort(key=lambda r: r["score"], reverse=True)
     return scored
