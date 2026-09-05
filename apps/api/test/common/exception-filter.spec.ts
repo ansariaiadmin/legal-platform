@@ -114,7 +114,8 @@ describe('error code coverage', () => {
       !code.startsWith('SECURITY_') &&
       !code.startsWith('SYSTEM_') &&
       !code.startsWith('PROVIDER_') &&
-      !code.startsWith('AI_'),
+      !code.startsWith('AI_') &&
+      code !== ERROR_CODES.PAYMENT_GATEWAY_ERROR, // upstream gateway hiccup → 502, same treaty as PROVIDER_
   );
 
   it.each(callerFacing)('%s maps to a 4xx status', (_name, code) => {

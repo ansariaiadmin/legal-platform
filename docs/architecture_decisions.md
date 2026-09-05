@@ -5,6 +5,58 @@ a new ADR. `scripts/agent_state.json.architectural_decisions` mirrors this file.
 
 ---
 
+## ADR-015: Commerce, the consultation queue and the wired office (P2a, 2026-09-05)
+
+**Context.** The day-one public business is a click-and-pay product: from a
+CLIENT-side site (its own origin, PWA-installable) — signup by OTP, charge the
+wallet, buy a 10/20/30-minute slot, join the line, learn your place by SMS +
+in-app. The LAWYER toggles telecoms («آنلاین/آفلاین»), opens/closes the queue,
+sets prices. AI features sell as PER-PART subscriptions (هر قسمت اپ یه اشتراک).
+
+**Decision.**
+- `WalletService` — balances + txns persisted through the StorageProvider
+  port (`runtime/wallet/<user>.json`, capped 500 txns); every mutation runs
+  under a per-user promise lock; top-up crediting is IDEMPOTENT on the
+  gateway session (replay-safe); debit below balance refuses with
+  WALLET_INSUFFICIENT_FUNDS (402-class, not a silent negative).
+- `BillingService` — shop catalog: consultation plans (+lawyer-editable) and
+  subscriptions keyed by `SubscriptionFeature` (`ai_chat`, `ai_filelab`,
+  `ai_kitchen`, `ai_voice`) with 1/3/12-month prices. Duplicate ACTIVE
+  subscription per feature is refused (409). Every wallet path carries an
+  externalRef so audits can replay the money story.
+- `ConsultationQueueService` — the telecoms box: join only with a paid
+  UNCONSUMED purchase and only while `online && queueOpen`; position = honest
+  (sum of plan-minutes ahead); lifecycle `waiting → up_next → in_call →
+  done|no_show|cancelled(refund)`; lawyer has next/skip/open/close/end; every
+  motion lands on the agent bus as `queue.updated` so the kitchen shows the
+  line.
+- `CommsSettingsService` — the lawyer brings THEIR SMS panel (Kavenegar /
+  Ghasedak / SMS.ir / custom URL) and THEIR call panel; keys persist via
+  StorageProvider, never leave the view except masked; «تست واقعی» hammers
+  the configured endpoint with a real request and reports latency/error —
+  no painted green.
+- `NotificationService` — per-user in-app inbox + SMS via the panel +
+  outbound call via telephony port when a ticket reaches `up_next` ("نوبت
+  توئه" + live-link). If nothing is wired (sandbox default) the SMS/call
+  paths silently hold their fire — in-app tells the truth.
+- Error codes new in `packages/contracts/src`: WALLET_*, QUEUE_*,
+  LAWYER_*, TICKET_*, PURCHASE_*, SUBSCRIPTION_*, COMMS_* — prefix-mapped to
+  4xx via httpStatusForCode, PAYMENT_GATEWAY_ERROR → 502 next to PROVIDER_*
+  (the same rule as all upstream failures).
+
+**Consequences.** +24 jest (187→211). apps/client PWA (own server, port
+3100, manifest + SW + install banner, RTL fa) sells plans & subscriptions,
+charges the wallet, joins the queue WATCHING it update every 12s, reads
+in-app notifications marked unread-first. Dashboard gains the «مخابرات
+مشاوره» tab: online/offline switch, queue gate, نفر بعد, پنل‌ها, plan
+pricing, comms testers.
+
+Still NOT done: payment gateway in production mode (mock only), push
+notifications (push port exists, adapter mock), Google OAuth, E2E browser
+suite. Postgres migration for these tables aligns with P2-T1.
+
+---
+
 ## ADR-014: The owner configures the platform BY TALKING to it (P1f, 2026-09-05)
 
 **Context.** The product bar was: «با تب بندی تمیز یه بچه دو ساله هم بتونه

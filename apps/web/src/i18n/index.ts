@@ -14,6 +14,7 @@ export const fa = {
   'tab.chat': 'چت با لیدر',
   'tab.files': 'فایل‌ها',
   'tab.kitchen': 'آشپزخانه زنده',
+  'tab.telecoms': 'مخابرات مشاوره',
 
   // home
   'home.title': 'دفتر حقوقی تو، با یک جامعه‌ای از کارشناس‌ها',

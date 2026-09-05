@@ -150,7 +150,37 @@ The owner configures EVERYTHING with tabs or just by TALKING to the Leader —
   golden/violet/green packets FLY leader→expert→back, inference decisions
   carry model badges, event ticker à la Telegram. `node:http` raw proxy
   because Next's patched fetch buffers event streams to death (documented).
-- [x] **P1f-T6** +15 jest (187 total), ADR-014, all suites + builds green.
+- [x] **P1f-T6** +15 jest (187 total), ADR-014.1.0, all suites + builds green.
+
+## Phase 2a — Public Commerce & Telecoms Queue (پول + صف + PWA)
+
+The public CLIENT lives on its own Next server (apps/client, port 3100) —
+installable PWA, OTP login, wallet, shop, queue, notifications. The LAWYER
+runs their office phone-operator style from the dashboard's مخابرات tab.
+
+- [x] **P2a-T1** Enums + error codes: ConsultationMinutes(10|20|30),
+  SubscriptionFeature (ai_chat, ai_filelab, ai_kitchen, ai_voice),
+  QueueTicket lifecycle, WALLET_/QUEUE_/LAWYER_/TICKET_/PURCHASE_/
+  SUBSCRIPTION_/COMMS_ with 4xx prefix-mapping.
+- [x] **P2a-T2** Wallet (StorageProvider-persisted, per-user lock, idempotent
+  topup credit on gateway session, honest insufficient-funds), Billing
+  (catalog, buy consult / subscribe, duplicate-subscription shield, refunds).
+- [x] **P2a-T3** ConsultationQueue: join with paid Unconsumed purchase only,
+  online+open checked, ETA = sum of minutes ahead, next/skip/end lifecycle,
+  cancel ⇒ wallet refund. lawyer moves land on the bus as queue.updated.
+- [x] **P2a-T4** CommsSettings: SMS panel (kavenegar/ghasedak/smsir/custom)
+  + call panel (baseUrl/accountId/token/fromNumber) persisted masked via
+  StorageProvider; test endpoints do REAL HTTP and report latency.
+- [x] **P2a-T5** NotificationService: in-app inbox per user + SMS via panel +
+  outbound consult call at up_next; unwired panels stay honest (no fake
+  delivered flags).
+- [x] **P2a-T6** apps/client PWA: ۴ تب (فروشگاه، کیف پول، نوبت من، اعلان‌ها),
+  manifest + offline-shell SW, install banner, live queue polling 12s.
+- [x] **P2a-T7** دست داشبورد — تب «مخابرات مشاوره»: کلید آنلاین/آفلاین، باز/
+  بستن صف با دلیل فارسی، نفر بعد، skip-to-end, ویرایش قیمت ۱۰/۲۰/۳۰،
+  اتصال و تست واقعی پنل‌های پیامک/تماس.
+- [x] **P2a-T8** +۲۴ jest (211 total), ADR-015, push. NOT YET: real payment
+  gateway wiring, web push, E2E browser tests.
 
 ## Phase 2 — Data Lifecycle (چرخه حیات داده)
 

@@ -1,0 +1,15 @@
+{
+  "name": "مشاوره حقوقی آنلاین",
+  "short_name": "مشاور حقوقی",
+  "description": "نوبت مشاوره حقوقی بگیر، صف را زنده ببین، با هوش مصنوعیِ وکیل حرف بزن.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b0e14",
+  "theme_color": "#f4c85d",
+  "dir": "rtl",
+  "lang": "fa",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

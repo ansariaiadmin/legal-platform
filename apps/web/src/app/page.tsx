@@ -9,8 +9,9 @@ import { FleetTab } from '@/features/fleet-tab';
 import { ChatTab } from '@/features/leader-chat-tab';
 import { FilesTab } from '@/features/files-tab';
 import { KitchenTab } from '@/features/kitchen-tab';
+import { TelecomsTab } from '@/features/telecoms-tab';
 
-type TabId = 'home' | 'brain' | 'fleet' | 'chat' | 'files' | 'kitchen';
+type TabId = 'home' | 'brain' | 'fleet' | 'chat' | 'files' | 'kitchen' | 'telecoms';
 
 const TABS: Array<{ id: TabId; icon: string }> = [
   { id: 'home', icon: '🏠' },
@@ -19,6 +20,7 @@ const TABS: Array<{ id: TabId; icon: string }> = [
   { id: 'chat', icon: '💬' },
   { id: 'files', icon: '📁' },
   { id: 'kitchen', icon: '🍳' },
+  { id: 'telecoms', icon: '📞' },
 ];
 
 export default function Dashboard() {
@@ -90,6 +92,7 @@ export default function Dashboard() {
           {tab === 'chat' && <ChatTab />}
           {tab === 'files' && <FilesTab />}
           {tab === 'kitchen' && <KitchenTab />}
+          {tab === 'telecoms' && <TelecomsTab />}
         </>
       )}
     </div>

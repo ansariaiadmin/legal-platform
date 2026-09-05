@@ -5,7 +5,7 @@
 ## Where we are
 
 - **Phase:** phase-1-expert-tree — Expert agents: civil, criminal, family, registration
-- **Last checkpoint:** 2026-09-05T12:36:44.421Z
+- **Last checkpoint:** 2026-09-05T13:12:30.482Z
 - **Git:** run `git log --oneline -3` to see the last commits.
 
 ## Protocol (non-negotiable)
@@ -33,17 +33,17 @@
 - [ ] P1f-T4 Next.js RTL fa dashboard: tabs خانه/اتصال مغز/ناوگان/چت با لیدر/فایل‌ها/آشپزخانه زنده, lib/api.ts token, next rewrites /api proxy, login tab OTP + dev token
 - [ ] P1f-T5 Creative live visualization tab: SSE EventSource -> agent node orbs, flying task packets leader->expert, inference badges, event ticker, pure CSS animations
 - [ ] P1f-T6 Tests (config-hub + conversational + bypass-off-in-prod) + ADR-014 + ROADMAP/AGENT_FLEET/.env.example + checkpoint sync + push
+- [ ] P2a-T1 domain+contracts: ConsultationPlan(10/20/30), Wallet txn kinds, SubscriptionFeatureScope enum, QueueTicket lifecycle, error codes WALLET_INSUFFICIENT_FUNDS/QUEUE_CLOSED/LAWYER_OFFLINE/TICKET_NOT_FOUND
+- [ ] P2a-T2 modules/billing: WalletService (balance, topup via PaymentProvider port with mock-honest redirect, debit idempotent, refund on cancel), SubscriptionService (per-feature scopes ai_chat/ai_filelab/ai_kitchen/ai_voice, monthly), PurchaseService (consultation plan via wallet or direct)
+- [ ] P2a-T3 modules/consultation: QueueService join (only paid purchase, lawyer must be online-ish accept), position + ETA from plan minutes of those ahead, lifecycle waiting->up_next->in_call->done|no_show|cancelled(refund), lawyer telecoms toggles: online/offline, queue open/close(reasonFa), next/skip, plan editor
+- [ ] P2a-T4 comms settings: SettingsService connects SMS panel (provider label, baseUrl, apiKey) + telephony panel (accountId, token, webhookUrl, fromNumber) persisted via StorageProvider runtime; /test endpoints do honest send/dial attempts
+- [ ] P2a-T5 NotificationService: in-app ring (client polls GET /client/notifications) + SMS via configured panel + telephony outbound call when ticket reaches up_next; events emitted to agent bus for kitchen visibility
+- [ ] P2a-T6 apps/client PWA (separate Next server, port 3100): manifest+sw+install, OTP sign-in (client role), home shop cards 10/20/30 + AI subscription grid, wallet topup+balance, queue status page (position, ETA, notify list), call join placeholder
+- [ ] P2a-T7 dashboard tab «مخابرات مشاوره»: online/offline switch, queue open/close, next/skip with live list, plan minutes editor, SMS/call panel forms with test buttons
+- [ ] P2a-T8 jest suites (billing/queue/comms/notifications), ADR-015, ROADMAP Phase2a, .env.example, checkpoint sync, commit+push
 
 ## Completed
 
-- [x] P1d-T4: pylegal model_client (stdlib urllib, OpenAI-compatible) (2026-09-05)
-- [x] P1d-T5: TS python-jobs bridge via socket RESP (2026-09-05)
-- [x] P1d-T6: tests + docs + ADR-011/012 (2026-09-05)
-- [x] P1e-T1 (2026-09-05)
-- [x] P1e-T2 (2026-09-05)
-- [x] P1e-T3 (2026-09-05)
-- [x] P1e-T4 (2026-09-05)
-- [x] P1e-T5 (2026-09-05)
 - [x] P1e-T6 (2026-09-05)
 - [x] P1f-T1 (2026-09-05)
 - [x] P1f-T2 (2026-09-05)
@@ -51,6 +51,14 @@
 - [x] P1f-T4 (2026-09-05)
 - [x] P1f-T5 (2026-09-05)
 - [x] P1f-T6 (2026-09-05)
+- [x] P2a-T1 (2026-09-05)
+- [x] P2a-T2 (2026-09-05)
+- [x] P2a-T3 (2026-09-05)
+- [x] P2a-T4 (2026-09-05)
+- [x] P2a-T5 (2026-09-05)
+- [x] P2a-T6 (2026-09-05)
+- [x] P2a-T7 (2026-09-05)
+- [x] P2a-T8 (2026-09-05)
 
 ## Architectural decisions
 
@@ -69,3 +77,4 @@
 - **ADR-012** — One RESP client per language; queue bridge honest degradation
 - **ADR-013** — Uploaded files → Leader conversation sandboxes: FileIntelligenceService (sha256-first, py tools preferred, inline-TEXT fallback when queue down with honest status) PlacementService vocabularyScore ties into same fleet routing; LeaderConversationService owner-scoped chat+voice, turns cap=100, no grant bypass
 - **ADR-014** — Owner configures platform by talking: ConfigHubService (runtime brain overrides via StorageProvider, masked secrets, presets) + conversational config (deterministic Persian intents → proposal → confirm) + DEV_DASHBOARD_TOKEN sandbox door (prod-impotent) + SSE dashboard kitchen via node:http raw proxy (Next patched-fetch buffers event streams) Dashboard Next.js fa/RTL six tabs zero new deps; router consults hub peek first; secrecy law has no UI switch
+- **ADR-015** — Commerce+telecoms: WalletService (per-user lock, idempotent topup, WALLET_INSUFFICIENT_FUNDS 402), BillingService (plans 10/20/30 lawyer-edited + per-feature AI subscriptions 1/3/12m, duplicate-active 409), ConsultationQueueService (join⇒paid-and-online, honest ETA, lifecycle + refund on cancel, queue.updated bus events), CommsSettingsService (sms+call panels masked persisted, REAL test shots), NotificationService (in-app + SMS + outbound call at up_next) Client site = OWN Next server apps/client (PWA installable, 4 tabs, manifest+SW, 12s queue polling); dashboard gains telecoms tab; error codes prefix-mapped

@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { request as httpRequest } from 'node:http';
+import type { IncomingMessage } from 'node:http';
 
 const API = process.env.API_PROXY_TARGET ?? 'http://127.0.0.1:8080';
 
@@ -17,7 +18,7 @@ export async function GET(req: NextRequest) {
   const token = req.nextUrl.searchParams.get('token') ?? '';
   const target = new URL(`${API}/api/dashboard/orchestrator/events/stream`);
 
-  const upstream = await new Promise<{ status: number; stream: NodeJS.ReadableStream }>((resolve, reject) => {
+  const upstream = await new Promise<{ status: number; stream: IncomingMessage }>((resolve, reject) => {
     const r = httpRequest(
       {
         hostname: target.hostname,
@@ -29,7 +30,7 @@ export async function GET(req: NextRequest) {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
       },
-      (res) => resolve({ status: res.statusCode ?? 502, stream: res as unknown as NodeJS.ReadableStream }),
+      (res) => resolve({ status: res.statusCode ?? 502, stream: res }),
     );
     r.on('error', reject);
     r.end();

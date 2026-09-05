@@ -80,3 +80,47 @@ export enum AgentTier {
   COUNSEL = 'counsel', // متعادل — hybrid, cloud fallback
   SENATOR = 'senator', // قدرتمند — cloud-first, full fleet, voice
 }
+
+// ─── Commerce & consultation (SPEC §11a business layer, P2a) ───────────────
+// Every purchasable thing on the public site is an ENUM here — no drifting
+// strings, no inventing prices inside UI code (SPEC §4).
+
+/** AI capabilities sold as subscriptions "for every part of the app" */
+export enum SubscriptionFeature {
+  AI_CHAT = 'ai_chat',
+  AI_FILE_LAB = 'ai_filelab', // upload + Leader analysis (P1e)
+  AI_KITCHEN = 'ai_kitchen', // live agent visualization (P1f)
+  AI_VOICE = 'ai_voice', // talk to the Leader
+}
+
+export type SubscriptionMonths = 1 | 3 | 12;
+
+/** Consultation slot lengths the lawyer chooses between (ملت می‌خرند) */
+export type ConsultationMinutes = 10 | 20 | 30;
+
+export interface ConsultationPlan {
+  minutes: ConsultationMinutes;
+  /** Toman. The LAWYER sets these from the telecoms box; these are the
+   *  factory defaults, editable — not hard-coded revenue. */
+  priceToman: number;
+  active: boolean;
+}
+
+export const DEFAULT_CONSULTATION_PLANS: ConsultationPlan[] = [
+  { minutes: 10, priceToman: 250_000, active: true },
+  { minutes: 20, priceToman: 450_000, active: true },
+  { minutes: 30, priceToman: 650_000, active: true },
+];
+
+/** Queue ticket lifecycle — never machines without honest states. */
+export type TicketStatus = 'waiting' | 'up_next' | 'in_call' | 'done' | 'no_show' | 'cancelled';
+
+export type WalletTxnKind = 'topup' | 'purchase' | 'refund' | 'subscription';
+
+/** Lawyer telecoms state — «مخابرات»: دکمه‌های روشن/خاموش/باز/بسته */
+export interface TelecomsState {
+  online: boolean;
+  queueOpen: boolean;
+  closeReason?: string; // Persian, shown to clients when closed
+  updatedAt: string;
+}

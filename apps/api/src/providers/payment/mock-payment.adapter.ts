@@ -55,6 +55,15 @@ export class MockPaymentAdapter implements PaymentProvider {
     };
   }
 
+  /** DEV-ONLY: flip a pending mock session to paid so the sandbox flow can
+   *  complete end-to-end. Production never wires this adapter. */
+  devMarkPaid(sessionId: string): boolean {
+    const s = this.sessions.get(sessionId);
+    if (!s || s.status !== 'pending') return false;
+    s.status = 'paid';
+    return true;
+  }
+
   async verifyCallback(payload: PaymentCallbackPayload): Promise<PaymentVerificationResult> {
     // Verify HMAC signature if present
     if (payload.signature) {

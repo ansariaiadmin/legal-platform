@@ -10,6 +10,14 @@ export const ERROR_PREFIXES = {
   BACKUP: 'BACKUP_',
   SECURITY: 'SECURITY_',
   SYSTEM: 'SYSTEM_',
+  // P2a — commerce & consultation
+  WALLET: 'WALLET_',
+  QUEUE: 'QUEUE_',
+  LAWYER: 'LAWYER_',
+  TICKET: 'TICKET_',
+  PURCHASE: 'PURCHASE_',
+  SUBSCRIPTION: 'SUBSCRIPTION_',
+  COMMS: 'COMMS_',
 } as const;
 
 export type ErrorCodePrefix = (typeof ERROR_PREFIXES)[keyof typeof ERROR_PREFIXES];
@@ -55,6 +63,17 @@ export const ERROR_CODES = {
   SECURITY_DECRYPTION_FAILED: 'SECURITY_DECRYPTION_FAILED',
   // system
   SYSTEM_INTERNAL_ERROR: 'SYSTEM_INTERNAL_ERROR',
+  // P2a — commerce & consultation
+  WALLET_INSUFFICIENT_FUNDS: 'WALLET_INSUFFICIENT_FUNDS',
+  QUEUE_CLOSED: 'QUEUE_CLOSED',
+  LAWYER_OFFLINE: 'LAWYER_OFFLINE',
+  TICKET_NOT_FOUND: 'TICKET_NOT_FOUND',
+  PURCHASE_NOT_FOUND: 'PURCHASE_NOT_FOUND',
+  TICKET_WRONG_STATUS: 'TICKET_WRONG_STATUS',
+  PAYMENT_GATEWAY_ERROR: 'PAYMENT_GATEWAY_ERROR',
+  SUBSCRIPTION_ACTIVE: 'SUBSCRIPTION_ACTIVE',
+  SUBSCRIPTION_EXPIRED: 'SUBSCRIPTION_EXPIRED',
+  COMMS_NOT_CONFIGURED: 'COMMS_NOT_CONFIGURED',
   SYSTEM_NOT_IMPLEMENTED: 'SYSTEM_NOT_IMPLEMENTED',
 } as const;
 
@@ -100,10 +119,19 @@ export function httpStatusForCode(code: string): number {
   if (code.startsWith(ERROR_PREFIXES.VALIDATION)) return 400;
   // A webhook payload the gateway sent badly is the caller's problem, not ours.
   if (code === ERROR_CODES.PAYMENT_CALLBACK_INVALID) return 400;
+  // P2a commerce: not enough money is a client-payable situation; the
+  // closed queue / offline lawyer are conflicts-with-current-state.
+  if (code.startsWith(ERROR_PREFIXES.WALLET)) return 402;
+  if (code.startsWith(ERROR_PREFIXES.QUEUE) || code.startsWith(ERROR_PREFIXES.LAWYER)) return 409;
+  if (code.startsWith(ERROR_PREFIXES.TICKET) || code.startsWith(ERROR_PREFIXES.COMMS)) return 409;
+  if (code === ERROR_CODES.SUBSCRIPTION_ACTIVE) return 409;
+  if (code === ERROR_CODES.SUBSCRIPTION_EXPIRED) return 403;
+  if (code === ERROR_CODES.PURCHASE_NOT_FOUND) return 404;
   if (code === ERROR_CODES.AUTH_RATE_LIMITED || code === ERROR_CODES.AUTH_RESEND_COOLDOWN) return 429;
   if (code === ERROR_CODES.AUTH_INSUFFICIENT_ROLE) return 403;
   if (code.startsWith(ERROR_PREFIXES.AUTH)) return 401;
   if (code.endsWith('_NOT_FOUND')) return 404;
+  if (code === ERROR_CODES.PAYMENT_GATEWAY_ERROR) return 502; // upstream payment hub failed, not the client's syntax
   if (code.startsWith(ERROR_PREFIXES.PROVIDER) || code.startsWith(ERROR_PREFIXES.AI)) return 502;
   return 500;
 }

@@ -7,6 +7,7 @@
     "packages/contracts",
     "packages/shared",
     "apps/api",
+    "apps/client",
     "apps/web",
     "apps/agents/*"
   ],

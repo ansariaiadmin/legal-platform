@@ -5,6 +5,10 @@ import { AuthModule } from './modules/auth/auth.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { ProvidersModule } from './modules/providers/providers.module';
 import { OrchestratorModule } from './modules/orchestrator/orchestrator.module';
+import { BillingModule } from './modules/billing/billing.module';
+import { ConsultationModule } from './modules/consultation/consultation.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
+import { ClientModule } from './modules/billing/client.module';
 import { DatabaseModule } from './database/database.module';
 import { ProviderRegistryModule } from './providers/provider-registry.module';
 import { EnvService } from './config/env';
@@ -26,6 +30,10 @@ import { AuthJwtModule } from './security/jwt.module';
     AuthModule,
     ProvidersModule,
     OrchestratorModule,
+    BillingModule,
+    NotificationsModule,
+    ConsultationModule,
+    ClientModule,
   ],
   providers: [
     EnvService,

@@ -21,7 +21,8 @@ export type AgentEventKind =
   | 'model.unassigned'
   | 'file.uploaded'
   | 'file.analyzed'
-  | 'conversation.turn';
+  | 'conversation.turn'
+  | 'queue.updated';
 
 export interface AgentEvent {
   kind: AgentEventKind;
