@@ -8,6 +8,7 @@ import type {
 import { AgentTier } from '@legal-platform/domain';
 import { ModelAssignmentService } from './model-assignment.service';
 import { ConfigHubService } from './config-hub.service';
+import { assertLanUrlAllowed } from '../../security/egress';
 
 export const HYBRID_POLICY_ENV = 'AI_HYBRID_POLICY';
 export const LOCAL_MODEL_URL_ENV = 'AI_LOCAL_BASE_URL';
@@ -169,6 +170,12 @@ export class HybridInferenceRouter implements InferenceRouter {
   private async probeLocal(): Promise<boolean> {
     const url = this.configHub?.peek().local?.baseUrl ?? this.config.get<string>(LOCAL_MODEL_URL_ENV);
     if (!url) return false;
+    // SSRF border: the local probe is the LAN lane — sanity-checked only.
+    try {
+      assertLanUrlAllowed(url);
+    } catch {
+      return false;
+    }
     try {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 1500);

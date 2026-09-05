@@ -8,6 +8,7 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { Pool } from 'pg';
 import { ERROR_CODES } from '@legal-platform/contracts';
+import { redeemStreamTicket } from './stream-tickets';
 import type { AuthenticatedUser, AccessTokenClaims } from './authenticated-user';
 
 /**
@@ -26,10 +27,22 @@ export class JwtAccessGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<{
       headers: Record<string, string | string[] | undefined>;
+      query?: Record<string, string | undefined>;
       user?: AuthenticatedUser;
     }>();
 
     const authHeader = request.headers.authorization;
+
+    // -- stream ticket lane (FIELD REVIEW 2026-09-05 #4) --------------------
+    // EventSource cannot send Authorization, so SSE callers redeem a
+    // SINGLE-USE 45-second ticket (?ticket=) instead of smuggling the real
+    // JWT through the URL. A ticket in a log buys nothing; the bearer path
+    // below stays untouched for everything else.
+    const rawTicket = request.query?.ticket;
+    if (typeof rawTicket === 'string' && rawTicket.length > 0) {
+      return this.authenticateViaStreamTicket(rawTicket, request);
+    }
+
     if (typeof authHeader !== 'string' || !authHeader.startsWith('Bearer ')) {
       throw new UnauthorizedException(ERROR_CODES.AUTH_MISSING_TOKEN);
     }
@@ -69,11 +82,53 @@ export class JwtAccessGuard implements CanActivate {
       throw new UnauthorizedException(ERROR_CODES.AUTH_INVALID_TOKEN);
     }
 
+    await this.assertLiveSession(claims.sub, claims.sessionId);
+
+    request.user = {
+      id: claims.sub,
+      sessionId: claims.sessionId,
+      roles: Array.isArray(claims.roles) ? claims.roles : [],
+    };
+
+    return true;
+  }
+
+  /**
+   * Redeem a single-use stream ticket, then subject its claims to the SAME
+   * live-session database check the bearer path enforces — a ticket must
+   * never outlive a revoked session.
+   */
+  private async authenticateViaStreamTicket(
+    ticket: string,
+    request: { user?: AuthenticatedUser },
+  ): Promise<boolean> {
+    const claims = redeemStreamTicket(ticket);
+    if (!claims) {
+      throw new UnauthorizedException(ERROR_CODES.AUTH_INVALID_TOKEN);
+    }
+    // The sandbox dev-door ticket (minted under DEV_DASHBOARD_TOKEN with the
+    // sentinel session) skips the DB session check — exactly like the bearer
+    // dev-door — and only ever outside production.
+    const devToken = this.configService.get<string>('DEV_DASHBOARD_TOKEN');
+    const isProd = (this.configService.get<string>('NODE_ENV') ?? 'development') === 'production';
+    const isDevDoorTicket = !isProd && !!devToken && claims.sub === 'dev-owner' && claims.sessionId === 'dev-session';
+    if (!isDevDoorTicket) {
+      await this.assertLiveSession(claims.sub, claims.sessionId);
+    }
+    request.user = {
+      id: claims.sub,
+      sessionId: claims.sessionId,
+      roles: Array.isArray(claims.roles) ? claims.roles : [],
+    };
+    return true;
+  }
+
+  private async assertLiveSession(sub: string, sessionId: string): Promise<void> {
     const session = await this.pool.query(
       `SELECT revoked_at, expires_at
          FROM user_sessions
         WHERE id = $1 AND user_id = $2`,
-      [claims.sessionId, claims.sub],
+      [sessionId, sub],
     );
 
     if (session.rows.length === 0) {
@@ -87,13 +142,5 @@ export class JwtAccessGuard implements CanActivate {
     if (new Date(row.expires_at).getTime() <= Date.now()) {
       throw new UnauthorizedException(ERROR_CODES.AUTH_SESSION_EXPIRED);
     }
-
-    request.user = {
-      id: claims.sub,
-      sessionId: claims.sessionId,
-      roles: Array.isArray(claims.roles) ? claims.roles : [],
-    };
-
-    return true;
   }
 }

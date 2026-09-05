@@ -5,9 +5,12 @@ import type { IncomingMessage } from 'node:http';
 const API = process.env.API_PROXY_TARGET ?? 'http://127.0.0.1:8080';
 
 /**
- * SSE tunnel (ADR-014): browsers cannot put Authorization on an EventSource,
- * so this same-origin route drains the API's guarded stream WITH the user's
- * token (same-origin ?token= only — dashboard tab injects it) and re-streams.
+ * SSE tunnel (ADR-014, hardened by FIELD REVIEW 2026-09-05 #4): browsers
+ * cannot put Authorization on an EventSource, so this same-origin route
+ * forwards a SINGLE-USE, 45-second stream ticket (?ticket=) that the
+ * dashboard minted via POST /dashboard/orchestrator/events/stream-ticket
+ * with its real bearer. A ticket in a log/history is already dead stock —
+ * it expires in seconds and replays to nothing.
  *
  * WHY node:http and not fetch: Next.js patches global fetch inside route
  * handlers, and that patched fetch BUFFERS the response body — an event
@@ -15,7 +18,7 @@ const API = process.env.API_PROXY_TARGET ?? 'http://127.0.0.1:8080';
  * dead. Raw http.request keeps bytes flowing.
  */
 export async function GET(req: NextRequest) {
-  const token = req.nextUrl.searchParams.get('token') ?? '';
+  const ticket = req.nextUrl.searchParams.get('ticket') ?? '';
   const target = new URL(`${API}/api/dashboard/orchestrator/events/stream`);
 
   const upstream = await new Promise<{ status: number; stream: IncomingMessage }>((resolve, reject) => {
@@ -23,11 +26,10 @@ export async function GET(req: NextRequest) {
       {
         hostname: target.hostname,
         port: target.port || 80,
-        path: target.pathname,
+        path: `${target.pathname}?ticket=${encodeURIComponent(ticket)}`,
         method: 'GET',
         headers: {
           Accept: 'text/event-stream',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
       },
       (res) => resolve({ status: res.statusCode ?? 502, stream: res }),

@@ -88,6 +88,20 @@ async function main(): Promise<number> {
     for (const probe of ['SMS_ADAPTER', 'PAYMENT_ADAPTER'] as const) {
       if (env[probe]) results.push(line('ok', `${probe}=${env[probe]}`));
     }
+
+    // FIELD REVIEW 2026-09-05 #5 — money lane must never run on
+    // fire-and-forget storage. A real gateway without the single-replica
+    // posture documented is a double-spend invitation.
+    const pay = (env.PAYMENT_ADAPTER ?? '').toLowerCase();
+    if (pay && pay !== 'mock' && pay !== 'local') {
+      if (pay === 'zarinpal' && !env.ZARINPAL_MERCHANT_ID) {
+        results.push(line('fail', 'PAYMENT_ADAPTER=zarinpal بدون ZARINPAL_MERCHANT_ID'));
+      }
+      if (env.WALLET_REPLICA_OK !== 'single-replica-acknowledged') {
+        results.push(line('warn',
+          'WALLET با درگاه واقعی: تراز در JSON ‌درون‌حافظه است — تا مهاجرت لجر Postgres فقط تک‌نمونه اجرا کن (WALLET_REPLICA_OK=single-replica-acknowledged)'));
+      }
+    }
   }
 
   // 5. email factor

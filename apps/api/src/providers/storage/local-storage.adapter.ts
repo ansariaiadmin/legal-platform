@@ -24,13 +24,31 @@ export class LocalStorageAdapter implements StorageProvider {
     }
   }
 
+  /**
+   * Root confinement (FIELD REVIEW 2026-09-05 #16): join() silently collapses
+   * '../..' hops, so a crafted key could write outside the storage root.
+   * Every path-bearing op goes through this — resolve, then assert the
+   * result is INSIDE basePath. No exceptions, no silent clamping: hard deny.
+   */
+  private safeJoin(key: string): string {
+    const fullPath = resolve(this.basePath, key);
+    if (fullPath !== this.basePath && !fullPath.startsWith(this.basePath + '/')) {
+      throw new ProviderError(
+        PROVIDER_ERROR_CODES.INVALID_REQUEST,
+        'storage key escapes the storage root — denied',
+        false,
+      );
+    }
+    return fullPath;
+  }
+
   async put(input: {
     key: string;
     content: Buffer | string;
     contentType?: string;
     metadata?: Record<string, string>;
   }): Promise<{ url: string; key: string }> {
-    const fullPath = join(this.basePath, input.key);
+    const fullPath = this.safeJoin(input.key);
     const dir = fullPath.substring(0, fullPath.lastIndexOf('/'));
     
     if (dir && !existsSync(dir)) {
@@ -47,7 +65,7 @@ export class LocalStorageAdapter implements StorageProvider {
   }
 
   async get(key: string): Promise<Buffer> {
-    const fullPath = join(this.basePath, key);
+    const fullPath = this.safeJoin(key);
     
     if (!existsSync(fullPath)) {
       throw new ProviderError(
@@ -60,7 +78,7 @@ export class LocalStorageAdapter implements StorageProvider {
   }
 
   async delete(key: string): Promise<void> {
-    const fullPath = join(this.basePath, key);
+    const fullPath = this.safeJoin(key);
     
     if (existsSync(fullPath)) {
       unlinkSync(fullPath);
@@ -108,7 +126,7 @@ export class LocalStorageAdapter implements StorageProvider {
       // Self-test: write and read back a test file
       const testKey = '.health_check_test';
       const testContent = 'test';
-      const fullPath = join(this.basePath, testKey);
+      const fullPath = this.safeJoin(testKey);
 
       writeFileSync(fullPath, testContent);
       const readBack = readFileSync(fullPath, 'utf-8');

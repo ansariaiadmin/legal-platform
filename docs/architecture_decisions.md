@@ -893,3 +893,65 @@ not debug. Every dependency outage must surface as a GUIDED state, not a
 **Consequences.** A field trial with missing Postgres now degrades to clear
 Persian-guided states; the tester CANNOT make the platform leak an internal
 500 from the login path. Ops discipline gets cheaper than support tickets.
+
+## ADR-028: Remediation of the 2026-09-05 adversarial field review (P11.5)
+
+**Context.** A hostile internal audit (`docs/FIELD_REVIEW_2026-09-05.md`)
+surfaced field-blocking and exploitable findings. This ADR records the exact
+remediation decisions — each with tests that would have caught the gap.
+
+**Decisions.**
+
+1. **Wallet × gateway contract (finding #1).** `topupConfirm` now speaks the
+   universal verb `verifyCallback` with the expected amount read from OUR
+   recorded intent row (`expectedAmountToman`), never from the wire — and
+   never `?? 0`. Only `UNSUPPORTED_OPERATION` falls back to a query-style
+   read; every other error fails closed. The mock adapter grew strict parity:
+   `verifyCallback('paid')` on a never-paid session is REFUSED. Contract
+   proof: `test/billing/wallet-topup-contract.spec.ts` drives a ZarinPal-
+   shaped stub (queryPaymentStatus throws, code=100/101 idempotency,
+   amount-mismatch refusal) — 5 tests pin the seam that silently broke.
+
+2. **AI egress guard (finding #3 — SSRF).** `src/security/egress.ts` splits
+   outbound AI into two postures: the LAN lane (`assertLanUrlAllowed` —
+   local brains on the office network are the point) and the public lane
+   (`assertPublicEgressAllowed` — https-only in prod, no private/loopback/
+   link-local hosts, production DNS-resolution pin, optional
+   `AI_EGRESS_ALLOW` host allowlist). Applied at all three seams:
+   OpenAI-compatible adapter (gate memoized, awaited before every fetch),
+   config-hub `testConnection`, hybrid-router local health probe.
+   `test/security/egress.spec.ts` attacks it with metadata IPs, IPv6
+   loopbacks, credential-in-URL, and allowlist misses.
+
+3. **Stream tickets (finding #4 — bearer in URL).** `POST
+   /dashboard/orchestrator/events/stream-ticket` mints a SINGLE-USE,
+   45-second HMAC ticket (payload.jti consumed-set guarded); the SSE guard
+   redeems it and still enforces the live-session DB check (except the
+   documented dev-door sentinel). The web tunnel `/stream/events` now
+   forwards `?ticket=` and the kitchen tab mints before every (re)connect.
+   `?token=` support is REMOVED — grep verifies no web caller carries the
+   bearer in a URL anymore.
+
+4. **Audit PII masking (finding #9).** `maskDestination()` keeps correlation
+   (prefix+tail / first-char+domain) but ends the audit-trail honeypot:
+   9 metadata writes in `auth.service.ts` masked; `otp_challenges.destination`
+   column untouched because lookups join on it.
+
+5. **Storage root confinement (finding #16).** LocalStorageAdapter gained
+   `safeJoin` — resolve-then-assert-inside-root on put/get/delete/verify.
+   Traversal is HARD-DENIED, never silently clamped
+   (`test/storage/local-storage-root.spec.ts`).
+
+6. **Preflight wallet gate (finding #5 mitigation).** A real payment
+   adapter without `WALLET_REPLICA_OK=single-replica-acknowledged` warns
+   loudly (JSON ledger is single-process until the Postgres migration);
+   `PAYMENT_ADAPTER=zarinpal` without merchant id fails.
+
+7. **Supply chain (finding #8).** `npm audit` re-run; the 12 advisories all
+   resolve upstream of semver-major dependency lines (Nest 10→11, Next
+   majors) — recorded as ROADMAP Phase 12 debt with the override policy,
+   NOT silent forced upgrades mid-review (that would be cure > disease).
+
+**Consequences.** The field-launch kill-list #1–#5 + #8(scan), #9, #16 of
+the review are closed code-wise; #6 (email factor/step-up) and #10
+(per-file egress) remain OPEN and are Phase 12 entries, honestly flagged.

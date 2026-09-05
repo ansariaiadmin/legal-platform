@@ -55,6 +55,26 @@ const ACCESS_TOKEN_TTL = '15m';
 const REFRESH_TOKEN_TTL = '7d';
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
+/**
+ * Audit-log hygiene (FIELD REVIEW 2026-09-05 #9): destinations in audit
+ * metadata are PII — audit trails are long-lived, read by admins, exported
+ * to reports. We keep correlation possible (same input ⇒ same mask) while
+ * exposing only the minimum: phones keep country prefix + last 2, emails
+ * keep first letter + domain. The DB's otp_challenges.destination column
+ * still stores the full value because the challenge lookup joins on it —
+ * only the audit copy is masked.
+ */
+export function maskDestination(destination: string): string {
+  const d = destination.trim();
+  if (d.includes('@')) {
+    const [local, domain] = d.split('@');
+    const head = local.slice(0, 1); // empty local → no head at all, still no leak
+    return `${head ? `${head}•••` : '•••'}@${domain ?? '•••'}`;
+  }
+  if (d.length <= 6) return '•••';
+  return `${d.slice(0, 4)}•••${d.slice(-2)}`;
+}
+
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
@@ -89,7 +109,7 @@ export class AuthService {
         module: 'auth',
         action: 'otp.request',
         entityType: 'otp_challenge',
-        metadata: { destination: normalizedPhone, reason: phoneDecision.rejection },
+        metadata: { destination: maskDestination(normalizedPhone), reason: phoneDecision.rejection },
         ip,
         result: 'failure',
       });
@@ -136,7 +156,7 @@ export class AuthService {
       action: 'otp.request',
       entityType: 'otp_challenge',
       entityId: challengeId,
-      metadata: { destination: normalizedPhone, smsSuccess: smsResult.success },
+      metadata: { destination: maskDestination(normalizedPhone), smsSuccess: smsResult.success },
       ip,
       result: 'success',
     });
@@ -176,7 +196,7 @@ export class AuthService {
         module: 'auth',
         action: 'otp.verify',
         entityType: 'otp_challenge',
-        metadata: { destination: normalizedPhone, reason: 'no_challenge' },
+        metadata: { destination: maskDestination(normalizedPhone), reason: 'no_challenge' },
         ip,
         result: 'failure',
       });
@@ -191,7 +211,7 @@ export class AuthService {
         action: 'otp.verify',
         entityType: 'otp_challenge',
         entityId: row.id,
-        metadata: { destination: normalizedPhone, reason: 'expired' },
+        metadata: { destination: maskDestination(normalizedPhone), reason: 'expired' },
         ip,
         result: 'failure',
       });
@@ -210,7 +230,7 @@ export class AuthService {
         action: 'otp.verify',
         entityType: 'otp_challenge',
         entityId: row.id,
-        metadata: { destination: normalizedPhone, reason: 'invalid_code', attempts },
+        metadata: { destination: maskDestination(normalizedPhone), reason: 'invalid_code', attempts },
         ip,
         result: 'failure',
       });
@@ -234,7 +254,7 @@ export class AuthService {
       action: 'otp.verify',
       entityType: 'user_session',
       entityId: session.sessionId,
-      metadata: { destination: normalizedPhone },
+      metadata: { destination: maskDestination(normalizedPhone) },
       ip,
       result: 'success',
     });
@@ -265,7 +285,7 @@ export class AuthService {
         module: 'auth',
         action: 'otp.request',
         entityType: 'otp_challenge',
-        metadata: { destination: normalized, channel: 'email', reason: destDecision.rejection },
+        metadata: { destination: maskDestination(normalized), channel: 'email', reason: destDecision.rejection },
         ip,
         result: 'failure',
       });
@@ -310,7 +330,7 @@ export class AuthService {
       action: 'otp.request',
       entityType: 'otp_challenge',
       entityId: challengeId,
-      metadata: { destination: normalized, channel: 'email', mailSuccess: mail.success },
+      metadata: { destination: maskDestination(normalized), channel: 'email', mailSuccess: mail.success },
       ip,
       result: 'success',
     });
@@ -371,7 +391,7 @@ export class AuthService {
       action: 'otp.verify',
       entityType: 'user_session',
       entityId: session.sessionId,
-      metadata: { destination: normalized, channel: 'email' },
+      metadata: { destination: maskDestination(normalized), channel: 'email' },
       ip,
       result: 'success',
     });

@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { STORAGE_PROVIDER } from '../../providers/provider.tokens';
+import { assertLanUrlAllowed, assertPublicEgressAllowed } from '../../security/egress';
 import type { StorageProvider } from '../../providers/storage/storage.provider';
 
 /**
@@ -250,6 +251,15 @@ export class ConfigHubService {
   }): Promise<{ ok: boolean; latencyMs?: number; error?: string; detail?: string }> {
     const baseUrl = input.baseUrl?.trim() || (input.target === 'local' ? (await this.effectiveLocal())?.baseUrl : (await this.effectiveCloud())?.baseUrl);
     if (!baseUrl) return { ok: false, error: 'هیچ آدرسی تنظیم نشده است.' };
+    // SSRF border (FIELD REVIEW 2026-09-05 #3): office-configured URLs must
+    // pass the egress guard before we ever connect — cloud lane is
+    // https/public/allowlisted, local lane stays LAN-friendly by design.
+    try {
+      if (input.target === 'local') assertLanUrlAllowed(baseUrl);
+      else await assertPublicEgressAllowed(baseUrl, { allowlist: this.config.get<string>('AI_EGRESS_ALLOW') });
+    } catch (e) {
+      return { ok: false, error: (e as Error).message };
+    }
     const started = Date.now();
     try {
       const res = await fetch(`${baseUrl.replace(/\/$/, '')}/v1/models`, {

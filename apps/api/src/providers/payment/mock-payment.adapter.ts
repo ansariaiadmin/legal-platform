@@ -78,6 +78,18 @@ export class MockPaymentAdapter implements PaymentProvider {
       }
     }
 
+    // Strict parity with real gateways (ZarinPal): 'paid' ONLY if THIS session
+    // was actually paid — a callback cannot turn a pending session into money.
+    const session = this.sessions.get(payload.paymentId);
+    if (session && payload.status === 'paid' && session.status !== 'paid') {
+      return {
+        valid: false,
+        paymentId: payload.paymentId,
+        status: 'failed',
+        error: `session is ${session.status} — verify cannot mint a payment`,
+      };
+    }
+
     // Check for duplicate callback (idempotency)
     const callbackKey = `${payload.paymentId}:${payload.status}`;
     if (this.callbacks.has(callbackKey)) {

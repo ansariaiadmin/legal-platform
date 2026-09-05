@@ -13,6 +13,12 @@ export interface WalletTxn {
   note: string;
   /** idempotency key — retries never double-charge (SPEC §2) */
   externalRef?: string;
+  /**
+   * intent txns record what the USER asked to pay at topupStart; verify must
+   * echo exactly this amount or the credit is refused — we never trust a
+   * callback amount and never fall back to zero.
+   */
+  expectedAmountToman?: number;
 }
 
 interface WalletState {
@@ -21,6 +27,33 @@ interface WalletState {
 }
 
 const TXN_CAP = 500;
+
+/**
+ * The Money verbs differ by gateway: ZarinPal VERIFIES (query is honestly
+ * unsupported), sandbox mocks can also QUERY. Travelers rule: ask verify
+ * first with our recorded amount; only if the adapter says UNSUPPORTED do we
+ * fall back to a query-style read. Anything else (network, refusal) fails
+ * closed — a wallet never guesses.
+ */
+async function verifyTopupPayment(
+  payment: PaymentProvider,
+  sessionId: string,
+  expectedToman: number,
+): Promise<{ valid: boolean; status: 'paid' | 'failed' | 'expired' | 'refunded' | 'pending'; amount?: number }> {
+  try {
+    const v = await payment.verifyCallback({
+      paymentId: sessionId,
+      status: 'paid',
+      rawPayload: { amount: expectedToman },
+    });
+    return { valid: v.valid, status: v.status, amount: v.amount };
+  } catch (e) {
+    const code = (e as { code?: string }).code;
+    if (code !== 'UNSUPPORTED_OPERATION') throw e;
+  }
+  const q = await payment.queryPaymentStatus(sessionId);
+  return { valid: q.status === 'paid', status: q.status, amount: q.amount };
+}
 
 /**
  * کیف پول (P2a). Balances persist through the StorageProvider port (same
@@ -92,13 +125,19 @@ export class WalletService {
         at: new Date().toISOString(),
         note: `آغاز شارژ ${amountToman.toLocaleString('fa-IR')} تومانی`,
         externalRef: session.sessionId,
+        expectedAmountToman: amountToman,
       });
       await this.put(userId, s);
     });
     return { redirectUrl: session.redirectUrl, sessionId: session.sessionId };
   }
 
-  /** Idempotent credit after the gateway callback verified paid. */
+  /**
+   * Idempotent credit after the user returns from the gateway. Speaks the
+   * universal verb — verifyCallback — so strict adapters (ZarinPal throws
+   * queryPaymentStatus) work; the expected amount comes from OUR intent row,
+   * never from the network, and never falls back to zero.
+   */
   async topupConfirm(userId: string, sessionId: string): Promise<{ credited: boolean; balanceToman: number }> {
     // Sandbox convenience: the mock adapter can be force-paid in development
     // exactly once per session; production gateways never expose this knob.
@@ -106,15 +145,41 @@ export class WalletService {
     if (process.env.NODE_ENV !== 'production' && typeof dev.devMarkPaid === 'function') {
       dev.devMarkPaid(sessionId);
     }
-    const verify = await this.payment.queryPaymentStatus(sessionId);
-    if (verify.status !== 'paid') {
-      return { credited: false, balanceToman: (await this.state(userId)).balanceToman };
+
+    const preflight = await this.exclusive(userId, async () => {
+      const s = await this.state(userId);
+      const already = s.txns.find((t) => t.externalRef === sessionId && t.amountToman > 0);
+      if (already) return { done: true as const, balance: s.balanceToman };
+      const intent = s.txns.find((t) => t.externalRef === sessionId && t.amountToman === 0);
+      if (!intent?.expectedAmountToman) {
+        throw new BadRequestException({
+          code: 'VALIDATION_INVALID_INPUT',
+          message: 'جلسه‌ی شارژی با این شناسه برای این کیف پول ثبت نشده است.',
+        });
+      }
+      return { done: false as const, expected: intent.expectedAmountToman, balance: s.balanceToman };
+    });
+    if (preflight.done) return { credited: false, balanceToman: preflight.balance };
+
+    const verify = await verifyTopupPayment(this.payment, sessionId, preflight.expected);
+    if (!verify.valid || verify.status !== 'paid') {
+      return { credited: false, balanceToman: preflight.balance };
     }
+    const amount = verify.amount ?? preflight.expected;
+    if (amount !== preflight.expected) {
+      this.logger.error(
+        `wallet topup amount mismatch user=${userId} session=${sessionId} expected=${preflight.expected} gateway=${amount} — REFUSING credit`,
+      );
+      throw new BadRequestException({
+        code: 'WALLET_TOPUP_AMOUNT_MISMATCH',
+        message: 'مبلغ تأییدشده‌ی درگاه با شارژ درخواستی یکی نیست — نه شارژ می‌کنیم نه حدس می‌زنیم.',
+      });
+    }
+
     return this.exclusive(userId, async () => {
       const s = await this.state(userId);
       const already = s.txns.find((t) => t.externalRef === sessionId && t.amountToman > 0);
       if (already) return { credited: false, balanceToman: s.balanceToman };
-      const amount = verify.amount ?? 0;
       s.balanceToman += amount;
       s.txns.push({
         id: randomUUID(),

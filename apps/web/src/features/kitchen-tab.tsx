@@ -100,7 +100,18 @@ export function KitchenTab() {
         const recent = await api.get<{ events: AgentEventMsg[] }>('/dashboard/orchestrator/events/recent');
         setEvents(recent.events.slice(-8));
       } catch { /* fine */ }
-      es = new EventSource(`/stream/events?token=${encodeURIComponent(getToken() ?? '')}`);
+      // FIELD REVIEW #4: never carry the 60-minute bearer in the URL. Mint a
+      // single-use 45-second ticket with the real Authorization header (the
+      // tunnel forwards it) — the URL credential dies before logs get read.
+      let ticket = '';
+      try {
+        const minted = await api.post<{ ticket: string; expiresInSec: number }>(
+          '/dashboard/orchestrator/events/stream-ticket',
+        );
+        ticket = minted.ticket;
+      } catch { /* no stream without a ticket — the reconnect loop below retries */ }
+      if (!ticket || stopped) return;
+      es = new EventSource(`/stream/events?ticket=${encodeURIComponent(ticket)}`);
       es.onopen = () => setLive(true);
       es.onerror = () => {
         setLive(false);

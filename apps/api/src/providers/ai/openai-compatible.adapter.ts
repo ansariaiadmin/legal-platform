@@ -1,4 +1,5 @@
 import { ConfigService } from '@nestjs/config';
+import { assertPublicEgressAllowed } from '../../security/egress';
 import { ProviderError, PROVIDER_ERROR_CODES } from '../provider.error';
 import type { AIProvider, AIProviderMetadata } from './ai.provider';
 
@@ -18,6 +19,7 @@ import type { AIProvider, AIProviderMetadata } from './ai.provider';
  */
 export class OpenAiCompatibleAIAdapter implements AIProvider {
   private readonly baseUrl: string;
+  private readonly egressGate: Promise<void>;
   private readonly apiKey: string;
   private readonly model: string;
   private readonly embModel: string;
@@ -34,6 +36,13 @@ export class OpenAiCompatibleAIAdapter implements AIProvider {
       );
     }
     this.baseUrl = baseUrl.replace(/\/+$/, '');
+    // SSRF border (FIELD REVIEW 2026-09-05 #3): evaluated ONCE at construction
+    // and awaited before every outbound fetch — the cloud lane must point at
+    // real public HTTPS (private/loopback/link-local/allowlist miss ⇒ denied).
+    this.egressGate = assertPublicEgressAllowed(this.baseUrl, {
+      allowlist: config.get<string>('AI_EGRESS_ALLOW'),
+      nodeEnv: config.get<string>('NODE_ENV'),
+    });
     this.apiKey = apiKey;
     this.model = config.get<string>('AI_CLOUD_MODEL') || 'gpt-4o-mini';
     this.embModel = config.get<string>('AI_EMBEDDING_MODEL') || 'text-embedding-3-small';
@@ -97,6 +106,7 @@ export class OpenAiCompatibleAIAdapter implements AIProvider {
 
   async verifyConfig(): Promise<{ valid: boolean; error?: string }> {
     try {
+      await this.egressGate;
       const res = await fetch(`${this.baseUrl}/v1/models`, {
         headers: { Authorization: `Bearer ${this.apiKey}` },
         signal: AbortSignal.timeout(5_000),
@@ -119,6 +129,7 @@ export class OpenAiCompatibleAIAdapter implements AIProvider {
   private async post(path: string, body: unknown): Promise<Record<string, never> & { choices?: unknown[]; data?: unknown[]; usage?: Record<string, number>; model?: string }> {
     const started = Date.now();
     try {
+      await this.egressGate;
       const res = await fetch(`${this.baseUrl}${path}`, {
         method: 'POST',
         headers: {

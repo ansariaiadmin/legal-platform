@@ -70,8 +70,13 @@ export class HealthController {
       // message — a blank error is how support tickets get expensive.
       let msg = error instanceof Error ? error.message : 'query failed';
       if (!msg && Array.isArray((error as AggregateError).errors)) {
-        const inner = (error as AggregateError).errors[0];
-        msg = inner instanceof Error ? `unreachable: ${inner.code ?? inner.message}` : 'unreachable';
+        const inner: unknown = (error as AggregateError).errors[0];
+        const innerCode =
+          inner && typeof inner === 'object' && 'code' in inner
+            ? String((inner as { code?: unknown }).code ?? '')
+            : '';
+        const innerMsg = inner instanceof Error ? inner.message : String(inner ?? '');
+        msg = `unreachable: ${innerCode || innerMsg || 'empty driver detail'}`;
       }
       if (!msg) msg = 'unreachable (empty driver error)';
       return { status: 'down', latencyMs: Date.now() - startedAt, error: msg };

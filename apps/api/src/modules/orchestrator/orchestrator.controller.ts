@@ -44,6 +44,7 @@ import { AuditService } from '../audit/audit.service';
 import { JwtAccessGuard } from '../../security/jwt-access.guard';
 import { Roles, RolesGuard } from '../../security/roles.guard';
 import { CurrentUser } from '../../security/current-user.decorator';
+import { issueStreamTicket } from '../../security/stream-tickets';
 import type { AuthenticatedUser } from '../../security/authenticated-user';
 import type { AgentEvent } from '@legal-platform/shared';
 
@@ -97,6 +98,24 @@ export class OrchestratorController {
   @ApiOperation({ summary: 'Ring buffer of recent agent events (dashboard initial paint)' })
   recentEvents() {
     return { events: this.bus.recent(100) };
+  }
+
+  /**
+   * FIELD REVIEW 2026-09-05 #4: browsers can't set Authorization on
+   * EventSource, so we mint a SINGLE-USE, 45-second ticket here (via the
+   * real bearer path) and the dashboard's SSE proxy passes ?ticket= —
+   * a credential in the URL that dies in seconds and replays to nothing.
+   */
+  @Post('events/stream-ticket')
+  @Roles(UserRole.LAWYER_OWNER, UserRole.STAFF)
+  @ApiOperation({ summary: 'Mint a single-use 45s ticket for the SSE events stream' })
+  streamTicket(@CurrentUser() user: AuthenticatedUser) {
+    const { ticket, expiresInSec } = issueStreamTicket({
+      sub: user.id,
+      sessionId: user.sessionId,
+      roles: user.roles,
+    });
+    return { ticket, expiresInSec };
   }
 
   @Get('fleet')
