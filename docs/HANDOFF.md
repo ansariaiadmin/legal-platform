@@ -5,7 +5,7 @@
 ## Where we are
 
 - **Phase:** phase-1-expert-tree — Expert agents: civil, criminal, family, registration
-- **Last checkpoint:** 2026-09-05T11:09:34.244Z
+- **Last checkpoint:** 2026-09-05T11:29:12.266Z
 - **Git:** run `git log --oneline -3` to see the last commits.
 
 ## Protocol (non-negotiable)
@@ -24,12 +24,6 @@
 
 ## Completed
 
-- [x] P0-T6: scaffold apps/api orchestrator module + tests (2026-09-05)
-- [x] P0-T7: root workspace wiring, build, typecheck, tests, commit (2026-09-05)
-- [x] P1-T7: domain taxonomy enums (LegalField, IntentKind, AgentTier) (2026-09-05)
-- [x] P1-T9: governance backbone — grants, revoke, disable, AI_AGENT_NOT_AUTHORIZED (2026-09-05)
-- [x] P1-T10: hybrid inference router (local/cloud, privilege pinning, budget demotion, tiers) (2026-09-05)
-- [x] P1-T11: live ops stream — typed AgentEvents, ring buffer, SSE (2026-09-05)
 - [x] P1b-T1: LeaderVoiceService + honest mock VoiceEngine + voice endpoints (2026-09-05)
 - [x] P1b-X: AGENT_FLEET.md — fleet map, grants matrix, 3-tier recommended configs (2026-09-05)
 - [x] P1-T12: agent-kit factory in packages/shared (society standard) (2026-09-05)
@@ -39,6 +33,12 @@
 - [x] P1-T4: registration-expert package (2026-09-05)
 - [x] P1-T8: cross-field routing integration test (2026-09-05)
 - [x] P1-T13: /fleet endpoint — dashboard cards data (2026-09-05)
+- [x] P1c-T1: metrics-aggregator (live stats from event bus) (2026-09-05)
+- [x] P1c-T2: evaluator.service — ranked evolution suggestions (2026-09-05)
+- [x] P1c-T3: evolution.service — runtime agent spawn behind owner grant (2026-09-05)
+- [x] P1c-T4: spawn/governance invariants + audit + events (2026-09-05)
+- [x] P1c-T5: python workers package (stdlib, RESP client, persian_tools) (2026-09-05)
+- [x] P1c-T6: python worker tests + docs + ADR-008/009/010 (2026-09-05)
 
 ## Architectural decisions
 
@@ -50,3 +50,6 @@
 - **ADR-005** — Governed sub-agents — grants, never ambient authority
 - **ADR-006** — Live ops stream — agents cook in the open (SSE)
 - **ADR-007** — createExpertAgent kit is the society's genome: every expert descends from it, persona+vocab are the only per-member deltas
+- **ADR-008** — Fleet self-evaluation loop: metrics-aggregator + read-only evaluator
+- **ADR-009** — Runtime evolution: validated spawn, zero default grants, -spawned marker, core protected
+- **ADR-010** — Python sidecar workers, stdlib-only, RESP2 socket client, toolbox not decision-maker

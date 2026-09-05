@@ -20,7 +20,10 @@ import { AgentGovernanceService } from './agent-governance.service';
 import { InProcessAgentEventBus } from './agent-event-bus';
 import { ExpertRegistry } from './expert-registry';
 import { LeaderVoiceService } from './leader-voice.service';
-import { GrantAgentDto, RouteQueryDto, VoiceTurnDto } from './dto/route.dto';
+import { MetricsAggregatorService } from './metrics-aggregator.service';
+import { EvaluatorService } from './evaluator.service';
+import { EvolutionService } from './evolution.service';
+import { GrantAgentDto, RouteQueryDto, SpawnAgentDto, VoiceTurnDto } from './dto/route.dto';
 import { AuditService } from '../audit/audit.service';
 import { JwtAccessGuard } from '../../security/jwt-access.guard';
 import { Roles, RolesGuard } from '../../security/roles.guard';
@@ -53,6 +56,9 @@ export class OrchestratorController {
     private readonly bus: InProcessAgentEventBus,
     private readonly audit: AuditService,
     private readonly registry: ExpertRegistry,
+    private readonly metrics: MetricsAggregatorService,
+    private readonly evaluator: EvaluatorService,
+    private readonly evolution: EvolutionService,
   ) {
     this.bus.subscribe((event) => this.eventStream.next(event));
   }
@@ -91,6 +97,39 @@ export class OrchestratorController {
         ).length,
       })),
     };
+  }
+
+  @Get('insights')
+  @Roles(UserRole.LAWYER_OWNER, UserRole.OPERATOR)
+  @ApiOperation({
+    summary: 'Evaluator report: fleet metrics + ranked evolution suggestions (ADR-008)',
+  })
+  insights() {
+    const snapshot = this.metrics.snapshot();
+    return { metrics: snapshot, suggestions: this.evaluator.evaluate(snapshot) };
+  }
+
+  @Post('spawn')
+  @Roles(UserRole.LAWYER_OWNER)
+  @ApiOperation({
+    summary: 'The Leader births a new society member — zero grants by default (ADR-009)',
+  })
+  async spawn(@Body() dto: SpawnAgentDto, @CurrentUser() user: AuthenticatedUser) {
+    const result = this.evolution.spawn({ ...dto, spawnedBy: user.id });
+    await this.auditSafe(user.id, 'orchestrator.evolution.spawn', result.agentId, {
+      field: result.field,
+      skills: result.skillIds,
+    });
+    return result;
+  }
+
+  @Delete('spawn/:agentId')
+  @Roles(UserRole.LAWYER_OWNER)
+  @ApiOperation({ summary: 'Retire a spawned member (core fleet members cannot retire)' })
+  async retire(@Param('agentId') agentId: string, @CurrentUser() user: AuthenticatedUser) {
+    const removed = this.evolution.retire(agentId, user.id);
+    await this.auditSafe(user.id, 'orchestrator.evolution.retire', agentId, { removed });
+    return { removed };
   }
 
   @Sse('events/stream')

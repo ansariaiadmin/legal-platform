@@ -8,7 +8,9 @@ import {
   Max,
   MaxLength,
   Min,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import type { GovernanceCapability } from '@legal-platform/shared';
 
@@ -64,4 +66,56 @@ export class VoiceTurnDto {
   @IsOptional()
   @MaxLength(2000)
   transcriptHint?: string;
+}
+
+// ---------- evolution (ADR-009) ----------
+
+export class SpawnSkillDto {
+  @ApiProperty({ example: 'tax:audit-review' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(80)
+  id!: string;
+
+  @ApiProperty({ example: 'بررسی اظهارنامه و صورتحساب مالیاتی' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(300)
+  description!: string;
+
+  @ApiProperty({ example: ['اظهارنامه', 'مالیات بر ارزش افزوده', 'بخشنامه مالیاتی'], type: [String] })
+  @IsString({ each: true })
+  @IsNotEmpty({ each: true })
+  @MaxLength(60, { each: true })
+  terms!: string[];
+}
+
+export class SpawnAgentDto {
+  @ApiProperty({ example: 'tax-expert' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(60)
+  agentId!: string;
+
+  @ApiProperty({ example: 'commercial', description: 'a member of LegalField' })
+  @IsString()
+  @IsNotEmpty()
+  field!: string;
+
+  @ApiProperty({ example: 'کارشناس ارشد امور مالیاتی' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(120)
+  displayName!: string;
+
+  @ApiProperty({ example: 'در مالیات، سند گمشده یعنی مالیات بر دوباره‌خوانی.' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(200)
+  motto!: string;
+
+  @ApiProperty({ type: [SpawnSkillDto] })
+  @ValidateNested({ each: true })
+  @Type(() => SpawnSkillDto)
+  skills!: SpawnSkillDto[];
 }

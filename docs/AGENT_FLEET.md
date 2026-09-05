@@ -20,6 +20,17 @@ you configure everything, and the Leader—governed by grants—runs the show.**
 | `retriever-rag` | بازیابی برداری pgvector + rerank | Leader | expert (internal) | rag:retrieve، rag:rerank |
 | `drafter-cited` | تنظیم پیش‌نویس با استناد اجباری | Leader | expert (internal) | draft:petition، draft:contract-طبق-قانون |
 | `notifier-smart` | اعلان‌ها: یادآوری جلسه، پی قرارداد | Leader | expert (ops) | notify:sms، notify:reminder |
+| `evaluator` ✅ | **ارزیاب جامعه:** تحلیل زندهٔ متریک‌ها، یادداشت فارسی رتبه‌بندی‌شده با مدرک و confidence — فقط‌خواندنی | Leader | evaluator | `GET /dashboard/orchestrator/insights` |
+| `evolution` ✅ | **زایش وفادار:** ساخت اعضای جدید با قوانین سخت‌گیرانه؛ عضو جدید با صفر گرنت متولد می‌شود | Owner (فقط) | evolution | `POST /spawn`، `DELETE /spawn/:id` |
+| `pylegal-worker` ✅ | کارگر پایتونی stdlib-only: نرمالایز/چانک/استخراج ارجاع قانونی | API (صف Redis) | worker | normalize_persian، chunk_legal_text، article_refs، word_count |
+
+## تکامل زندهٔ جامعه (ADR-008/009)
+
+- **Evaluators see everything, touch nothing.** متریک‌ها از رویدادهای زنده
+  استخراج می‌شوند؛ پیشنهادها فقط پیشنهادند.
+- **Births need governance.** عضو جدید از `createExpertAgent` متولد می‌شود،
+  نسخه‌اش `-spawned-` است، بدون گرنت هیچ کاری نمی‌تواند بکند، و فقط LAWYER_OWNER
+  می‌تواند اسپاون کند. restart دیپلوی = اسپاون‌ها پاک می‌شوند (fail-safe).
 
 > قانون: هیچ ایجنت خارج از این جدول بدون ورود به این سند + ثبت در registry
 > کار نمی‌کند. این جدول = منبع حقیقت ناوگان.

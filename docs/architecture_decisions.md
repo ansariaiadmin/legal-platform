@@ -100,6 +100,49 @@ law — `requiresReview=true`, honest `grounded` flags, thresholded routing,
 closure-safe execute, compound-phrase-weighted `vocabularyScore()` — lives in
 one file. A bug fixed in the kit is fixed for the whole society at once.
 
+## ADR-008: Fleet self-evaluation loop (2026-09-05)
+
+**Context.** A society that cannot see its own performance decays silently.
+The owner asked: who detects WHEN an expert got weak or strong, tells WHY,
+and proposes what to change?
+
+**Decision.** Two services under the Leader. `MetricsAggregatorService`
+consumes the live event bus into per-agent rolling stats (success rate,
+latency, route score, local/cloud split, denials). `EvaluatorService` reads
+those stats deterministically (ADR-003 rules again: no LLM for judgment of
+peers) and emits ranked Persian memos — split_vocabulary, tune_hybrid_policy,
+review_grants, spawn_role, ... — each WITH evidence and a confidence score.
+The evaluator is read-only BY CONSTRUCTION: it can suggest, never act.
+
+## ADR-009: Runtime evolution — spawning members, never silently (2026-09-05)
+
+**Context.** "The Leader must grow new roles." Runtime-generated agents are
+powerful and dangerous: an unsandboxed factory is an authority bypass.
+
+**Decision.** `EvolutionService` (POST /dashboard/orchestrator/spawn) is the
+only womb. Guardrails: LAWYER_OWNER role only; strict validation (kebab id
+ending -expert, LegalField membership, ≥3 vocab terms per skill); every spawn
+uses `createExpertAgent` (ADR-007) so society DNA is inherited at birth;
+spawned members wear the `-spawned` version suffix, start with ZERO grants
+(i.e. cannot execute anything until explicitly granted), and are audible on
+the live event stream + audit log if removed by `retire` (core fleet members
+cannot retire — only spawns). Persistence is process-memory until the
+registry migration (P1-T6); restarts remove spawns loudly, never resurrecting.
+
+## ADR-010: Python sidecar workers, stdlib-only (2026-09-05)
+
+**Context.** Persian text chores (normalization, chunking, citation regex)
+are deterministic CPU work. Giving them to an LLM is wasteful; doing them in
+the request path slows the API.
+
+**Decision.** `apps/workers/py/pylegal`: pure-stdlib Python package (no pip —
+zero supply chain), talking to Redis via a 120-line RESP2 client over raw
+sockets, mirroring the API's own philosophy (`redis.ping.ts` does PING by
+socket for the same reason). Contract: BLPOP `legal:workers:queue` ⇒ JSON
+`{jobId, tool, input}` ⇒ SET `legal:workers:result:<jobId>` (TTL 1h). The
+worker is a *toolbox*, never a decision-maker — authority stays with the
+orchestrated fleet.
+
 ## ADR-006: Live ops stream — agents cook in the open (2026-09-05)
 
 **Context.** The lawyer trusts what they can see. "پشت صحنه چه خبره" must be

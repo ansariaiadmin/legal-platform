@@ -20,6 +20,15 @@ export class ExpertRegistry {
     this.experts.set(agent.agentId, agent);
   }
 
+  /** Only the Evolution service calls this, and only for its own spawned
+   *  members (`-spawned` version suffix); core fleet members cannot be
+   *  removed at runtime. (ADR-009) */
+  remove(agentId: string): boolean {
+    const agent = this.experts.get(agentId);
+    if (!agent || !agent.version.endsWith('-spawned')) return false;
+    return this.experts.delete(agentId);
+  }
+
   get(agentId: string): IExpertAgent | undefined {
     return this.experts.get(agentId);
   }

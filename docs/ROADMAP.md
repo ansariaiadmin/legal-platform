@@ -66,6 +66,24 @@ goes through `providers/ai` adapters (SPEC §8), which Phase 1/4 keeps mock-firs
 - [ ] **P1b-T3** Persian corporate-tone prompts per agent role ("همکار متخصص"
   tone configs per agent — civil speaks contracts, criminal speaks procedure).
 
+## Phase 1c — Self-evaluation & Evolution (خودتحولی جامعه)
+
+- [x] **P1c-T1** `metrics-aggregator.service.ts` — live per-agent stats
+  (success rate, latency, route scores, local/cloud, denials) off the event bus.
+- [x] **P1c-T2** `evaluator.service.ts` — the Evaluator: deterministic rule
+  engine under the Leader producing ranked Persian memos (ADR-008) with
+  evidence + confidence. Read-only by construction.
+- [x] **P1c-T3** `evolution.service.ts` — `POST /spawn` & `DELETE /spawn/:id`;
+  validated runtime births through createExpertAgent with zero default grants
+  and `-spawned` marker; core fleet cannot be retired (ADR-009).
+- [x] **P1c-T4** Endpoints: `GET /dashboard/orchestrator/insights` (metrics +
+  suggestions together). All evolution mutations audit-logged.
+- [x] **P1c-T5** `apps/workers/py` — stdlib-only Python sidecar (persian_tools,
+  minimal RESP2 client, BLPOP worker loop) + 19 unittests + Dockerfile +
+  compose service `workers-py` (ADR-010).
+- [ ] **P1c-T6** Evaluator gets an LLM-assisted second pass (Persona: board
+  advisor) — gated behind tier≥counsel and LOW-confidence re-checks only.
+
 ## Phase 2 — Data Lifecycle (چرخه حیات داده)
 
 ## Phase 2 — Data Lifecycle (چرخه حیات داده)

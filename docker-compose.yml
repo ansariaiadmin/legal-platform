@@ -118,6 +118,23 @@ services:
     networks:
       - legal-network
 
+  # Python sidecar workers (SPEC §11a, ADR-010): deterministic text chores
+  # (normalize/chunk/citations) so agents stay fast. Stdlib-only image —
+  # build carries no pip, no supply chain.
+  workers-py:
+    build:
+      context: .
+      dockerfile: infra/docker/workers.Dockerfile
+    container_name: legal-workers-py
+    environment:
+      - REDIS_URL=${REDIS_URL}
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - legal-network
+
   redis:
     image: redis:7-alpine
     container_name: legal-redis
