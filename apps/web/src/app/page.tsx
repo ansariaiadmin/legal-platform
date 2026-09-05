@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { t } from '@/i18n';
 import { api, getToken, setToken, type BrainView } from '@/lib/api';
 import { HomeTab } from '@/features/home-tab';
@@ -19,16 +19,20 @@ import { SetupWizardOverlay } from '@/features/setup-wizard';
 
 type TabId = 'home' | 'brain' | 'fleet' | 'chat' | 'files' | 'kitchen' | 'telecoms' | 'library' | 'drafts' | 'security';
 
-const TABS: Array<{ id: TabId; icon: string }> = [
+// P10 (Hick's Law): the bar shows the five DAILY desks; everything else sits
+// one tap behind «بیشتر» — decision time drops, zero powers removed.
+const PRIMARY_TABS: Array<{ id: TabId; icon: string }> = [
   { id: 'home', icon: '🏠' },
-  { id: 'brain', icon: '🧠' },
-  { id: 'fleet', icon: '👥' },
   { id: 'chat', icon: '💬' },
-  { id: 'files', icon: '📁' },
-  { id: 'kitchen', icon: '🍳' },
-  { id: 'telecoms', icon: '📞' },
-  { id: 'library', icon: '📚' },
   { id: 'drafts', icon: '✍️' },
+  { id: 'files', icon: '📁' },
+];
+const MORE_TABS: Array<{ id: TabId; icon: string }> = [
+  { id: 'kitchen', icon: '🍳' },
+  { id: 'fleet', icon: '👥' },
+  { id: 'brain', icon: '🧠' },
+  { id: 'library', icon: '📚' },
+  { id: 'telecoms', icon: '📞' },
   { id: 'security', icon: '🛡️' },
 ];
 
@@ -37,9 +41,24 @@ export default function Dashboard() {
   // the dashboard just hosts it globally so language/theme flips ripple
   // everywhere without prop drilling.
   const [tab, setTab] = useState<TabId>('home');
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreRef = useRef<HTMLDivElement | null>(null);
   const [token, setTokenState] = useState<string | null>(null);
   const [brain, setBrain] = useState<BrainView | null>(null);
   const [booting, setBooting] = useState(true);
+
+  // close the overflow menu on outside tap / Escape — invisible focus traps
+  // are the quiet killer of trust
+  useEffect(() => {
+    if (!moreOpen) return;
+    const onDoc = (ev: MouseEvent) => {
+      if (!moreRef.current?.contains(ev.target as Node)) setMoreOpen(false);
+    };
+    const onKey = (ev: KeyboardEvent) => { if (ev.key === 'Escape') setMoreOpen(false); };
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onDoc); document.removeEventListener('keydown', onKey); };
+  }, [moreOpen]);
 
   const refreshBrain = useCallback(async () => {
     try {
@@ -95,17 +114,43 @@ export default function Dashboard() {
         <LoginCard onDone={(tok) => { setTokenState(tok); void refreshBrain(); }} />
       ) : (
         <>
-          <nav className="tabs">
-            {TABS.map(({ id, icon }) => (
+          <nav className="tabs" aria-label="desks">
+            {PRIMARY_TABS.map(({ id, icon }) => (
               <button
                 key={id}
                 className={`tab ${tab === id ? 'active' : ''}`}
                 onClick={() => setTab(id)}
               >
-                <span>{icon}</span>
+                <span className="tab-icon">{icon}</span>
                 <span>{t(`tab.${id}` as never)}</span>
               </button>
             ))}
+            <div className="nav-more" ref={moreRef}>
+              <button
+                className={`tab ${MORE_TABS.some((x) => x.id === tab) ? 'active' : ''}`}
+                onClick={() => setMoreOpen((v) => !v)}
+                aria-expanded={moreOpen}
+                aria-haspopup="menu"
+              >
+                <span className="tab-icon">{MORE_TABS.find((x) => x.id === tab)?.icon ?? '⋯'}</span>
+                <span>{MORE_TABS.find((x) => x.id === tab) ? t(`tab.${tab}` as never) : t('nav.more' as never)}</span>
+              </button>
+              {moreOpen && (
+                <div className="nav-menu" role="menu">
+                  {MORE_TABS.map(({ id, icon }) => (
+                    <button
+                      key={id}
+                      role="menuitem"
+                      className={`tab ${tab === id ? 'active' : ''}`}
+                      onClick={() => { setTab(id); setMoreOpen(false); }}
+                    >
+                      <span className="tab-icon">{icon}</span>
+                      <span>{t(`tab.${id}` as never)}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </nav>
 
           {tab === 'home' && <HomeTab brain={brain} goTab={setTab} />}

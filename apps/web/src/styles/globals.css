@@ -1,5 +1,14 @@
 :root {
-  --bg: #0b0e14;
+  /* P10 semantic surfaces (surface-0 = page, 1 = resting card, 2 = raised/
+     hovered) — elevation by lightness, never pure #000 (evolved dark mode) */
+  --surface-0: #0b0e14;
+  --surface-1: rgba(255, 255, 255, 0.04);
+  --surface-2: rgba(255, 255, 255, 0.08);
+  --elev-1: 0 1px 2px rgba(0, 0, 0, 0.25), 0 8px 28px rgba(0, 0, 0, 0.28);
+  --elev-2: 0 2px 6px rgba(0, 0, 0, 0.3), 0 16px 48px rgba(0, 0, 0, 0.38);
+  --focus-ring: 0 0 0 3px rgba(244, 200, 93, 0.45);
+  --bg: var(--surface-0);
+  --bg-soft: #12151f;
   --bg-soft: #12151f;
   --panel: rgba(255, 255, 255, 0.04);
   --panel-strong: rgba(255, 255, 255, 0.08);
@@ -347,3 +356,122 @@ body[data-theme='light'] {
 }
 /* grids collapse gracefully */
 .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+
+/* ══════════════════ P10 — UI/UX psychology + 2026 trend layer ═══════════ */
+
+/* A11y contract: ONE focus treatment everywhere (accent ring, not browser
+   default) — recognition, not recollection. */
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: 8px;
+}
+
+/* Persian typography law (2026 RTL guidance): connected script ⇒ tracking
+   forbidden; ascenders/diacritics need 1.7+ line-height; numbers use tabular
+   figures so KPIs don't jitter as values move. */
+body { font-variant-numeric: tabular-nums; }
+[dir='rtl'] * { letter-spacing: 0 !important; }
+[dir='rtl'] p, [dir='rtl'] .hint, [dir='rtl'] .bubble { line-height: 1.75; }
+.num { font-variant-numeric: tabular-nums; font-feature-settings: 'tnum'; }
+.bidi { unicode-bidi: isolate; direction: ltr; display: inline-block; }
+
+/* Skeleton screens — spinner is a dead wait; a shape that PREVIEWS the page
+   makes the same milliseconds feel shorter (perceived-performance research). */
+.sk {
+  position: relative; overflow: hidden;
+  background: var(--surface-1); border-radius: 12px; min-height: 14px;
+}
+.sk::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(100deg, transparent 20%, rgba(255,255,255,0.07) 50%, transparent 80%);
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+@keyframes shimmer { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+[dir='rtl'] .sk::after { animation-name: shimmer-rtl; }
+@keyframes shimmer-rtl { from { transform: translateX(100%); } to { transform: translateX(-100%); } }
+
+/* Bento grid — asymmetric modules; the BIG card speaks first, the small
+   ones answer "and what else". Grid-span utilities, collapse < 900px. */
+.bento { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+.bento > * { min-width: 0; }
+.bento .span-2 { grid-column: span 2; }
+.bento .span-3 { grid-column: span 3; }
+.bento .span-4 { grid-column: span 4; }
+@media (max-width: 900px) {
+  .bento { grid-template-columns: repeat(2, 1fr); }
+  .bento .span-2, .bento .span-3, .bento .span-4 { grid-column: span 2; }
+}
+@media (max-width: 560px) {
+  .bento { grid-template-columns: 1fr; }
+  .bento > * { grid-column: span 1 !important; }
+}
+
+/* KPI tile: label small & dim (signal = number), figure big, trend as pill. */
+.kpi { padding: 16px 18px; }
+.kpi .kpi-label { font-size: 12px; color: var(--text-dim); margin-bottom: 6px; }
+.kpi .kpi-figure { font-size: 30px; font-weight: 800; line-height: 1.2; letter-spacing: 0; }
+.kpi .kpi-sub { font-size: 11.5px; color: var(--text-dim); margin-top: 6px; }
+
+/* Progressive disclosure — details/summary styled as a quiet drawer so the
+   default view stays calm and depth is ONE tap away (never hidden behind an
+   icon nobody understands). */
+details.reveal { border: 1px dashed var(--line); border-radius: 12px; padding: 10px 14px; }
+details.reveal summary {
+  cursor: pointer; color: var(--text-dim); font-size: 13px; list-style: none;
+  display: flex; align-items: center; gap: 8px; user-select: none;
+}
+details.reveal summary::before {
+  content: '◂'; display: inline-block; transition: transform 0.2s ease; color: var(--gold);
+}
+details.reveal[open] summary::before { transform: rotate(-90deg); }
+details.reveal[open] summary { margin-bottom: 10px; color: var(--text); }
+
+/* Fitts for the thumb: on phones the nav becomes a bottom bar — primary
+   actions sit IN the thumb zone, not at the far top edge. */
+@media (max-width: 640px) {
+  .tabs {
+    position: fixed; inset-inline: 0; bottom: 0; top: auto;
+    margin: 0; border-radius: 18px 18px 0 0;
+    background: var(--bg-soft); border-inline: none;
+    padding: 8px 10px calc(10px + env(safe-area-inset-bottom));
+    justify-content: space-around; z-index: 50;
+    box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.4);
+  }
+  .tab { flex-direction: column; gap: 3px; padding: 8px 10px; font-size: 10.5px; }
+  .tab .tab-icon { font-size: 19px; }
+  .shell { padding-bottom: 120px !important; }
+}
+
+/* Motion serves meaning — and STOPS when the user asks. One rule guards
+   every animation in the file. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001s !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* nav overflow (Hick's Law: the eye meets ≤5 choices, the rest live one tap
+   away — decision time drops, nothing is lost). */
+.nav-more { position: relative; }
+.nav-more .nav-menu {
+  position: absolute; inset-inline-end: 0; top: calc(100% + 8px); min-width: 190px;
+  background: var(--bg-soft); border: 1px solid var(--line); border-radius: 14px;
+  padding: 6px; z-index: 60; box-shadow: var(--elev-2);
+  display: flex; flex-direction: column; gap: 2px;
+}
+.nav-menu .tab { justify-content: flex-start; width: 100%; text-align: start; }
+@media (max-width: 640px) {
+  .nav-more .nav-menu { bottom: calc(100% + 8px); top: auto; }
+}
+
+/* light theme gets the same semantic floors */
+body[data-theme='light'] {
+  --surface-0: #f7f3ec;
+  --surface-1: rgba(18, 22, 33, 0.045);
+  --surface-2: rgba(18, 22, 33, 0.09);
+  --focus-ring: 0 0 0 3px rgba(184, 134, 11, 0.4);
+}

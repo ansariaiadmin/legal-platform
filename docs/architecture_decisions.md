@@ -796,3 +796,37 @@ on `/dashboard/ops/deployment`; a multi-node box without
 not a green tick. The mocks survive — as test doubles and dev conveniences —
 but production rejects them (existing guard) and now has real alternatives
 for every category it sells.
+
+## ADR-025: The interface respects the human brain — trends + psychology, with sources (P10, 2026-09-05)
+
+**Context.** "برو برای ۱۰ — و اول ببین خفن‌ترین داشبوردها امروز چطورن؛ روانشناسی
+UI/UX را هم اجرا کن." Before touching a pixel, 2026 market research was done
+(web search, multi-source): bento grids mainstream, glassmorphism matured into
+RESPONSIBLE translucency, semantic design tokens as best practice, dark mode
+as an elevation system not a color flip, skeletons replacing spinners; NN/g
+progressive disclosure, Hick's Law, Fitts's Law as the psychology floor;
+and 2026 RTL guides (Vazirmatn-class fonts, line-height 1.7+, letter-spacing
+= 0, unicode-bidi isolation for Latin runs).
+
+**Decision.**
+1. **Semantic tokens v2** (`--surface-0/1/2`, `--elev-*`, `--focus-ring`) —
+   literal hex is now forbidden at the component layer; dark/light themes
+   retune tokens, components never fork.
+2. **Hick's Law nav**: 10 desks → 5 primary + «بیشتر» overflow (menu closes
+   on outside-tap/Escape; no invisible focus traps).
+3. **Fitts for phones**: the nav becomes a bottom thumb-zone bar < 640px.
+4. **Bento home**: hero card spans wide (reads first), KPI tiles whisper the
+   label and shout the number, jump cards as satellites.
+5. **Progressive disclosure**: system truth (deployment mode, rate-limiter
+   driver, storage driver, multi-replica safety) sits behind one honest
+   «وضعیت سیستم» drawer fed LIVE by /dashboard/ops/deployment.
+6. **Skeleton > spinner** (`<Skeleton/>`), `<Num>` = fa-IR digits +
+   tabular-nums + unicode-bidi isolate so no Latin number ever scrambles RTL
+   prose; `prefers-reduced-motion` kills ALL animation with one rule.
+7. **RTL law enforced in CSS**: `[dir=rtl] * { letter-spacing: 0 }`,
+   body line-height ≥ 1.75, logical properties for chrome.
+
+**Consequences.** The dashboard now reads calm by default with depth on tap;
+every visual choice is traceable to a named principle or a sourced 2026
+trend — no vibes-based UI. a11y (focus ring, reduced motion, aria on the
+menu) is part of the definition of done, not a later audit.
