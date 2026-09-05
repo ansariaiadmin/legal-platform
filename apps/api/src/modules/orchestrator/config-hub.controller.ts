@@ -74,6 +74,20 @@ export class ConfigHubController {
     return this.hub.testConnection(dto);
   }
 
+  @Get('profile')
+  @Roles(UserRole.LAWYER_OWNER, UserRole.STAFF)
+  @ApiOperation({ summary: 'P7 deployment profile: locale/country/currency/timezone/legalSystem (Iran defaults)' })
+  getProfile() {
+    return this.hub.getProfile();
+  }
+
+  @Post('profile')
+  @Roles(UserRole.LAWYER_OWNER)
+  @ApiOperation({ summary: 'P7 re-skin the deployment for any country — one patch, no redeploy' })
+  setProfile(@Body() dto: Partial<import('./config-hub.service').DeploymentProfile>, @CurrentUser() user: AuthenticatedUser) {
+    return this.hub.setProfile(dto, user.id);
+  }
+
   @Post('preset')
   @Roles(UserRole.LAWYER_OWNER)
   @ApiOperation({ summary: 'Pick a fleet preset: spartan / counsel / senator' })

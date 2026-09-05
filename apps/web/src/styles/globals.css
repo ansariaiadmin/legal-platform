@@ -273,3 +273,51 @@ input, select, textarea { font-family: inherit; color: inherit; }
   margin-top: 18px; font-size: 12px; color: var(--text-dim);
   border: 1px dashed var(--line); padding: 12px; border-radius: 12px; line-height: 1.8;
 }
+
+/* P7 themes: dark is :root; light overrides the SAME tokens so every
+   component restyles itself — zero component forks. */
+body[data-theme='light'] {
+  --bg: #f7f3ec;
+  --bg-soft: #ffffff;
+  --panel: rgba(18, 22, 33, 0.045);
+  --panel-strong: rgba(18, 22, 33, 0.09);
+  --line: rgba(18, 22, 33, 0.14);
+  --text: #161a26;
+  --text-dim: #5a6474;
+  --gold: #b8860b;
+  --teal: #0d8a78;
+  --violet: #6a5ae0;
+  --rose: #d6336c;
+  --ok: #0e9f63;
+  --bad: #d64545;
+}
+body[data-theme='light'] {
+  background:
+    radial-gradient(1200px 600px at 85% -10%, rgba(106, 90, 224, 0.08), transparent 60%),
+    radial-gradient(900px 500px at 10% 110%, rgba(13, 138, 120, 0.07), transparent 60%),
+    var(--bg);
+  color: var(--text);
+}
+
+/* RTL/LTR: logical-properties-friendly spacing where it matters */
+[dir='rtl'] .shell { text-align: right; }
+[dir='ltr'] .shell { text-align: left; }
+
+/* P7 tour overlay */
+.tour-card {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 24px;
+  margin-inline: auto;
+  max-width: 560px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 18px;
+  z-index: 60;
+  box-shadow: 0 12px 44px rgba(0, 0, 0, 0.35);
+}
+.tour-card h4 { margin: 0 0 6px; color: var(--teal); }
+.tour-card p { margin: 0 0 12px; color: var(--text-dim); font-size: 14px; line-height: 1.8; }
+.tour-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.tour-stepper { font-size: 12px; color: var(--muted, var(--text-dim)); margin-inline-start: auto; }

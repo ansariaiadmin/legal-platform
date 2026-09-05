@@ -293,6 +293,32 @@ Telegram mini-app, تلفن و… consume it identically.
 - [~] **P5-T4** Persian i18n keys (P5): `library/drafts/machines` scoped; tab headings land; full literal sweep continues in P6 (ADR-020 policy: new strings key-only) (web feature
   `features/agents/`).
 
+## Phase 7 — World-facing product (هر کشور، هر زبان، یک باینری)
+
+Done 2026-09-05 (ADR-022):
+
+- [x] **P7-T1** i18n engine v2: complete fa/en twin dictionaries (key-twin
+  enforced at COMPILE time via `fa: Record<keyof typeof en, string>`), RTL⇄LTR
+  flip on `<html dir/lang>`, persisted user prefs, org default adopted from
+  deployment profile on first visit.
+- [x] **P7-T2** Day/night themes — same CSS tokens re-pointed under
+  `[data-theme='light']`; zero component forks; toggle in every header.
+- [x] **P7-T3** Onboarding tour: 11 declarative steps covering every tab,
+  per-tab restart (💡), sample actions by CustomEvent (never touching tab
+  internals), completed-state persisted.
+- [x] **P7-T4** Backup/restore: `GET/POST /api/dashboard/ops/backup*` —
+  schema-versioned portable bundle; per-key skip+report restore; the payload
+  itself declares SQL tables are out of scope (honesty in the artifact, not
+  the docs).
+- [x] **P7-T5** Deployment profile (locale/country/currency/timezone/legalSystem)
+  + `POST /api/dashboard/config/profile`; Leader chat config intents in BOTH
+  languages (deterministic regexes, confirm-gated): set locale to en/fa and
+  "configure for <country>".
+- [x] **P7-T6** `international-expert` agent: bilingual skills (treaties,
+  cross-border, immigration, trade/sanctions), bilingual persona, seated in
+  the tree before the generic base; tests prove EN≡FA routing symmetry.
+- [ ] **P7-T7** Client PWA i18n engine + RTL (dictionary wired, flip pending).
+
 ## Phase 6 — Hardening (ده از ده)
 
 **Security tranche (P6-S, ADR-021) — done 2026-09-05:**

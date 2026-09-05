@@ -56,6 +56,8 @@ export class ExpertRegistry {
       field: string;
       version: string;
       persona: string;
+      personaEn?: string | null;
+      mottoEn?: string | null;
       motto: string;
       skills: string[];
       healthy: boolean;
@@ -72,6 +74,9 @@ export class ExpertRegistry {
         version: agent.version,
         persona: agent.persona?.displayName ?? agent.agentId,
         motto: agent.persona?.motto ?? '',
+        // P7 bilingual fleet cards — UI picks by active locale
+        personaEn: agent.persona?.displayNameEn ?? null,
+        mottoEn: agent.persona?.mottoEn ?? null,
         skills: agent.capabilities().map((s) => s.id),
         healthy: health.healthy,
         requiresReview: agent.requiresReview,

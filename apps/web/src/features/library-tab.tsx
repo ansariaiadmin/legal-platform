@@ -75,6 +75,13 @@ export function LibraryTab() {
   const [busy, setBusy] = useState(false);
   const [title, setTitle] = useState('');
   const [text, setText] = useState('');
+  // P7 tour: "Paste the sample article" politely asks via CustomEvent —
+  // the tour engine never pokes tab internals.
+  useEffect(() => {
+    const fill = () => setText(t('sample.law'));
+    window.addEventListener('tour:try:library', fill);
+    return () => window.removeEventListener('tour:try:library', fill);
+  }, []);
   const [tier, setTier] = useState<1 | 2 | 3>(3);
 
   const refresh = useCallback(async () => {

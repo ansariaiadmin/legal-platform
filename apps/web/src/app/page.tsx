@@ -13,6 +13,8 @@ import { TelecomsTab } from '@/features/telecoms-tab';
 import { LibraryTab } from '@/features/library-tab';
 import { DraftsTab } from '@/features/drafts-tab';
 import { SecurityTab } from '@/features/security-tab';
+import { Tour } from '@/features/tour';
+import { UiPrefsBar } from '@/features/ui-prefs-bar';
 
 type TabId = 'home' | 'brain' | 'fleet' | 'chat' | 'files' | 'kitchen' | 'telecoms' | 'library' | 'drafts' | 'security';
 
@@ -30,6 +32,9 @@ const TABS: Array<{ id: TabId; icon: string }> = [
 ];
 
 export default function Dashboard() {
+  // Tail of file's logic follows; hooks for ui prefs live in UiPrefsBar —
+  // the dashboard just hosts it globally so language/theme flips ripple
+  // everywhere without prop drilling.
   const [tab, setTab] = useState<TabId>('home');
   const [token, setTokenState] = useState<string | null>(null);
   const [brain, setBrain] = useState<BrainView | null>(null);
@@ -55,6 +60,7 @@ export default function Dashboard() {
   return (
     <div className="shell">
       <header className="topbar">
+        <UiPrefsBar />
         <div className="brand">
           <div className="logo">⚖️</div>
           <div>
@@ -102,6 +108,7 @@ export default function Dashboard() {
           {tab === 'library' && <LibraryTab />}
           {tab === 'drafts' && <DraftsTab />}
           {tab === 'security' && <SecurityTab />}
+          <Tour activeTab={tab} onNavigate={(id) => setTab(id as TabId)} />
         </>
       )}
     </div>

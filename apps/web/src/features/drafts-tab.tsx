@@ -52,6 +52,11 @@ export function DraftsTab() {
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [usage, setUsage] = useState<UsageMonth | null>(null);
   const [prompt, setPrompt] = useState('');
+  useEffect(() => {
+    const fill = () => setPrompt(t('sample.draftPrompt'));
+    window.addEventListener('tour:try:drafts', fill);
+    return () => window.removeEventListener('tour:try:drafts', fill);
+  }, []);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 

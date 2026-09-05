@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { t } from '@/i18n';
 import { api, type BrainView } from '@/lib/api';
 
@@ -48,6 +48,16 @@ function Connector({ kind, onChanged }: { kind: 'local' | 'cloud'; onChanged: ()
   const [baseUrl, setBaseUrl] = useState('');
   const [model, setModel] = useState('');
   const [apiKey, setApiKey] = useState('');
+  // P7 tour sample: only the LOCAL connector fills (privacy-first default)
+  useEffect(() => {
+    if (kind !== 'local') return;
+    const fill = () => {
+      setBaseUrl('http://gpu-box:11434/v1');
+      setModel('qwen2.5-7b-instruct');
+    };
+    window.addEventListener('tour:try:brain', fill);
+    return () => window.removeEventListener('tour:try:brain', fill);
+  }, [kind]);
   const [status, setStatus] = useState<{ tone: 'ok' | 'bad' | 'info'; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
 

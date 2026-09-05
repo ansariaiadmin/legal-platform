@@ -256,6 +256,17 @@ export class LeaderConversationService {
         { target: 'cloud', apiKey: proposal.params.apiKey, baseUrl: proposal.params.baseUrl, model: proposal.params.model },
         actorId,
       );
+    } else if (proposal.kind === 'set_locale' && proposal.params.locale) {
+      // P7-T5: re-skin the platform language by TALKING to the Leader —
+      // `پلتفرم را با انگلیسی ست کن` works exactly like 'set platform to English'.
+      await this.configHub.setProfile({ defaultLocale: proposal.params.locale }, actorId);
+    } else if (proposal.kind === 'set_country' && proposal.params.country) {
+      // Country profile: label + timezone guess stay reviewable; the OWNER
+      // still owns the law — the platform merely changes its presentation.
+      await this.configHub.setProfile(
+        { country: proposal.params.country, currency: proposal.params.currency, timezone: proposal.params.timezone },
+        actorId,
+      );
     } else {
       await this.configHub.setPreset(proposal.params.preset as 'spartan' | 'counsel' | 'senator', actorId);
     }

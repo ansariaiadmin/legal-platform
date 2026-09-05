@@ -13,6 +13,7 @@ import type { StorageProvider } from '../../providers/storage/storage.provider';
  */
 
 export const BRAIN_CONFIG_KEY = 'runtime/brain-config.json';
+export const DEPLOYMENT_PROFILE_KEY = 'runtime/deployment-profile.json';
 
 export type BrainTarget = 'local' | 'cloud';
 export type PresetTier = 'spartan' | 'counsel' | 'senator';
@@ -25,6 +26,33 @@ export interface BrainConfig {
   updatedAt?: string;
   updatedBy?: string;
 }
+
+/**
+ * P7-T5: deployment profile — the knobs a NEW country touches. Anyone, in
+ * any country, can re-skin the platform for their market with ONE patch:
+ * default UI locale (fa|en), jurisdiction label, currency for plans,
+ * timezone, legal-system shape. Nothing here changes WHICH law is true —
+ * it changes how the office is presented. Persisted like brain config.
+ */
+export type PlatformLocale = 'fa' | 'en';
+
+export interface DeploymentProfile {
+  defaultLocale: PlatformLocale;
+  country: string;            // ISO-ish label shown in UI ('Iran', 'Germany', …)
+  currency: string;           // 'IRT' (تومان) default; shown on plans
+  timezone: string;           // IANA, e.g. 'Asia/Tehran'
+  legalSystem: 'civil-law' | 'common-law' | 'custom';
+  updatedAt?: string;
+  updatedBy?: string;
+}
+
+export const DEFAULT_DEPLOYMENT_PROFILE: DeploymentProfile = {
+  defaultLocale: 'fa',
+  country: 'Iran',
+  currency: 'IRT',
+  timezone: 'Asia/Tehran',
+  legalSystem: 'civil-law',
+};
 
 export interface BrainView {
   local: { baseUrl: string | null; model: string | null; source: 'env' | 'runtime' | 'none' };
@@ -43,6 +71,8 @@ export interface BrainView {
 export class ConfigHubService {
   private readonly logger = new Logger(ConfigHubService.name);
   private overrides: BrainConfig = {};
+  private profile: DeploymentProfile = { ...DEFAULT_DEPLOYMENT_PROFILE };
+  private profileLoaded = false;
   private loaded = false;
 
   constructor(
@@ -57,6 +87,58 @@ export class ConfigHubService {
   /** Hot, synchronous view — safe only after boot load (module init). */
   peek(): BrainConfig {
     return this.overrides;
+  }
+
+  /** Deployment profile (P7-T5) — hot read; defaults are a full Iran stack. */
+  peekProfile(): DeploymentProfile {
+    return this.profile;
+  }
+
+  async getProfile(): Promise<DeploymentProfile> {
+    await this.ensureProfileLoaded();
+    return { ...this.profile };
+  }
+
+  async setProfile(patch: Partial<DeploymentProfile>, actorId: string): Promise<DeploymentProfile> {
+    await this.ensureProfileLoaded();
+    const next: DeploymentProfile = {
+      ...this.profile,
+      ...Object.fromEntries(
+        Object.entries(patch).filter(([k, v]) =>
+          v !== undefined &&
+          ['defaultLocale', 'country', 'currency', 'timezone', 'legalSystem'].includes(k),
+        ),
+      ),
+    };
+    if (patch.defaultLocale !== undefined && patch.defaultLocale !== 'fa' && patch.defaultLocale !== 'en') {
+      throw new Error('defaultLocale must be fa|en');
+    }
+    if (patch.legalSystem !== undefined && !['civil-law', 'common-law', 'custom'].includes(patch.legalSystem)) {
+      throw new Error('legalSystem must be civil-law|common-law|custom');
+    }
+    this.profile = {
+      ...next,
+      updatedAt: new Date().toISOString(),
+      updatedBy: actorId,
+    };
+    await this.storage.put({
+      key: DEPLOYMENT_PROFILE_KEY,
+      content: Buffer.from(JSON.stringify(this.profile, null, 2)),
+      contentType: 'application/json',
+      metadata: { updatedBy: actorId },
+    });
+    this.logger.log(`deployment profile updated by=${actorId} locale=${this.profile.defaultLocale} country=${this.profile.country}`);
+    return { ...this.profile };
+  }
+
+  private async ensureProfileLoaded(): Promise<void> {
+    if (this.profileLoaded) return;
+    try {
+      const raw = await this.storage.get(DEPLOYMENT_PROFILE_KEY);
+      const parsed = JSON.parse(raw.toString('utf8')) as Partial<DeploymentProfile>;
+      this.profile = { ...DEFAULT_DEPLOYMENT_PROFILE, ...parsed };
+    } catch { /* first boot: Iran defaults stand */ }
+    this.profileLoaded = true;
   }
 
   private async ensureLoaded(): Promise<void> {

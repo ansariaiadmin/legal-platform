@@ -19,6 +19,9 @@ export interface AgentPersona {
   /** Persian display persona for the dashboard + drafts footer. */
   displayName: string; // e.g. 'کارشناس ارشد امور مدنی'
   motto: string; // one line of character, shown on the fleet card
+  /** P7 bilingual: optional English twin — dashboards render per locale. */
+  displayNameEn?: string;
+  mottoEn?: string;
 }
 
 export interface ExpertAgentSpec {

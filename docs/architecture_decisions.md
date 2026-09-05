@@ -5,6 +5,62 @@ a new ADR. `scripts/agent_state.json.architectural_decisions` mirrors this file.
 
 ---
 
+## ADR-022: One binary, many countries — i18n engine, themes, tour, backup, and a bilingual international desk (P7, 2026-09-05)
+
+**Status**: accepted · **Area**: productization / UX / ops · **Phase**: P7
+
+**Context.** The owner's mandate: the platform must be re-skillable by ANY
+operator in ANY country — bilingual fa/en, RTL⇄LTR, day/night, onboarding
+with step-by-step examples and generous defaults, backup, and an
+international-law desk - "کافیه فرد خارجی بیاد اسکیل‌ها رو کانفیگ کنه و به
+رهبر بگه پلتفرم رو با انگلیسی ست کن".
+
+**Decision.**
+1. **One i18n engine, zero forks.** `apps/web/src/i18n` carries fa + en
+   dictionaries where `fa: Record<keyof typeof en, string>` — TypeScript
+   refuses a UI that drops a translation (the key-twin invariant is a
+   COMPILE error, not a lint wish). Runtime prefs (locale+theme+tourSeen)
+   live in ONE module store writing `<html dir/lang>` and
+   `<body data-theme>`; first visit adopts the org's deployment-profile
+   locale, afterwards the user's choice always wins (their voice outranks
+   the org default).
+2. **Onboarding is data, not components.** The tour is 11 declarative steps
+   (key, title, body, tab, optional sample-action). Sample actions are
+   CustomEvents (`tour:try:library`…) — the engine never pokes component
+   internals, tabs fill themselves. Restartable per tab anytime via 💡.
+3. **Backup is honest about scope.** `BackupService` round-trips every
+   StorageProvider-backed key into one base64 JSON bundle
+   (`schemaVersion`ed, per-key skip+report on restore, never half-written)
+   and says IN THE PAYLOAD that SQL tables are NOT included. OWNER-only
+   endpoints under `/api/dashboard/ops/backup*`.
+4. **Config by conversation, for any country.** `DeploymentProfile`
+   (defaultLocale/country/currency/timezone/legalSystem) persists beside
+   brain config; `GET|POST /api/dashboard/config/profile`; config-intent
+   parses BOTH languages — «پلتفرم را با انگلیسی ست کن» ≡ "set platform to
+   English", «برای آلمان کانفیگ کن» ≡ "configure for Germany" — deterministic
+   regexes first, always (SPEC invariant), confirm-gated through the Leader
+   like every other config change.
+5. **International desk is a citizen, not a plugin.**
+   `apps/agents/international-expert` runs the same agent-kit as the
+   Persian desks; its vocabularies are bilingual SO ROUTING IS SYMMETRIC
+   (the test asserts an English query routes as well as its Persian
+   equivalent). Persona carries `displayNameEn/mottoEn` (optional on
+   `AgentPersona`) and the fleet cards render per the active UI locale.
+
+**Honest limits, on the record.**
+- The UI locale flip restyles/reroutes the DASHBOARD; agent *reasoning*
+  language still follows whichever model serves the task. The corpus stays
+  the corpus — switching to English does not translate Iranian law.
+- Client PWA i18n marked as P7 follow-up (its dictionary ships English-capable
+  keys; RTL for client pending).
+
+**Tests** — 3 backup roundtrip/schema/corrupt-skip specs; 5 profile+intent
+e2e specs (defaults, one-call Germany re-skin, refused bad locale, bilingual
+intent parsing, intl agent in tree); 7 intl-expert unit specs. 291 jest
+total, all agent-package suites green, web tsc clean.
+
+---
+
 ## ADR-021: Standing guard — security as a resident agent, not a quarterly ritual (P6, 2026-09-05)
 
 **Status**: accepted · **Area**: security / fleet governance · **Phase**: P6

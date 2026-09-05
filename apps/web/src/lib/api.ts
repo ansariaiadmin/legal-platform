@@ -72,6 +72,8 @@ export interface FleetAgent {
   agentId: string;
   field: string;
   persona: string;
+  personaEn: string | null;
+  mottoEn: string | null;
   motto: string;
   skills: string[];
   healthy: boolean;

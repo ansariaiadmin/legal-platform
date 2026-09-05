@@ -6,11 +6,11 @@
  * the office and its own safety levers.
  */
 
-export type ConfigProposalKind = 'connect_local' | 'connect_cloud' | 'set_preset';
+export type ConfigProposalKind = 'connect_local' | 'connect_cloud' | 'set_preset' | 'set_locale' | 'set_country';
 
 export interface ConfigProposal {
   kind: ConfigProposalKind;
-  params: { baseUrl?: string; model?: string; apiKey?: string; preset?: string };
+  params: { baseUrl?: string; model?: string; apiKey?: string; preset?: string; locale?: 'fa' | 'en'; country?: string; currency?: string; timezone?: string };
   /** Persian human-readback shown in chat before applying */
   summaryFa: string;
 }
@@ -32,6 +32,41 @@ const TIER_FA: Record<string, string> = {
 /** Parse a raw message; null when the turn is an ordinary legal question. */
 export function parseConfigIntent(text: string): ConfigProposal | null {
   const t = text.trim();
+
+  // P7-T5: locale — فارسی AND english, so a foreign operator can say
+  // 'set platform to English' OR 'پلتفرم را با انگلیسی ست کن'.
+  const localeEn = /(set|switch|change|use)?\s*(platform|ui|app|زبان|interface)?\s*(to|به|را با|با)\s*(english|انگلیسی|انگلیس)/i.test(t)
+    || /زبان\s*(پلتفرم|داشبورد|رابط)?\s*(را)?\s*(به|با)\s*(انگلیسی)/.test(t);
+  const localeFa = /(set|switch|change)\s*(platform|ui|app)\s*(to)\s*(persian|farsi|fa\b)/i.test(t)
+    || /زبان\s*(پلتفرم|داشبورد|رابط)?\s*(را)?\s*(به|با)\s*(فارسی)/.test(t)
+    || /انگلیسی.*(برگرد|فارسی کن)|(برگردان|قبلی کن).*فارسی/.test(t);
+  if (localeEn && !localeFa) {
+    return {
+      kind: 'set_locale',
+      params: { locale: 'en' },
+      summaryFa: 'زبان پیش‌فرض پلتفرم «English» شود: رابط چپ‌چین می‌گردد و دیکشنری انگلیسی بار می‌شود؛ دادهٔ موکل هیچ تغییری نمی‌کند.',
+    };
+  }
+  if (localeFa) {
+    return {
+      kind: 'set_locale',
+      params: { locale: 'fa' },
+      summaryFa: 'زبان پیش‌فرض پلتفرم «فارسی» شود: راست‌چین، دیکشنری فارسی، بدون دست‌خوردن داده.',
+    };
+  }
+
+  // P7-T5: country profile — "برای آلمان کانفیگ کن" / "configure for Germany"
+  const countryHit =
+    t.match(/برای\s+([آ-یA-Za-z\s]+?)\s+کانفیگ\s*کن/) ||
+    t.match(/configure\s+for\s+([A-Za-z\s]+)/i);
+  if (countryHit) {
+    const country = countryHit[1].trim();
+    return {
+      kind: 'set_country',
+      params: { country },
+      summaryFa: `پروفایل استقرار برای «${country}» آماده شود: برچسب کشور/نظام حقوقی قابل بازبینی است؛ قوانین داخلی خودتان نهایی می‌شود.`,
+    };
+  }
 
   const presetHit = t.match(PRESET_RE);
   if (presetHit && /(تیر|پلن|پیش‌تنظیم|پکیج|پیکربندی|حالت|preset|tier|فعال)/i.test(t)) {

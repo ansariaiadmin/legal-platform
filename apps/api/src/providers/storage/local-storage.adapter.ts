@@ -7,13 +7,16 @@ import {
 } from './storage.provider';
 import { ProviderError, PROVIDER_ERROR_CODES } from '../provider.error';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync, readdirSync, statSync } from 'fs';
-import { join } from 'path';
+import { join, relative, resolve } from 'path';
 
 export class LocalStorageAdapter implements StorageProvider {
   private readonly basePath: string;
 
   constructor(private configService: ConfigService) {
-    this.basePath = this.configService.get<string>('LOCAL_STORAGE_PATH') ?? './uploads';
+    // ABSOLUTE-anchored, always: join() normalizes './uploads/x' → 'uploads/x'
+    // while '' + basePath arithmetic would corrupt derived keys ('ntime/…'
+    // after slicing the './' off by hand). resolve() once, then relative().
+    this.basePath = resolve(this.configService.get<string>('LOCAL_STORAGE_PATH') ?? './uploads');
     
     // Ensure base path exists
     if (!existsSync(this.basePath)) {
@@ -68,32 +71,35 @@ export class LocalStorageAdapter implements StorageProvider {
     const prefix = input.prefix ?? '';
     const limit = input.limit ?? 100;
     
-    const searchPath = prefix ? join(this.basePath, prefix) : this.basePath;
-    
-    if (!existsSync(searchPath)) {
+    // Nested keys (runtime/security/reports.json) are FIRST-CLASS citizens
+    // of this provider — a non-recursive list would silently omit them, and
+    // the silent omission broke backup fidelity in the wild (P7). Walk the
+    // tree; `prefix` filters by KEY prefix (not directory path) so dotted
+    // prefixes like 'runtime/' behave like an object store, not a shell.
+    if (!existsSync(this.basePath)) {
       return { objects: [], hasMore: false };
     }
 
     const objects: StorageObject[] = [];
-    const entries = readdirSync(searchPath, { withFileTypes: true });
-
-    for (const entry of entries.slice(0, limit)) {
-      const fullPath = join(searchPath, entry.name);
-      const stats = statSync(fullPath);
-      
-      if (stats.isFile()) {
-        const relativeKey = fullPath.replace(this.basePath + '/', '');
-        objects.push({
-          key: relativeKey,
-          size: stats.size,
-          lastModified: stats.mtime,
-        });
+    const stack: string[] = [this.basePath];
+    while (stack.length > 0 && objects.length <= limit) {
+      const dir = stack.pop()!;
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const fullPath = join(dir, entry.name);
+        if (entry.isDirectory()) {
+          stack.push(fullPath);
+          continue;
+        }
+        const relativeKey = relative(this.basePath, fullPath);
+        if (prefix && !relativeKey.startsWith(prefix)) continue;
+        const stats = statSync(fullPath);
+        objects.push({ key: relativeKey, size: stats.size, lastModified: stats.mtime });
       }
     }
 
     return {
-      objects,
-      hasMore: entries.length > limit,
+      objects: objects.slice(0, limit),
+      hasMore: objects.length > limit,
     };
   }
 

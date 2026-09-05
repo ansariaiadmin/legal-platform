@@ -10,6 +10,7 @@ import { CorpusApiModule } from './modules/corpus/corpus-api.module';
 import { RagModule } from './modules/rag/rag.module';
 import { MachineTokensModule } from './modules/machine-tokens/machine-tokens.module';
 import { SecurityModule } from './modules/security/security.module';
+import { OpsModule } from './modules/ops/ops.module';
 import { ConsultationModule } from './modules/consultation/consultation.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { ClientModule } from './modules/billing/client.module';
@@ -39,6 +40,7 @@ import { AuthJwtModule } from './security/jwt.module';
     RagModule,
     MachineTokensModule,
     SecurityModule,
+    OpsModule,
     NotificationsModule,
     ConsultationModule,
     ClientModule,

@@ -4,6 +4,7 @@ import { civilExpert } from '@legal-platform/agent-civil-expert';
 import { criminalExpert } from '@legal-platform/agent-criminal-expert';
 import { familyExpert } from '@legal-platform/agent-family-expert';
 import { registrationExpert } from '@legal-platform/agent-registration-expert';
+import { internationalExpert } from '@legal-platform/agent-international-expert';
 import { ExpertRegistry } from './expert-registry';
 
 /**
@@ -20,7 +21,14 @@ export class AgentsBootstrap implements OnModuleInit {
   constructor(private readonly registry: ExpertRegistry) {}
 
   onModuleInit(): void {
-    for (const expert of [civilExpert, criminalExpert, familyExpert, registrationExpert, new LegalExpertBaseAgent()]) {
+    for (const expert of [
+        civilExpert,
+        criminalExpert,
+        familyExpert,
+        registrationExpert,
+        internationalExpert, // P7-T6: bilingual desk, seats BEFORE the generic base
+        new LegalExpertBaseAgent(),
+      ]) {
       this.registry.register(expert);
     }
     this.logger.log(`registered ${this.registry.list().length} expert agent(s)`);

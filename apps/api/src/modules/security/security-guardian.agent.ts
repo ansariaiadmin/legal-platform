@@ -39,7 +39,9 @@ export class SecurityGuardianAgent implements IExpertAgent {
   readonly subspecialties = ['platform-security', 'standards-compliance', 'threat-hygiene'] as const;
   readonly persona = {
     displayName: 'نگهبان امنیت سکو',
+    displayNameEn: 'Platform Security Guardian',
     motto: 'استاندارد امروز، امنیت فردا؛ گزارش من فقط مدارک واقعی است.',
+    mottoEn: "Today's standard is tomorrow's safety; my report is evidence or it is nothing.",
   };
   readonly requiresReview = true;
 

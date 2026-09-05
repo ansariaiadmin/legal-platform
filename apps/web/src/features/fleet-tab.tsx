@@ -1,12 +1,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { t } from '@/i18n';
+import { t, getPrefs } from '@/i18n';
 import { api, type FleetAgent } from '@/lib/api';
 
 interface ModelRow {
   agentId: string;
   persona: string;
+  personaEn: string | null;
+  mottoEn: string | null;
   assignment: { target: string; model: string } | null;
   lending: { source: string; meaning: string } | null;
 }
@@ -52,8 +54,8 @@ export function FleetTab() {
             <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
               <div style={{ fontSize: 34 }}>{AVATAR[a.agentId] ?? '🤖'}</div>
               <div style={{ flex: 1 }}>
-                <h3 style={{ margin: 0 }}>{a.persona}</h3>
-                <small style={{ color: 'var(--text-dim)' }}>{a.motto}</small>
+                <h3 style={{ margin: 0 }}>{(getPrefs().locale === 'en' && a.personaEn) ? a.personaEn : a.persona}</h3>
+                <small style={{ color: 'var(--text-dim)' }}>{(getPrefs().locale === 'en' && a.mottoEn) ? a.mottoEn : a.motto}</small>
               </div>
               {a.disabled
                 ? <span className="pill bad">{t('fleet.disabled')}</span>

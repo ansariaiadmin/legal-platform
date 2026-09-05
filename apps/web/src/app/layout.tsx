@@ -12,7 +12,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="fa" dir="rtl">
+    // P7: dir/lang are client-managed (UiPrefsBar); server ships the Iran default.
+    // suppressHydrationWarning because the client flips dir/lang on boot.
+    <html lang="fa" dir="rtl" suppressHydrationWarning>
       <body>{children}</body>
     </html>
   );
