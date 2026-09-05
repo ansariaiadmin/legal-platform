@@ -137,17 +137,21 @@ export class OrchestratorService {
       };
     }
 
-    // Gate 3 — hybrid inference placement (ADR-004). Emitted live so the
-    // dashboard shows where the answer is being cooked.
+    // Gate 3 — hybrid inference placement (ADR-004/011). The router knows the
+    // agentId, so a manual pin wins; otherwise the Leader lends its own API
+    // and the dashboard sees `assignmentSource` either way.
     const inference = await this.inferenceRouter.decide({
       taskSensitivity: task.sensitivity ?? 'normal',
       estimatedTokens: task.budget?.maxTokens,
+      agentId: routing.agentId,
     });
     this.emit({
       kind: 'inference.decided',
       taskId: task.taskId,
       agentId: routing.agentId,
       modelTarget: inference.target,
+      model: inference.model,
+      assignmentSource: inference.assignmentSource,
       detail: inference.reason,
     });
 

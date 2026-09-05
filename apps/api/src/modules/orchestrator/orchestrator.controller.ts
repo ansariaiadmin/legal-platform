@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -23,7 +24,8 @@ import { LeaderVoiceService } from './leader-voice.service';
 import { MetricsAggregatorService } from './metrics-aggregator.service';
 import { EvaluatorService } from './evaluator.service';
 import { EvolutionService } from './evolution.service';
-import { GrantAgentDto, RouteQueryDto, SpawnAgentDto, VoiceTurnDto } from './dto/route.dto';
+import { ModelAssignmentService } from './model-assignment.service';
+import { AssignModelDto, GrantAgentDto, RouteQueryDto, SpawnAgentDto, VoiceTurnDto } from './dto/route.dto';
 import { AuditService } from '../audit/audit.service';
 import { JwtAccessGuard } from '../../security/jwt-access.guard';
 import { Roles, RolesGuard } from '../../security/roles.guard';
@@ -59,6 +61,7 @@ export class OrchestratorController {
     private readonly metrics: MetricsAggregatorService,
     private readonly evaluator: EvaluatorService,
     private readonly evolution: EvolutionService,
+    private readonly modelAssignments: ModelAssignmentService,
   ) {
     this.bus.subscribe((event) => this.eventStream.next(event));
   }
@@ -130,6 +133,75 @@ export class OrchestratorController {
     const removed = this.evolution.retire(agentId, user.id);
     await this.auditSafe(user.id, 'orchestrator.evolution.retire', agentId, { removed });
     return { removed };
+  }
+
+  // ---- model matrix: who runs on which brain (ADR-011) -------------------
+
+  @Get('models')
+  @Roles(UserRole.LAWYER_OWNER, UserRole.STAFF, UserRole.OPERATOR)
+  @ApiOperation({
+    summary: 'Model matrix: per-agent brain assignment; unassigned = Leader lends its API',
+  })
+  async models() {
+    const cards = await this.registry.describeFleet();
+    return {
+      policy: this.inferenceRouter.describe(),
+      agents: cards.map((c) => {
+        const a = this.modelAssignments.get(c.agentId);
+        return {
+          agentId: c.agentId,
+          persona: c.persona,
+          assignment: a ?? null,
+          lending: a ? null : { source: 'leader_fallback', meaning: 'رهبر API خودش را قرض می‌دهد' },
+        };
+      }),
+    };
+  }
+
+  @Post('models/:agentId')
+  @Roles(UserRole.LAWYER_OWNER)
+  @ApiOperation({ summary: 'Pin a model (local or cloud) to an agent' })
+  async assignModel(
+    @Param('agentId') agentId: string,
+    @Body() dto: AssignModelDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    if (!this.registry.get(agentId)) throw new BadRequestException(`unknown agent: ${agentId}`);
+    const assignment = this.modelAssignments.assign(agentId, dto.target, dto.model, user.id);
+    this.bus.emit({
+      kind: 'model.assigned',
+      at: new Date().toISOString(),
+      taskId: 'models',
+      agentId,
+      model: dto.model,
+      modelTarget: dto.target,
+      assignmentSource: 'manual',
+      detail: `by=${user.id}`,
+    });
+    await this.auditSafe(user.id, 'orchestrator.model.assign', agentId, {
+      target: dto.target,
+      model: dto.model,
+    });
+    return { assignment };
+  }
+
+  @Delete('models/:agentId')
+  @Roles(UserRole.LAWYER_OWNER)
+  @ApiOperation({ summary: 'Unpin an agent — it falls back to the Leader lending its API' })
+  async unassignModel(@Param('agentId') agentId: string, @CurrentUser() user: AuthenticatedUser) {
+    const removed = this.modelAssignments.unassign(agentId);
+    if (removed) {
+      this.bus.emit({
+        kind: 'model.unassigned',
+        at: new Date().toISOString(),
+        taskId: 'models',
+        agentId,
+        assignmentSource: 'leader_fallback',
+        detail: `reverts to leader lending; by=${user.id}`,
+      });
+      await this.auditSafe(user.id, 'orchestrator.model.unassign', agentId, {});
+    }
+    return { removed, fallsBackTo: removed ? 'leader_fallback' : null };
   }
 
   @Sse('events/stream')

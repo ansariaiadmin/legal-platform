@@ -22,12 +22,28 @@ export interface InferenceDecision {
   /** Human/machine reason code, e.g. 'budget_exhausted', 'local_down'. */
   reason: string;
   policy: HybridPolicy;
+  /** Concrete model id that will serve, when known (assigned or default). */
+  model?: string;
+  /** Where the placement came from: owner pin, or the Leader sharing its API
+   *  to an unassigned agent (SPEC §11a invariant v — lending, not gifting:
+   *  provenance is ALWAYS recorded). */
+  assignmentSource?: 'manual' | 'leader_fallback' | 'policy_direct';
   /** Signals that drove the choice — shown live in the dashboard. */
   signals: {
     localHealthy: boolean;
     budgetRemainingUsd: number | null;
     taskSensitivity: 'privileged' | 'normal';
   };
+}
+
+/** The Leader's per-agent model matrix (ADR-011). */
+export interface ModelAssignment {
+  agentId: string;
+  target: ModelTarget;
+  /** e.g. 'qwen2.5:14b-instruct' or 'gpt-4.1-mini' */
+  model: string;
+  assignedBy: string; // owner user id
+  assignedAt: string; // ISO
 }
 
 /** Port implemented in apps/api (it knows provider health + budget). */

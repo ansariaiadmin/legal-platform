@@ -16,7 +16,9 @@ export type AgentEventKind =
   | 'task.failed'
   | 'task.completed'
   | 'grant.issued'
-  | 'grant.revoked';
+  | 'grant.revoked'
+  | 'model.assigned'
+  | 'model.unassigned';
 
 export interface AgentEvent {
   kind: AgentEventKind;
@@ -25,6 +27,10 @@ export interface AgentEvent {
   agentId: string | null;
   /** present on inference.decided */
   modelTarget?: 'local' | 'cloud';
+  /** concrete model that served (or will serve) the task */
+  model?: string;
+  /** who decided the placement: operator pin, or the Leader sharing its API */
+  assignmentSource?: 'manual' | 'leader_fallback' | 'policy_direct';
   /** token spend so far, when known */
   tokensUsed?: number;
   /** redacted, dashboard-safe detail — never raw client text beyond preview */

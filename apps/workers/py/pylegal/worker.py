@@ -16,10 +16,35 @@ import traceback
 
 from . import QUEUE_KEY, RESULT_PREFIX, __version__
 from . import persian_tools as tools
+from . import model_client
 from .resp_client import RespClient, RespError
 
 REDIS_URL = os.environ.get("REDIS_URL", "redis://127.0.0.1:6379")
 RESULT_TTL_S = 3600
+
+
+def _ask_model(text: str, *, system: str = "", max_tokens: str = "800", **_: object) -> dict:
+    """Worker-side LLM call. The WORKER never decides where its brain lives —
+    env/config does (operator pin or Leader lend), exactly like the API and
+    exactly like the TS router will decide for agents (ADR-004/011)."""
+    cfg = model_client.config_from_env()
+    if cfg is None:
+        # Honest no-brain answer, not a fake success (SPEC §12).
+        return {"answered": False, "reason": "no_model_configured"}
+    messages = ([{"role": "system", "content": system}] if system else []) + [
+        {"role": "user", "content": text}
+    ]
+    out = model_client.chat_completion(
+        cfg, messages, max_tokens=int(max_tokens)
+    )
+    return {
+        "answered": True,
+        "text": out["text"],
+        "model": out["model"],
+        "target": out["target"],
+        "usage": out["usage"],
+    }
+
 
 TOOLS = {
     "normalize_persian": lambda text, **k: {"normalized": tools.normalize_persian(text)},
@@ -32,6 +57,7 @@ TOOLS = {
     },
     "article_refs": lambda text, **k: {"refs": tools.article_refs(text)},
     "word_count": lambda text, **k: {"words": tools.word_count(text)},
+    "ask_model": _ask_model,
 }
 
 

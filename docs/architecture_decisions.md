@@ -100,6 +100,37 @@ law — `requiresReview=true`, honest `grounded` flags, thresholded routing,
 closure-safe execute, compound-phrase-weighted `vocabularyScore()` — lives in
 one file. A bug fixed in the kit is fixed for the whole society at once.
 
+## ADR-011: Model matrix with Leader-lending (2026-09-05)
+
+**Context.** `AGENT_TIER` sets policy, but the owner needs per-agent control:
+civil on the fast local box, criminal on the bigger cloud model, the base
+expert unassigned... and someone must catch the agent that has NO model
+configured at all.
+
+**Decision.** `ModelAssignmentService` holds owner-pinned (agentId → target,
+model) pairs, editable from the dashboard (`POST/DELETE
+/dashboard/orchestrator/models/:agentId`). `HybridInferenceRouter` got a
+third input (`agentId`) and a strict precedence: **secrecy law** (privileged
+never cloud, even against a manual pin — flagged loudly as
+`privileged_overrides_manual_pin`) → **manual pin** → **Leader lending**.
+Lending is explicit, not silent: the decision carries
+`assignmentSource: 'leader_fallback' | 'manual' | 'policy_direct'` and the
+concrete `model`, both emitted to the live stream so the owner always sees
+*which brain boiled the answer*. Unassigning an agent reverts it to lending.
+
+## ADR-012: One RESP client per language (2026-09-05)
+
+**Context.** The T2 workers bridge API↔python over Redis. Every Redis call in
+the repo already rode raw sockets (`redis.ping.ts`); two full SDKs (ioredis
++ redis-py) would double supply-chain surface for three commands.
+
+**Decision.** One minimal RESP codec in TS (`providers/queue/redis-resp.client.ts`)
+and its sibling in Python (`pylegal/resp_client.py`) — same three commands
+(LPUSH/GET/SET-EX), same queue key, same result-key convention
+(`legal:workers:result:<jobId>`, TTL 1h). `PythonWorkerService.enqueue`/
+`result` is the only Nest touchpoint; queue-down degrades to `queued:false`,
+never a fabricated result. Swap to a real library later behind THIS class.
+
 ## ADR-008: Fleet self-evaluation loop (2026-09-05)
 
 **Context.** A society that cannot see its own performance decays silently.

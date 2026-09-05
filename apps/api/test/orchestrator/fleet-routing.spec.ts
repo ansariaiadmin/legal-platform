@@ -4,6 +4,7 @@ import { ExpertRegistry } from '../../src/modules/orchestrator/expert-registry';
 import { IntentClassifier } from '../../src/modules/orchestrator/intent-classifier';
 import { AgentGovernanceService } from '../../src/modules/orchestrator/agent-governance.service';
 import { HybridInferenceRouter } from '../../src/modules/orchestrator/hybrid-inference-router';
+import { ModelAssignmentService } from '../../src/modules/orchestrator/model-assignment.service';
 import { InProcessAgentEventBus } from '../../src/modules/orchestrator/agent-event-bus';
 import { LegalExpertBaseAgent } from '@legal-platform/agent-legal-expert-base';
 import { civilExpert } from '@legal-platform/agent-civil-expert';
@@ -21,7 +22,7 @@ function buildSociety() {
     registry.register(e);
   }
   const governance = new AgentGovernanceService();
-  const router = new HybridInferenceRouter(new ConfigService({ AI_LOCAL_BASE_URL: '', AI_MONTHLY_BUDGET_USD: '' }));
+  const router = new HybridInferenceRouter(new ConfigService({ AI_LOCAL_BASE_URL: '', AI_MONTHLY_BUDGET_USD: '' }), new ModelAssignmentService());
   const bus = new InProcessAgentEventBus();
   const service = new OrchestratorService(registry, governance, router, bus, new IntentClassifier());
   return { registry, governance, service };

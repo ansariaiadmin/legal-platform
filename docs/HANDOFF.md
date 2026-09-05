@@ -5,7 +5,7 @@
 ## Where we are
 
 - **Phase:** phase-1-expert-tree — Expert agents: civil, criminal, family, registration
-- **Last checkpoint:** 2026-09-05T11:29:12.266Z
+- **Last checkpoint:** 2026-09-05T11:47:47.618Z
 - **Git:** run `git log --oneline -3` to see the last commits.
 
 ## Protocol (non-negotiable)
@@ -24,12 +24,6 @@
 
 ## Completed
 
-- [x] P1b-T1: LeaderVoiceService + honest mock VoiceEngine + voice endpoints (2026-09-05)
-- [x] P1b-X: AGENT_FLEET.md — fleet map, grants matrix, 3-tier recommended configs (2026-09-05)
-- [x] P1-T12: agent-kit factory in packages/shared (society standard) (2026-09-05)
-- [x] P1-T1: civil-expert package (persona + capabilities) (2026-09-05)
-- [x] P1-T2: criminal-expert package (2026-09-05)
-- [x] P1-T3: family-expert package (2026-09-05)
 - [x] P1-T4: registration-expert package (2026-09-05)
 - [x] P1-T8: cross-field routing integration test (2026-09-05)
 - [x] P1-T13: /fleet endpoint — dashboard cards data (2026-09-05)
@@ -39,6 +33,12 @@
 - [x] P1c-T4: spawn/governance invariants + audit + events (2026-09-05)
 - [x] P1c-T5: python workers package (stdlib, RESP client, persian_tools) (2026-09-05)
 - [x] P1c-T6: python worker tests + docs + ADR-008/009/010 (2026-09-05)
+- [x] P1d-T1: model-assignment registry (per-agent local/cloud) (2026-09-05)
+- [x] P1d-T2: leader-lend fallback in hybrid router + tracing signal (2026-09-05)
+- [x] P1d-T3: dashboard model matrix endpoints + fleet join (2026-09-05)
+- [x] P1d-T4: pylegal model_client (stdlib urllib, OpenAI-compatible) (2026-09-05)
+- [x] P1d-T5: TS python-jobs bridge via socket RESP (2026-09-05)
+- [x] P1d-T6: tests + docs + ADR-011/012 (2026-09-05)
 
 ## Architectural decisions
 
@@ -53,3 +53,5 @@
 - **ADR-008** — Fleet self-evaluation loop: metrics-aggregator + read-only evaluator
 - **ADR-009** — Runtime evolution: validated spawn, zero default grants, -spawned marker, core protected
 - **ADR-010** — Python sidecar workers, stdlib-only, RESP2 socket client, toolbox not decision-maker
+- **ADR-011** — Model matrix with Leader-lending; secrecy > pin > lend
+- **ADR-012** — One RESP client per language; queue bridge honest degradation

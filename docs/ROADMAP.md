@@ -86,6 +86,21 @@ goes through `providers/ai` adapters (SPEC §8), which Phase 1/4 keeps mock-firs
 
 ## Phase 2 — Data Lifecycle (چرخه حیات داده)
 
+## Phase 1d — Model Matrix & Leader Lending (ماتریس مدل)
+
+- [x] **P1d-T1** `model-assignment.service.ts` — per-agent (target, model) pins.
+- [x] **P1d-T2** Router learns `agentId`: secrecy law > manual pin > Leader
+  lends its own API (`assignmentSource: leader_fallback`, concrete model id,
+  reason string) — provenance always emitted to the live stream.
+- [x] **P1d-T3** Endpoints `GET/POST/DELETE /dashboard/orchestrator/models…`
+  (owner writes; everyone reads the matrix). Unassign reassigns to lending.
+- [x] **P1d-T4** `pylegal/model_client.py` — stdlib OpenAI-compatible client;
+  env-resolved config, retryability flags, key never in URL. `ask_model` worker
+  tool added (honest `no_model_configured` when unconfigured — no fake answer).
+- [x] **P1d-T5** `providers/queue/redis-resp.client.ts` (TS) + py
+  `resp_client.py` — one codec, two languages (ADR-012); bridge tests against
+  a socket-level fake Redis pass.
+
 ## Phase 2 — Data Lifecycle (چرخه حیات داده)
 
 Autonomous collectors → validators → updaters. Trust tiers per SPEC §9.

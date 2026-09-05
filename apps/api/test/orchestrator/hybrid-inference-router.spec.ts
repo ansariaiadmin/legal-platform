@@ -1,8 +1,9 @@
 import { ConfigService } from '@nestjs/config';
 import { HybridInferenceRouter } from '../../src/modules/orchestrator/hybrid-inference-router';
+import { ModelAssignmentService } from '../../src/modules/orchestrator/model-assignment.service';
 
 function router(env: Record<string, string>, localHealthy = false) {
-  const r = new HybridInferenceRouter(new ConfigService(env));
+  const r = new HybridInferenceRouter(new ConfigService(env), new ModelAssignmentService());
   jest.spyOn(r as never as { probeLocal: () => Promise<boolean> }, 'probeLocal').mockResolvedValue(localHealthy);
   return r;
 }

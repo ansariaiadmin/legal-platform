@@ -132,6 +132,30 @@
     {
       "task": "P1c-T6: python worker tests + docs + ADR-008/009/010",
       "at": "2026-09-05T11:29:12.173Z"
+    },
+    {
+      "task": "P1d-T1: model-assignment registry (per-agent local/cloud)",
+      "at": "2026-09-05T11:47:47.384Z"
+    },
+    {
+      "task": "P1d-T2: leader-lend fallback in hybrid router + tracing signal",
+      "at": "2026-09-05T11:47:47.419Z"
+    },
+    {
+      "task": "P1d-T3: dashboard model matrix endpoints + fleet join",
+      "at": "2026-09-05T11:47:47.449Z"
+    },
+    {
+      "task": "P1d-T4: pylegal model_client (stdlib urllib, OpenAI-compatible)",
+      "at": "2026-09-05T11:47:47.484Z"
+    },
+    {
+      "task": "P1d-T5: TS python-jobs bridge via socket RESP",
+      "at": "2026-09-05T11:47:47.519Z"
+    },
+    {
+      "task": "P1d-T6: tests + docs + ADR-011/012",
+      "at": "2026-09-05T11:47:47.551Z"
     }
   ],
   "pending_tasks": [
@@ -194,9 +218,19 @@
       "id": "ADR-010",
       "reasoning": "Python sidecar workers, stdlib-only, RESP2 socket client, toolbox not decision-maker",
       "at": "2026-09-05T11:29:12.266Z"
+    },
+    {
+      "id": "ADR-011",
+      "reasoning": "Model matrix with Leader-lending; secrecy > pin > lend",
+      "at": "2026-09-05T11:47:47.584Z"
+    },
+    {
+      "id": "ADR-012",
+      "reasoning": "One RESP client per language; queue bridge honest degradation",
+      "at": "2026-09-05T11:47:47.618Z"
     }
   ],
-  "last_checkpoint": "2026-09-05T11:29:12.266Z",
-  "updated_at": "2026-09-05T11:29:12.266Z",
-  "update_count": 53
+  "last_checkpoint": "2026-09-05T11:47:47.618Z",
+  "updated_at": "2026-09-05T11:47:47.618Z",
+  "update_count": 67
 }

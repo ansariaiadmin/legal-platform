@@ -54,6 +54,18 @@ export class GrantAgentDto {
   ttlMinutes!: number;
 }
 
+export class AssignModelDto {
+  @ApiProperty({ enum: ['local', 'cloud'] })
+  @IsIn(['local', 'cloud'])
+  target!: 'local' | 'cloud';
+
+  @ApiProperty({ example: 'qwen2.5:14b-instruct', description: 'concrete model id' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(120)
+  model!: string;
+}
+
 export class VoiceTurnDto {
   @ApiProperty({ description: 'session id returned by POST /voice/session' })
   @IsUUID()

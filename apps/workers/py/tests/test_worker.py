@@ -25,7 +25,20 @@ class TestHandle(unittest.TestCase):
         self.assertTrue(r["jobId"].startswith("py-"))
 
     def test_tools_registry_pure(self):
-        self.assertEqual(sorted(TOOLS.keys()), ["article_refs", "chunk_legal_text", "normalize_persian", "word_count"])
+        self.assertEqual(
+            sorted(TOOLS.keys()),
+            ["article_refs", "ask_model", "chunk_legal_text", "normalize_persian", "word_count"],
+        )
+
+    def test_ask_model_without_config_is_honest(self):
+        import os
+        for k in ("PYLEGAL_LOCAL_MODEL_URL", "PYLEGAL_LOCAL_MODEL",
+                  "PYLEGAL_CLOUD_MODEL_URL", "PYLEGAL_CLOUD_MODEL", "PYLEGAL_CLOUD_MODEL_KEY"):
+            os.environ.pop(k, None)
+        r = handle({"jobId": "j4", "tool": "ask_model", "input": {"text": "ماده ۱۰"}})
+        self.assertTrue(r["ok"])
+        self.assertFalse(r["output"]["answered"])
+        self.assertEqual(r["output"]["reason"], "no_model_configured")
 
 
 if __name__ == "__main__":

@@ -32,6 +32,23 @@ you configure everything, and the Leader—governed by grants—runs the show.**
   نسخه‌اش `-spawned-` است، بدون گرنت هیچ کاری نمی‌تواند بکند، و فقط LAWYER_OWNER
   می‌تواند اسپاون کند. restart دیپلوی = اسپاون‌ها پاک می‌شوند (fail-safe).
 
+## ماتریس مدل — هر ایجنت روی کدام مغز؟ (ADR-011)
+
+- **GET `/dashboard/orchestrator/models`**: جدول کامل; هر عضو یا پین‌دستی دارد
+  یا `leader_fallback` (رهبر API خودش را قرض می‌دهد) — هرگز «نامشخص» نیست.
+- **Owner rules:** `POST /models/:agentId` با `{target: local|cloud, model}`
+  و `DELETE /models/:agentId` برای برداشتن پین.
+- **Secrecy first:** تسکِ `privileged` حتی پین ابریِ دستی را هم برمی‌گرداند به
+  لوکال (`privileged_overrides_manual_pin` در استریم رویداد دیده می‌شود).
+- **Unpin = loan reactivates:** حذف پین مجدداً leader lending را فعال می‌کند.
+
+## ورکرهای پایتونی روی مدل (ADR-010/012)
+
+- ابزار `ask_model` در pylegal: OpenAI-compatible، env-driven (
+  `PYLEGAL_LOCAL_MODEL_URL` اولویت اول؛ بعد `PYLEGAL_CLOUD_*`), بدون مدل
+  کانفیگ → صداقت: `{"answered": false, "reason": "no_model_configured"}`.
+- کلید هرگز در URL لاگ نمی‌شود، فقط header.
+
 > قانون: هیچ ایجنت خارج از این جدول بدون ورود به این سند + ثبت در registry
 > کار نمی‌کند. این جدول = منبع حقیقت ناوگان.
 
