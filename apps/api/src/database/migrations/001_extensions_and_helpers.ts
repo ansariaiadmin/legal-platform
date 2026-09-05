@@ -19,6 +19,10 @@ export const up = (pgm: MigrationBuilder) => {
   // Create pgcrypto extension for UUID generation and crypto functions
   pgm.sql('CREATE EXTENSION IF NOT EXISTS pgcrypto;');
 
+  // pg_trgm — needed by migration 006's `legal_documents_body_normalized_trgm`
+  // GIN index (gin_trgm_ops). Shipped in contrib, not auto-created.
+  pgm.sql('CREATE EXTENSION IF NOT EXISTS pg_trgm;');
+
   pgm.createFunction(
     'set_updated_at',
     [],
