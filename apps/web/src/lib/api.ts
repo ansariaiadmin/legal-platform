@@ -93,6 +93,62 @@ export const api = {
   delete: <T>(path: string) => request<T>('DELETE', path),
 };
 
+/* ---------------- P12-i passkey-first login ---------------- */
+
+function b64uToBuffer(s: string): ArrayBuffer {
+  const b64 = s.replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(b64 + '='.repeat((4 - (b64.length % 4)) % 4));
+  const buf = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) buf[i] = raw.charCodeAt(i);
+  return buf.buffer;
+}
+
+function bufferToB64(buf: ArrayBuffer): string {
+  const bytes = new Uint8Array(buf);
+  let bin = '';
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin);
+}
+
+/**
+ * Passkey-first login ceremony: identifier → server challenge → authenticator
+ * (touch/face) → signed assertion → tokens. Falls back to an honest error
+ * when the device has no WebAuthn.
+ */
+export async function passkeyLogin(identifier: string): Promise<void> {
+  if (typeof window === 'undefined' || !window.PublicKeyCredential) {
+    throw new Error('این دستگاه پاپس‌کی ندارد — با کد پیامکی وارد شو.');
+  }
+  const begin = await api.post<{
+    challengeId: string; challengeB64u: string; rpId: string; allowCredentials: string[];
+  }>('/auth/passkey/login/begin', { identifier });
+
+  const credential = (await navigator.credentials.get({
+    publicKey: {
+      challenge: b64uToBuffer(begin.challengeB64u),
+      rpId: begin.rpId,
+      allowCredentials: begin.allowCredentials.map((id) => ({
+        type: 'public-key' as const, id: b64uToBuffer(id),
+      })),
+      userVerification: 'preferred',
+      timeout: 60_000,
+    },
+  })) as PublicKeyCredential | null;
+
+  if (!credential) throw new Error('مراسم لغو شد.');
+  const assertion = credential.response as AuthenticatorAssertionResponse;
+
+  const out = await api.post<{ accessToken: string; refreshToken: string }>('/auth/passkey/login/finish', {
+    challengeId: begin.challengeId,
+    credentialId: credential.id,
+    authenticatorDataB64: bufferToB64(assertion.authenticatorData),
+    clientDataJSONB64: bufferToB64(assertion.clientDataJSON),
+    signatureB64: bufferToB64(assertion.signature),
+    newCounter: 1, // counters are tracked server-side; browsers that omit counters send 1+previous
+  });
+  setToken(out.accessToken);
+}
+
 // ---------------- shared response shapes (mirrors apps/api DTOs) ----------
 
 export interface BrainView {

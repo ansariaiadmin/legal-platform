@@ -92,6 +92,25 @@ export class PasskeysService {
     return { challengeId: id, challengeB64u: challenge.toString('base64url'), rpId: this.rpId() };
   }
 
+  /** The identifier-less side of passkey-first login: no user, no leak. */
+  decoyChallenge(): { challengeId: string; challengeB64u: string; rpId: string; allowCredentials: string[] } {
+    const challenge = randomBytes(32);
+    const id = `pkc_${randomBytes(9).toString('base64url')}`;
+    this.challenges.set(id, {
+      challengeId: id,
+      userId: '__decoy__', // finishLogin finds no credential for it → neutral failure
+      purpose: 'login',
+      expiresAt: Date.now() + CHALLENGE_TTL_MS,
+    });
+    return { challengeId: id, challengeB64u: challenge.toString('base64url'), rpId: this.rpId(), allowCredentials: [] };
+  }
+
+  /** allowCredentials for the browser ceremony of a KNOWN account. */
+  async credentialIdsFor(userId: string): Promise<string[]> {
+    await this.ensure();
+    return (this.creds.get(userId)?.passkeys ?? []).map((p) => p.credentialId);
+  }
+
   private takeChallenge(challengeId: string, purpose: Challenge['purpose']): Challenge {
     const ch = this.challenges.get(challengeId);
     this.challenges.delete(challengeId); // one-shot even when wrong

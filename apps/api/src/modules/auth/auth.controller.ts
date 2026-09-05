@@ -1,6 +1,8 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Ip, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
+import { PasskeysService } from '../authvault/passkeys.service';
+import { type OnApplicationBootstrap } from '@nestjs/common';
 import { RefreshTokenDto, RequestEmailOtpDto, RequestOtpDto, VerifyEmailOtpDto, VerifyOtpDto } from './dto/auth.dto';
 import { JwtAccessGuard } from '../../security/jwt-access.guard';
 import { CurrentUser } from '../../security/current-user.decorator';
@@ -8,8 +10,17 @@ import type { AuthenticatedUser } from '../../security/authenticated-user';
 
 @ApiTags('auth')
 @Controller('auth')
-export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+export class AuthController implements OnApplicationBootstrap {
+  constructor(
+    private readonly authService: AuthService,
+    private readonly passkeys: PasskeysService,
+  ) {}
+
+  onApplicationBootstrap(): void {
+    // P12-i: bind the vault's ceremony service onto auth AFTER both modules
+    // are up — no import cycle, both directions still testable alone.
+    this.authService.bindPasskeys(this.passkeys);
+  }
 
   @Post('otp/request')
   @HttpCode(HttpStatus.CREATED)
@@ -49,6 +60,25 @@ export class AuthController {
   @ApiResponse({ status: 429, description: 'AUTH_RATE_LIMITED' })
   async verifyEmailOtp(@Body() dto: VerifyEmailOtpDto, @Ip() ip: string) {
     return this.authService.verifyEmailOtp(dto.email, dto.code, ip);
+  }
+
+  /* -------- P12-i passkey-FIRST login: fingerprint/face IS the boundary -------- */
+
+  @Post('passkey/login/begin')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'identifier → passkey login challenge (decoy challenge for unknown accounts — enumeration-proof)' })
+  passkeyBegin(@Body() body: { identifier: string }, @Ip() ip: string) {
+    return this.authService.beginPasskeyLogin(body.identifier ?? '', ip);
+  }
+
+  @Post('passkey/login/finish')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'signed WebAuthn assertion → full session (primary boundary, no OTP)' })
+  passkeyFinish(@Body() body: {
+    challengeId: string; credentialId: string; authenticatorDataB64: string;
+    clientDataJSONB64: string; signatureB64: string; newCounter: number;
+  }, @Ip() ip: string) {
+    return this.authService.finishPasskeyLogin(body, ip);
   }
 
   @Post('refresh')

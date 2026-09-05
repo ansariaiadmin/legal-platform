@@ -20,6 +20,7 @@ import { EMAIL_PROVIDER, SMS_PROVIDER } from '../../providers/provider.tokens';
 import type { EmailProvider } from '../../providers/email/email.provider';
 import { RateLimitService } from '../../common/rate-limit.service';
 import type { AccessTokenClaims, RefreshTokenClaims } from '../../security/authenticated-user';
+import { PasskeysService } from '../authvault/passkeys.service';
 
 export interface PublicUser {
   id: string;
@@ -79,6 +80,12 @@ export function maskDestination(destination: string): string {
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
   private readonly otpTtlSeconds: number;
+  private passkeys?: PasskeysService;
+
+  /** Avoids an AuthModule↔AuthVault cycle: the controller binds it after boot. */
+  bindPasskeys(svc: PasskeysService): void {
+    this.passkeys = svc;
+  }
 
   constructor(
     private readonly pool: Pool,
@@ -396,6 +403,59 @@ export class AuthService {
       result: 'success',
     });
 
+    return { accessToken: session.accessToken, refreshToken: session.refreshToken, user };
+  }
+
+  /**
+   * P12-i passkey-FIRST core: given an identifier, decide ONLY whether this
+   * account has enr-rolled passkeys — the answer helps the legitimate user
+   * reach their keyring, and gives away nothing new (an unknown phone asks
+   * for an OTP anyway). Rate-limited against enumeration.
+   */
+  async beginPasskeyLogin(identifier: string, ip?: string): Promise<{ challengeId: string; challengeB64u: string; rpId: string; allowCredentials: string[] }> {
+    const rl = this.rateLimiter.consume(`passkey:begin:ip:${ip ?? 'unk'}`, { limit: 10, windowMs: 300_000, lockMs: 300_000 });
+    if (!rl.allowed) throw new ForbiddenException(ERROR_CODES.AUTH_RATE_LIMITED);
+
+    const isMail = identifier.includes('@');
+    const normalized = isMail ? normalizeEmail(identifier) : normalizeIranPhone(identifier);
+    if (!normalized) throw new BadRequestException(ERROR_CODES.VALIDATION_INVALID_INPUT);
+    const idRl = this.rateLimiter.consume(`passkey:begin:id:${normalized}`, { limit: 5, windowMs: 300_000, lockMs: 300_000 });
+    if (!idRl.allowed) throw new ForbiddenException(ERROR_CODES.AUTH_RATE_LIMITED);
+
+    // find user WITHOUT creating — passkeys never mint accounts
+    const found = await this.pool.query<{ id: string }>(
+      isMail
+        ? `SELECT id FROM users WHERE email = $1 AND status = 'active'`
+        : `SELECT id FROM users WHERE phone_normalized = $1 AND status = 'active'`,
+      [normalized],
+    );
+    const userId = found.rows[0]?.id;
+    if (!userId || !this.passkeys) {
+      // neutral answer: same shape, zero keys — no oracle for account existence
+      const decoy = this.passkeys?.decoyChallenge() ?? null;
+      if (!decoy) throw new UnauthorizedException(ERROR_CODES.AUTH_INVALID_CREDENTIALS);
+      return decoy;
+    }
+    const session = this.passkeys.begin(userId, 'login');
+    const allowCredentials = await this.passkeys.credentialIdsFor(userId);
+    return { ...session, allowCredentials };
+  }
+
+  async finishPasskeyLogin(input: {
+    challengeId: string; credentialId: string; authenticatorDataB64: string;
+    clientDataJSONB64: string; signatureB64: string; newCounter: number;
+  }, ip?: string): Promise<AuthTokens & { user: PublicUser }> {
+    const rl = this.rateLimiter.consume(`passkey:finish:ip:${ip ?? 'unk'}`, { limit: 10, windowMs: 300_000, lockMs: 600_000 });
+    if (!rl.allowed) throw new ForbiddenException(ERROR_CODES.AUTH_RATE_LIMITED);
+    if (!this.passkeys) throw new UnauthorizedException(ERROR_CODES.AUTH_INVALID_CREDENTIALS);
+    const { userId } = await this.passkeys.finishLogin(input); // challenge is one-shot by design
+    const user = await this.requireDb(this.loadUser(userId));
+    const session = await this.requireDb(this.createSession(user, ip));
+    await this.auditService.log({
+      actorId: user.id, module: 'auth', action: 'passkey.login',
+      entityType: 'user_session', entityId: session.sessionId,
+      metadata: { credentialId: input.credentialId.slice(0, 12) + '…' }, ip, result: 'success',
+    });
     return { accessToken: session.accessToken, refreshToken: session.refreshToken, user };
   }
 

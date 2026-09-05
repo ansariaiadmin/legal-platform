@@ -955,3 +955,29 @@ remediation decisions — each with tests that would have caught the gap.
 **Consequences.** The field-launch kill-list #1–#5 + #8(scan), #9, #16 of
 the review are closed code-wise; #6 (email factor/step-up) and #10
 (per-file egress) remain OPEN and are Phase 12 entries, honestly flagged.
+
+
+## ADR-029: Passkey-first login — the primary boundary a fingerprint IS (P12-i, 2026-09-05)
+
+**Context.** Field review #6's root line: «the front door is one text message».
+SIM-port → OWNER takeover → brain reroute → backup export. OTP stays a
+recovery lane, but the primary boundary becomes WebAuthn.
+
+**Decision.**
+1. `POST /auth/passkey/login/begin {identifier}` — public, rate-limited by IP
+   AND identifier; resolves the phone/email WITHOUT creating accounts;
+   accounts without enrolled passkeys get a **decoy challenge** (same shape,
+   no enumeration oracle — one-shot TTL'd like real ones).
+2. `POST /auth/passkey/login/finish` — the existing, cryptographically real
+   `passkeys.finishLogin` (ES256 over authData‖SHA256(clientData),
+   monotonic-counter clone detection) → `loadUser` + `createSession` + audit.
+   Nothing else differs from an OTP login.
+3. Wired WITHOUT an AuthModule↔AuthVault cycle: AuthController binds the
+   ceremony service in onApplicationBootstrap.
+4. Web login card gains the 🔑 button alongside both OTP channels
+   (`passkeyLogin()` performs the navigator ceremony with real
+   b64url↔ArrayBuffer conversion).
+
+**Tests that prove the boundary.** `test/auth/passkey-first.spec.ts`: full
+ceremony with a REAL generated P-256 keypair signing the wire format;
+tampered signature refused; challenge one-shot; decoy never authenticates.

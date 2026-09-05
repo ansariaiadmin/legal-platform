@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { t } from '@/i18n';
-import { api, getToken, setToken, type BrainView } from '@/lib/api';
+import { api, getToken, passkeyLogin, setToken, type BrainView } from '@/lib/api';
 import { HomeTab } from '@/features/home-tab';
 import { BrainTab } from '@/features/connect-brain-tab';
 import { FleetTab } from '@/features/fleet-tab';
@@ -273,6 +273,27 @@ function LoginCard({ onDone }: { onDone: (token: string) => void }) {
             </button>
           )}
         </div>
+
+        {/* P12-i: پس‌کی به‌عنوان مرز اصلی — لمس/چهره به‌جای پیامک */}
+        <button
+          className="btn big"
+          style={{ width: '100%', marginTop: 10, borderColor: 'var(--brand)' }}
+          disabled={busy || (channel === 'email' ? !email : !phone)}
+          onClick={async () => {
+            setBusy(true); setErr(null);
+            try {
+              await passkeyLogin(channel === 'email' ? email : phone);
+              const tok = getToken() ?? '';
+              if (tok) onDone(tok);
+            } catch (e) {
+              setErr(errText(e));
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          🔑 ورود با اثر انگشت (پس‌کی)
+        </button>
         <div className="dev-notice">
           {t('auth.devToken')}
           <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
