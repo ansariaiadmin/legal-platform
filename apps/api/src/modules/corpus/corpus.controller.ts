@@ -1,6 +1,7 @@
 import {
   Body, Controller, Get, Param, Post, Query, UseGuards,
 } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAccessGuard } from '../../security/jwt-access.guard';
 import { RolesGuard } from '../../security/roles.guard';
 import { CurrentUser } from '../../security/current-user.decorator';
@@ -15,6 +16,8 @@ import { createHash } from 'node:crypto';
  * The shelf's counter (dashboard side). All mutations are lawyer-side only —
  * this corpus contains the office's knowledge base, never public read.
  */
+@ApiTags('corpus')
+@ApiBearerAuth()
 @Controller('dashboard/corpus')
 @UseGuards(JwtAccessGuard, RolesGuard)
 export class CorpusController {
@@ -27,24 +30,32 @@ export class CorpusController {
     private readonly files: FileIntelligenceService,
   ) {}
 
+  
   @Get('stats')
+  @ApiOperation({ summary: 'shelf vitals for the dashboard' })
   async stats() {
     return this.corpus.statsForDashboard();
   }
 
+  
   @Get('sources')
+  @ApiOperation({ summary: 'list registered knowledge sources' })
   async sources() {
     return this.corpus.listSources();
   }
 
+  
   @Post('sources')
+  @ApiOperation({ summary: 'register a source with its trust tier' })
   async registerSource(
     @Body() body: { sourceKey: string; displayName: string; trustTier: 1 | 2 | 3; baseUrl?: string },
   ) {
     return this.corpus.registerSource({ ...body, enabled: true });
   }
 
+  
   @Get('documents')
+  @ApiOperation({ summary: 'list shelf documents (verified-first filters)' })
   async documents(@Query('tier') tier?: string, @Query('verifiedOnly') verifiedOnly?: string) {
     return this.corpus.list({
       trustTier: tier ? (Number(tier) as 1 | 2 | 3) : undefined,
@@ -52,7 +63,9 @@ export class CorpusController {
     });
   }
 
+  
   @Get('documents/:id')
+  @ApiOperation({ summary: 'fetch one document' })
   async document(@Param('id') id: string) {
     const doc = (await this.corpus.list()).find((d) => d.documentId === id);
     if (!doc) return { found: false };
@@ -60,7 +73,9 @@ export class CorpusController {
   }
 
   /** Paste a raw law text — lands pending validation, never pre-verified. */
+  
   @Post('documents/ingest')
+  @ApiOperation({ summary: 'paste raw law text → pending validation' })
   async ingest(
     @CurrentUser() user: AuthenticatedUser,
     @Body() body: { canonicalTitle: string; bodyRaw: string; sourceKey?: string; trustTier?: 1 | 2 | 3 },
@@ -80,7 +95,9 @@ export class CorpusController {
    * extracts the FULL text honestly (needs flags surfaced, never invented),
    * the corpus shelves it as tier 2 pending validation.
    */
+  
   @Post('documents/ingest-from-file')
+  @ApiOperation({ summary: 'ingest an uploaded office file in FULL (honest needs-ocr flags)' })
   async ingestFromFile(@Body() body: { fileId: string; canonicalTitle?: string; trustTier?: 1 | 2 | 3 }) {
     const found = this.files.probe(body.fileId);
     if (!found) return { ingested: false, reason: 'فایل یافت نشد' };
@@ -103,7 +120,9 @@ export class CorpusController {
    * is stamped verified ONLY when every rule passes, and the caller gets the
    * reasons back when it does not. No force-verify endpoint exists (§9).
    */
+  
   @Post('documents/:id/verify')
+  @ApiOperation({ summary: 'the green tick — validator-gated, reasons on rejection, no bypass' })
   async verify(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     const doc = (await this.corpus.list()).find((d) => d.documentId === id);
     if (!doc) return { verified: false, reasons: ['سند یافت نشد'] };
@@ -122,7 +141,9 @@ export class CorpusController {
   }
 
   /** Temporal update: text arrives for a title already shelved. */
+  
   @Post('documents/update')
+  @ApiOperation({ summary: 'temporal update: new text supersedes the old row, history kept' })
   async update(@Body() body: { canonicalTitle: string; bodyRaw: string; sourceKey?: string }) {
     return this.updater.applyUpdate({
       canonicalTitle: body.canonicalTitle,
@@ -133,7 +154,9 @@ export class CorpusController {
     });
   }
 
+  
   @Get('search')
+  @ApiOperation({ summary: 'deterministic verified-first corpus search' })
   async search(@Query('q') q: string, @Query('all') all?: string) {
     return this.corpus.search(q ?? '', { verifiedOnly: all !== 'true' });
   }
@@ -141,14 +164,18 @@ export class CorpusController {
   /* ---- collection & diagnostics (P2-T2/T5/T6) ---------------------------- */
 
   /** List collector sources with mock adapters (wire-ready contract). */
+  
   @Get('jobs')
+  @ApiOperation({ summary: 'all ingestion jobs newest-first' })
   async jobs() {
     return this.worker.list();
   }
 
   /** SPEC §9 diagnostics: the stuff a human should look at — failed,
    *  partial, or validator-rejected runs, newest first. */
+  
   @Get('diagnostics')
+  @ApiOperation({ summary: 'SPEC 9: failed / partial / rejected runs + collector sources' })
   async diagnostics() {
     return {
       failures: await this.worker.failures(),
@@ -158,13 +185,17 @@ export class CorpusController {
 
   /** Kick a sync NOW for a source (mock adapter in dev). Idempotent per
    *  (source, window): re-asking the same day replays as a no-op. */
+  
   @Post('sync')
+  @ApiOperation({ summary: 'sync one source window now (idempotent per window)' })
   async sync(@Body() body: { sourceId?: string; date?: string }) {
     return this.worker.sync(body.sourceId ?? 'rooznameh-mock', body.date);
   }
 
   /** Manual retry for a seen failure — linked to the old run, counted fresh. */
+  
   @Post('jobs/:id/retry')
+  @ApiOperation({ summary: 'manual retry linked to the previous attempt' })
   async retry(@Param('id') id: string) {
     const job = await this.worker.retry(id);
     if (!job) return { retried: false, reason: 'کار یافت نشد' };

@@ -5,6 +5,49 @@ a new ADR. `scripts/agent_state.json.architectural_decisions` mirrors this file.
 
 ---
 
+## ADR-020: The surface er kümmert sich um Notarization — OpenAPI everywhere, SSE for drafts, machine tokens with math, i18n keys (P5, 2026-09-05)
+
+**Status**: accepted · **Area**: API surface / SDK-readiness · **Phase**: P5
+
+**Context.** Phase 5 asked the platform to be consumable identically from
+Web/Next APIs, Telegram mini-app, telephone — which needs: documented
+contracts, live progress channels, non-human credentials, and Persian
+strings living in ONE place.
+
+**Decision.**
+1. **OpenAPI is enforced by test, not by hope.** `test/app/openapi.spec.ts`
+   boots the whole app graph and asserts the P2–P5 surfaces exist in the
+   generated document AND carry their `ApiTags`; a missing tags/decorator is
+   a build failure, not a wiki to-do. Notes: global `/api` prefix is part of
+   the published path (the doc matches reality).
+2. **SSE is the only live channel for delivery.** P5-T2 adds
+   `GET /api/dashboard/rag/drafts/:id/stream` — snapshot first, then bus
+   events filtered by draftId; stream COMPLETES on terminal draft state
+   (approved/rejected) or at 120s. No abandoned sockets, no busy polling.
+   The kitchen-bus stays the fleet-wide stream; per-draft is scoped-on-id.
+3. **Machine tokens, done mathematically.**
+   `MachineTokensService`: token = `lpm_<uuid>_<HMAC32>` where
+   sig = HMAC(secret, `id|scopes|expiresAt`). Scopes from a CLOSED vocabulary
+   (`client:read/write`, `drafts:read/write`, `events:stream`) — unknown
+   scope = issue-time throw. Store via StorageProvider; `verify` uses
+   `timingSafeEqual`. Revocation persists across restarts; `lastUsedAt`
+   updates recklessly honestly. `MachineTokenGuard` + `@MachineScope()` +
+   `@MachineOnly()` compose with `JwtAccessGuard` (a human JWT passes through
+   unless the route is machine-only). Failures map to
+   `MACHINE_TOKEN_REQUIRED|INVALID → 401` through the shared envelope —
+   a missing entry in error codes would have leaked as 500, which the
+   exception-filter contract test proved its worth by CATCHING.
+4. **i18n sweep begins from the newest tabs.** `library.*`, `drafts.*`,
+   `machines.*` keys land in the fa dictionary; tab headings read from t().
+   The full back-sweep of older literals is acknowledged as ongoing P6 work
+   — keys were gate-kept so NEW strings never again bypass the dictionary.
+
+**Tests** — 9 new supertests: token issue/verify math, wrong-scope denial,
+tamper death, expiry death, restart-persistent revocation, closed scope
+vocabulary, machine-only lanes, OPENAPI path+tag coverage.
+
+---
+
 ## ADR-019: Citation is the entry fee — composable retrieval, provenance-bound drafting, money metering (P4, 2026-09-05)
 
 **Status**: accepted · **Area**: RAG pipeline / drafting · **Phase**: P4

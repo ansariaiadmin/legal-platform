@@ -19,6 +19,7 @@ export const ERROR_PREFIXES = {
   SUBSCRIPTION: 'SUBSCRIPTION_',
   COMMS: 'COMMS_',
   DRAFT: 'DRAFT_',
+  MACHINE_TOKEN: 'MACHINE_TOKEN_',
 } as const;
 
 export type ErrorCodePrefix = (typeof ERROR_PREFIXES)[keyof typeof ERROR_PREFIXES];
@@ -81,6 +82,9 @@ export const ERROR_CODES = {
   DRAFT_NO_CITATIONS: 'DRAFT_NO_CITATIONS',
   DRAFT_ILLEGAL_TRANSITION: 'DRAFT_ILLEGAL_TRANSITION',
   DRAFT_AI_UNAVAILABLE: 'DRAFT_AI_UNAVAILABLE',
+  // P5 machine tokens — gate failures are AUTH-class, never 500
+  MACHINE_TOKEN_INVALID: 'MACHINE_TOKEN_INVALID',
+  MACHINE_TOKEN_REQUIRED: 'MACHINE_TOKEN_REQUIRED',
 } as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES];
@@ -135,6 +139,7 @@ export function httpStatusForCode(code: string): number {
   if (code === ERROR_CODES.PURCHASE_NOT_FOUND) return 404;
   if (code === ERROR_CODES.AUTH_RATE_LIMITED || code === ERROR_CODES.AUTH_RESEND_COOLDOWN) return 429;
   if (code === ERROR_CODES.AUTH_INSUFFICIENT_ROLE) return 403;
+  if (code.startsWith(ERROR_PREFIXES.MACHINE_TOKEN)) return 401;
   if (code.startsWith(ERROR_PREFIXES.AUTH)) return 401;
   if (code.endsWith('_NOT_FOUND')) return 404;
   // P4 drafting: blocked generation is "valid request, missing citations";

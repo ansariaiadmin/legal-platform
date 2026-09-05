@@ -18,6 +18,27 @@ export const fa = {
   'tab.library': 'کتابخانه',
   'tab.drafts': 'پیش‌نویس‌ها',
 
+  // library (P5-T4 sweep — keys, not literals)
+  'library.fake.title': 'کتابخانهٔ دانش',
+  'library.search.cta': 'جستجو',
+  'library.ingest.paste': 'چسباندن متن قانون',
+  'library.ingest.file': 'قفسه کردن از فایل‌های آپلودشده',
+  'library.verify': 'تیک اعتبارسنجی',
+
+  // drafts
+  'drafts.title': 'پیش‌نویس با استناد',
+  'drafts.usage': 'مصرف ماه — هیچ‌جوره پنهان نمی‌شود',
+  'drafts.create': 'بساز برگ',
+  'drafts.review.approve': 'تأیید',
+  'drafts.review.reject': 'رد',
+  'drafts.review.supersede': 'نسخهٔ جدید (supersede)',
+  'drafts.sources': 'منابع استنادشده:',
+
+  // machine tokens
+  'machines.title': 'توکن‌های ماشین (API خارجی)',
+  'machines.issue': 'صدور توکن',
+  'machines.revoke': 'ابطال',
+
   // home
   'home.title': 'دفتر حقوقی تو، با یک جامعه‌ای از کارشناس‌ها',
   'home.lending': 'وضعیت قرضِ مغز لیدر',

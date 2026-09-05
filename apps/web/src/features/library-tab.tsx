@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { api, type FileRecordView } from '@/lib/api';
+import { t } from '@/i18n';
 
 interface IngestionJob {
   jobId: string;
@@ -316,7 +317,7 @@ export function LibraryTab() {
 
       {/* — paste ingest — */}
       <div className="card">
-        <h3 style={{ margin: '0 0 6px' }}>چسباندن متن قانون</h3>
+        <h3 style={{ margin: '0 0 6px' }}>{t('library.ingest.paste')}</h3>
         <p className="hint">سند با همان sha256 دوبار قفسه نمی‌شود؛ ورژن جدید، فهرست قدیمی را بازنشسته می‌کند.</p>
         <input style={inputStyle} placeholder="عنوان کانونیک — مثلاً «قانون مدنی»" value={title} onChange={(e) => setTitle(e.target.value)} />
         <textarea
@@ -337,7 +338,7 @@ export function LibraryTab() {
 
       {/* — ingest-from-file — */}
       <div className="card">
-        <h3 style={{ margin: '0 0 6px' }}>قفسه کردن از فایل‌های آپلودشده</h3>
+        <h3 style={{ margin: '0 0 6px' }}>{t('library.ingest.file')}</h3>
         <p className="hint">همان فایل‌هایی که گذاشتی اینجا به عنوان منبع معتبر می‌آیند — در همان مسیر بدون ریسک متنِ ساخته‌ی LLM.</p>
         {files.length === 0 && <p className="hint">اول در تب فایل‌ها یکی آپلود کن.</p>}
         {files.map((f) => (

@@ -1,5 +1,6 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { CorpusModule } from '../corpus/corpus.module';
+import { OrchestratorModule } from '../orchestrator/orchestrator.module';
 import { EmbeddingIndexService } from './embedding-index.service';
 import { RerankerService } from './reranker.service';
 import { DraftingService } from './drafting.service';
@@ -15,7 +16,7 @@ import { RagController } from './rag.controller';
  * pgvector/SQL tomorrow, same contract surface.
  */
 @Module({
-  imports: [forwardRef(() => CorpusModule)],
+  imports: [forwardRef(() => CorpusModule), forwardRef(() => OrchestratorModule)],
   controllers: [RagController],
   providers: [EmbeddingIndexService, RerankerService, DraftingService, UsageMeterService],
   exports: [EmbeddingIndexService, RerankerService, DraftingService, UsageMeterService],

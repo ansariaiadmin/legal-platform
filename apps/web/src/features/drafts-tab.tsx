@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
+import { t } from '@/i18n';
 
 interface Citation {
   documentId: string;
@@ -130,7 +131,7 @@ export function DraftsTab() {
 
       {/* — usage — */}
       <div className="card">
-        <h3 style={{ margin: '0 0 6px' }}>مصرف ماه — هیچ‌جوره پنهان نمی‌شود</h3>
+        <h3 style={{ margin: '0 0 6px' }}>{t('drafts.usage')}</h3>
         {usage ? (
           <>
             <div className="grid cols-3" style={{ marginTop: 8 }}>
@@ -152,7 +153,7 @@ export function DraftsTab() {
 
       {/* — compose — */}
       <div className="card">
-        <h3 style={{ margin: '0 0 6px' }}>پیش‌نویس با استناد</h3>
+        <h3 style={{ margin: '0 0 6px' }}>{t('drafts.title')}</h3>
         <p className="hint">
           بدون حداقل یک سند تأییدشدهٔ مرتبط روی قفسه، دستگاه نمی‌نویسد. اگر نوشت، پایانش می‌بینی از کجا آمده.
         </p>

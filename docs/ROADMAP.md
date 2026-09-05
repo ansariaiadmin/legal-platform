@@ -287,10 +287,10 @@ retrieve → rerank → draft WITH citations → **lawyer review (mandatory)**.
 Everything the agents can do, exposed contract-first so Web, Next APIs,
 Telegram mini-app, تلفن و… consume it identically.
 
-- [ ] **P5-T1** OpenAPI-complete `/api/dashboard/orchestrator/*` + `agents/*`.
-- [ ] **P5-T2** Streaming (SSE) for draft generation progress.
-- [ ] **P5-T3** Machine tokens for external front-ends (scoped, revocable).
-- [ ] **P5-T4** Persian i18n keys for all agent-facing UI strings (web feature
+- [x] **P5-T1** OpenAPI-complete `/api/dashboard/orchestrator/*` + `agents/*` (ADR-020, spec-enforced).
+- [x] **P5-T2** SSE `/api/dashboard/rag/drafts/:id/stream` (snapshot→events→terminal-complete; spec-enforced).
+- [x] **P5-T3** Machine tokens: HMAC-signed, 5 closed scopes, persisted revocation, `MACHINE_TOKEN_{REQUIRED,INVALID}→401` (supertests, ADR-020).
+- [~] **P5-T4** Persian i18n keys (P5): `library/drafts/machines` scoped; tab headings land; full literal sweep continues in P6 (ADR-020 policy: new strings key-only) (web feature
   `features/agents/`).
 
 ## Phase 6 — Hardening (ده از ده)
