@@ -8,6 +8,7 @@ import type {
 import { AgentTier } from '@legal-platform/domain';
 import { ModelAssignmentService } from './model-assignment.service';
 import { ConfigHubService } from './config-hub.service';
+import { BudgetGateService } from './budget-gate.service';
 import { assertLanUrlAllowed } from '../../security/egress';
 
 export const HYBRID_POLICY_ENV = 'AI_HYBRID_POLICY';
@@ -47,7 +48,9 @@ export class HybridInferenceRouter implements InferenceRouter {
     private readonly assignments: ModelAssignmentService,
     /** dashboard-set brain overrides (ADR-014) beat env, secrecy law still wins */
     @Optional() private readonly configHub?: ConfigHubService,
-    /** test seam — constructor injection keeps unit tests hermetic */
+    /** #15: monthly token ledger — real remaining, not the configured cap.
+     *  Optional: unit tests that omit it keep the legacy signal semantics. */
+    @Optional() private readonly budgetGate?: BudgetGateService,
   ) {}
 
   currentPolicy(): HybridPolicy {
@@ -84,7 +87,13 @@ export class HybridInferenceRouter implements InferenceRouter {
     const hubLocal = this.configHub?.peek().local;
     const localUrl = hubLocal?.baseUrl ?? this.config.get<string>(LOCAL_MODEL_URL_ENV);
     const localHealthy = await this.probeLocal();
-    const budgetRemainingUsd = this.readBudget();
+    // #15: when the monthly token budget is configured AND the gate is
+    // wired, the signal is REAL remaining (cap − spent), not the static cap.
+    const tokenCap = this.monthlyTokenBudget();
+    const budgetRemainingUsd =
+      tokenCap !== null && this.budgetGate
+        ? await this.budgetGate.monthlyRemaining(tokenCap)
+        : this.readBudget();
     const taskSensitivity = input.taskSensitivity ?? 'normal';
 
     const base = {
@@ -188,6 +197,13 @@ export class HybridInferenceRouter implements InferenceRouter {
   }
 
   /** Monthly AI budget envelope; null = unmetered. Wires to usage_records in P4-T5. */
+  private monthlyTokenBudget(): number | null {
+    const raw = this.config.get<string>('AI_MONTHLY_TOKEN_BUDGET');
+    if (!raw) return null;
+    const value = Number(raw);
+    return Number.isFinite(value) ? value : null;
+  }
+
   private readBudget(): number | null {
     const raw = this.config.get<string>('AI_MONTHLY_BUDGET_USD');
     if (!raw) return null;

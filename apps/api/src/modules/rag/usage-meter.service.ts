@@ -142,6 +142,25 @@ export class UsageMeterService {
     });
   }
 
+  /**
+   * FIELD REVIEW 2026-09-05 #15 — hard stop, not just alerts:
+   * when this month's priced spend meets AI_MONTHLY_HARD_STOP_USD, paid
+   * generation must REFUSE. Callers (drafting today) degrade honestly
+   * instead of burning the office card in silence.
+   */
+  async hardStopExceeded(): Promise<boolean> {
+    const raw = this.config.get<string>('AI_MONTHLY_HARD_STOP_USD');
+    if (!raw) return false;
+    const cap = Number(raw);
+    if (!Number.isFinite(cap) || cap <= 0) return false;
+    await this.ensure();
+    const m = this.monthKey();
+    const total = this.state.records
+      .filter((r) => r.monthKey === m && r.costUsd !== null)
+      .reduce((sum, r) => sum + (r.costUsd ?? 0), 0);
+    return total >= cap;
+  }
+
   async monthlyReport(month?: string): Promise<MonthlyReport> {
     await this.ensure();
     const m = month ?? this.monthKey();

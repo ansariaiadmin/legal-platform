@@ -246,6 +246,14 @@ export class DraftingService {
       'اگر منبعی برای نکته‌ای نیامده، آن را به عنوان مطمئن نیاور.',
     ].join('\n');
 
+    // FIELD REVIEW #15: the budget is not an alerts channel — past the hard
+    // stop the feature REFUSES with an honest error (the requester sees the
+    // truth on screen) instead of silently charging the office.
+    if (await this.meter.hardStopExceeded()) {
+      const err = new Error('بودجهٔ ماهانهٔ هوش مصنوعی به سقف رسید؛ تولید ابری متوقف شد — مدیر دفتر باید سقف را بازبینی کند.');
+      (err as Error & { code?: string }).code = ERROR_CODES.AI_BUDGET_HARD_STOPPED;
+      throw err;
+    }
     try {
       const res = await this.ai.generateText({
         prompt: `درخواست پیش‌نویس: «${d.prompt.slice(0, 800)}»\n\nمنابع معتبر:\n${citeLines}`,

@@ -50,6 +50,36 @@ export class BudgetGateService {
     return `runtime/budget/${feature}.${this.today()}.json`;
   }
 
+  private month(): string {
+    return new Date().toISOString().slice(0, 7); // YYYY-MM
+  }
+
+  private monthlyKey(): string {
+    return `runtime/budget/_monthly.${this.month()}.json`;
+  }
+
+  private async loadMonthly(): Promise<{ month: string; spentTokens: number }> {
+    try {
+      const raw = await this.storage.get(this.monthlyKey());
+      const parsed = JSON.parse(raw.toString('utf8')) as { month: string; spentTokens: number };
+      if (parsed.month === this.month()) return parsed;
+    } catch { /* first spend of the month */ }
+    return { month: this.month(), spentTokens: 0 };
+  }
+
+  /**
+   * FIELD REVIEW 2026-09-05 #15 — the monthly AI budget must be a REAL
+   * ledger, not a decoration: every consume() also accrues to this month's
+   * totals, and remaining() subtracts truth. Cap comes from
+   * AI_MONTHLY_TOKEN_BUDGET; null = unmetered. USD configs never pretend to
+   * be measured (tokens are the honest unit here).
+   */
+  async monthlyRemaining(capTokens: number | null): Promise<number | null> {
+    if (capTokens === null) return null;
+    const monthly = await this.loadMonthly();
+    return Math.max(0, capTokens - monthly.spentTokens);
+  }
+
   private async load(feature: string): Promise<{ spent: number }> {
     const hit = this.cache.get(feature);
     if (hit) return hit;
@@ -95,6 +125,16 @@ export class BudgetGateService {
       await this.storage.put({
         key: this.key(feature),
         content: Buffer.from(JSON.stringify(entry)),
+        contentType: 'application/json',
+        metadata: { kind: 'budget' },
+      });
+      // #15: the monthly ledger rides the same consume — no silent route that
+      // spends without accruing.
+      const monthly = await this.loadMonthly();
+      monthly.spentTokens += spent;
+      await this.storage.put({
+        key: this.monthlyKey(),
+        content: Buffer.from(JSON.stringify(monthly)),
         contentType: 'application/json',
         metadata: { kind: 'budget' },
       });

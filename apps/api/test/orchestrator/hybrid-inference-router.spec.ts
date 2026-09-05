@@ -1,11 +1,27 @@
 import { ConfigService } from '@nestjs/config';
 import { HybridInferenceRouter } from '../../src/modules/orchestrator/hybrid-inference-router';
 import { ModelAssignmentService } from '../../src/modules/orchestrator/model-assignment.service';
+import { BudgetGateService } from '../../src/modules/orchestrator/budget-gate.service';
+import type { StorageProvider } from '../../src/providers/storage/storage.provider';
 
-function router(env: Record<string, string>, localHealthy = false) {
-  const r = new HybridInferenceRouter(new ConfigService(env), new ModelAssignmentService());
+function router(env: Record<string, string>, localHealthy = false, budget?: BudgetGateService) {
+  const r = new HybridInferenceRouter(new ConfigService(env), new ModelAssignmentService(), undefined, budget);
   jest.spyOn(r as never as { probeLocal: () => Promise<boolean> }, 'probeLocal').mockResolvedValue(localHealthy);
   return r;
+}
+
+function memStorage(): StorageProvider {
+  const store = new Map<string, Buffer>();
+  return {
+    put: async ({ key, content }: { key: string; content: Buffer }) => { store.set(key, Buffer.from(content)); },
+    get: async (key: string) => {
+      const v = store.get(key);
+      if (!v) throw new Error('not found');
+      return v;
+    },
+    delete: async (key: string) => { store.delete(key); },
+    list: async () => [],
+  } as unknown as StorageProvider;
 }
 
 describe('HybridInferenceRouter (ADR-004)', () => {
@@ -69,5 +85,29 @@ describe('HybridInferenceRouter (ADR-004)', () => {
     expect(router({ AGENT_TIER: 'senator' }).currentPolicy()).toBe('hybrid_cloud_first');
     expect(router({ AGENT_TIER: 'counsel' }).currentPolicy()).toBe('hybrid_local_first');
     expect(router({}).currentPolicy()).toBe('hybrid_local_first');
+  });
+
+  it('FIELD REVIEW #15: monthly TOKEN budget is a real ledger — spend decrements remaining, exhaustion demotes cloud_first to local', async () => {
+    const budget = new BudgetGateService(
+      new ConfigService({ AI_FEATURE_QUOTA_TOKENS: '{}' }),
+      memStorage(),
+    );
+    const r = router(
+      { AI_HYBRID_POLICY: 'hybrid_cloud_first', AI_MONTHLY_TOKEN_BUDGET: '2000' },
+      false,
+      budget,
+    );
+
+    const first = await r.decide({});
+    expect(first.target).toBe('cloud'); // untouched budget: cloud is allowed
+    expect(first.signals.budgetRemainingUsd).toBe(2000);
+
+    // platform actually spent 2100 tokens this month (e.g. tiebreak + draft calls)
+    await budget.consume('tiebreak', { totalTokens: 2100 });
+
+    const after = await r.decide({});
+    expect(after.target).toBe('local'); // hard downgrade, not an alert nobody reads
+    expect(after.reason).toBe('budget_exhausted');
+    expect(after.signals.budgetRemainingUsd).toBe(0);
   });
 });
