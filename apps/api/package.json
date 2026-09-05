@@ -15,7 +15,8 @@
     "migrate:up": "node-pg-migrate --migration-file-language ts --migrations-dir src/database/migrations up",
     "migrate:down": "node-pg-migrate --migration-file-language ts --migrations-dir src/database/migrations down",
     "migrate:down:all": "node-pg-migrate --migration-file-language ts --migrations-dir src/database/migrations down 0",
-    "migrate:create": "node-pg-migrate --migration-file-language ts --migrations-dir src/database/migrations create"
+    "migrate:create": "node-pg-migrate --migration-file-language ts --migrations-dir src/database/migrations create",
+    "preflight": "ts-node src/preflight.ts"
   },
   "dependencies": {
     "@legal-platform/agent-civil-expert": "0.1.0",

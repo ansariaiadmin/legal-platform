@@ -865,3 +865,31 @@ per process.
 and per-replica dashboards are now provably honest deployment outcomes, not
 vibes. Email-otp logic covered by 8 unit tests (scripted pool), SMTP by a
 5-test real-wire stub, bridge by 3 tests over real pubsub sockets.
+
+## ADR-027: Field-trial zero-visible-error — preflight, honest 503s, a named door (P11, 2026-09-05)
+
+**Context.** «بفرستم برای تست میدانی، یک خطا هم دیده نشه.» Field testers do
+not debug. Every dependency outage must surface as a GUIDED state, not a
+500-shaped shrug.
+
+**Decision.**
+1. **Preflight command** (`npm run preflight -w apps/api`): Postgres liveness
+   AND migrations-present, storage-driver/url coherence, multi-replica
+   discipline (redis reachable + floor driver), production hygiene (dev token
+   absence, secret strength), SMTP relay reachability. Persian-first lines,
+   every ✗ names its remediation command, exit code mirrors truth.
+2. **Auth answers 503, not 500, when the DB is down** (`AUTH_DEPENDENCY_DOWN`
+   via `requireDb`): connection-class pg failures (ECONN*/42P01/28P01…) on
+   ANY OTP touchpoint — both channels — become a guided 503 the UI can
+   phrase, while REAL business errors (wrong code) keep their exact identity.
+   Verified symmetric: phone and email behave identically in a DB-less box.
+3. **The bare host has a name**: `GET /` answers service billboard with
+   health/docs links (`/` excluded from the api prefix). Unknown routes keep
+   404 in the structured SPEC §7 shape — no stack leaks.
+4. **Boot prints a one-line dependency summary** ([preflight] db/storage/
+   rateFloor/eventBus/email) after listen — deployers read the verdict at
+   boot, testers never see surprise.
+
+**Consequences.** A field trial with missing Postgres now degrades to clear
+Persian-guided states; the tester CANNOT make the platform leak an internal
+500 from the login path. Ops discipline gets cheaper than support tickets.

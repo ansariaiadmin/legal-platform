@@ -1,4 +1,4 @@
-import { ValidationPipe, type INestApplication } from '@nestjs/common';
+import { RequestMethod, ValidationPipe, type INestApplication } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import type { Request, Response, NextFunction } from 'express';
 import type { EnvService } from './config/env';
@@ -70,6 +70,8 @@ export function configureApp(app: INestApplication, env: EnvService): void {
   );
 
   // SPEC section 7: /api/public/*, /api/dashboard/*, /api/webhooks/*
-  app.setGlobalPrefix('api');
+  // P11: the bare host gets a billboard, not a 404 — '/' excluded from the
+  // api prefix so field testers meet a name, never "Cannot GET /".
+  app.setGlobalPrefix('api', { exclude: [{ path: '/', method: RequestMethod.GET }] });
   app.enableShutdownHooks();
 }

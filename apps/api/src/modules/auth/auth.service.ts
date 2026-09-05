@@ -4,6 +4,7 @@ import {
   Inject,
   Injectable,
   Logger,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -116,11 +117,11 @@ export class AuthService {
     const challengeId = crypto.randomUUID();
     const expiresAt = new Date(Date.now() + this.otpTtlSeconds * 1000);
 
-    await this.pool.query(
+    await this.requireDb(this.pool.query(
       `INSERT INTO otp_challenges (id, destination, code_hash, purpose, expires_at)
        VALUES ($1, $2, $3, 'login', $4)`,
       [challengeId, normalizedPhone, codeHash, expiresAt],
-    );
+    ));
 
     // Only log the code when the mock adapter is in play (development).
     const message = `کد تأیید شما: ${code}`;
@@ -159,7 +160,7 @@ export class AuthService {
       throw new ForbiddenException(ERROR_CODES.AUTH_RATE_LIMITED);
     }
 
-    const challenge = await this.pool.query<OtpChallengeRow>(
+    const challenge = await this.requireDb(this.pool.query<OtpChallengeRow>(
       `SELECT id, code_hash, attempts, max_attempts, expires_at
          FROM otp_challenges
         WHERE destination = $1
@@ -168,7 +169,7 @@ export class AuthService {
         ORDER BY created_at DESC
         LIMIT 1`,
       [normalizedPhone],
-    );
+    ));
 
     if (challenge.rows.length === 0) {
       await this.auditService.log({
@@ -224,8 +225,8 @@ export class AuthService {
     await this.pool.query(`UPDATE otp_challenges SET verified_at = NOW() WHERE id = $1`, [row.id]);
     this.rateLimiter.reset(verifyKey, `otp:request:${normalizedPhone}`);
 
-    const user = await this.findOrCreateUser(normalizedPhone);
-    const session = await this.createSession(user, ip);
+    const user = await this.requireDb(this.findOrCreateUser(normalizedPhone));
+    const session = await this.requireDb(this.createSession(user, ip));
 
     await this.auditService.log({
       actorId: user.id,
@@ -289,11 +290,11 @@ export class AuthService {
     const challengeId = crypto.randomUUID();
     const expiresAt = new Date(Date.now() + this.otpTtlSeconds * 1000);
 
-    await this.pool.query(
+    await this.requireDb(this.pool.query(
       `INSERT INTO otp_challenges (id, destination, code_hash, purpose, expires_at)
        VALUES ($1, $2, $3, 'login', $4)`,
       [challengeId, normalized, this.hashCode(code), expiresAt],
-    );
+    ));
 
     const mail = await this.emailProvider.sendMail({
       to: normalized,
@@ -332,7 +333,7 @@ export class AuthService {
       throw new ForbiddenException(ERROR_CODES.AUTH_RATE_LIMITED);
     }
 
-    const challenge = await this.pool.query<OtpChallengeRow>(
+    const challenge = await this.requireDb(this.pool.query<OtpChallengeRow>(
       `SELECT id, code_hash, attempts, max_attempts, expires_at
          FROM otp_challenges
         WHERE destination = $1
@@ -341,7 +342,7 @@ export class AuthService {
         ORDER BY created_at DESC
         LIMIT 1`,
       [normalized],
-    );
+    ));
     const row = challenge.rows[0];
     if (!row) {
       throw new UnauthorizedException(ERROR_CODES.AUTH_INVALID_CODE);
@@ -361,8 +362,8 @@ export class AuthService {
     await this.pool.query(`UPDATE otp_challenges SET verified_at = NOW() WHERE id = $1`, [row.id]);
     this.rateLimiter.reset(verifyKey, `otp:request:email:${normalized}`);
 
-    const user = await this.findOrCreateEmailUser(normalized);
-    const session = await this.createSession(user, ip);
+    const user = await this.requireDb(this.findOrCreateEmailUser(normalized));
+    const session = await this.requireDb(this.createSession(user, ip));
 
     await this.auditService.log({
       actorId: user.id,
@@ -633,6 +634,37 @@ export class AuthService {
    * without the server secret. The real brute-force defence is the short TTL
    * plus the per-destination attempt limit enforced in verifyOtp().
    */
+  /**
+   * P11: a DB outage on the FIRST screen a field tester touches must never
+   * whisper 'SYSTEM_INTERNAL_ERROR'. Connection-class pg failures (ECONN-,
+   * 28000 auth, 42P01 missing-table = forgot migrations) become an honest
+   * AUTH_DEPENDENCY_DOWN 503 — the UI copy then says what to run, not
+   * 'something broke'.
+   */
+  private isInfrastructureError(e: unknown): boolean {
+    const anyErr = e as { code?: string; message?: string; errors?: unknown[] };
+    // pg-pool wraps multi-host/connection failures in AggregateError with an
+    // EMPTY message (observed live: 500 + AggregateError, no text). Recurse.
+    if (Array.isArray(anyErr?.errors) && anyErr.errors.length > 0) {
+      return anyErr.errors.some((inner) => this.isInfrastructureError(inner));
+    }
+    const code = anyErr?.code ?? '';
+    if (/^(ECONNREFUSED|ECONNRESET|ETIMEDOUT|ENOTFOUND|EHOSTUNREACH|57P01|0800[0-9]|3D000|28P01|42P01)$/.test(code)) return true;
+    // AggregateError's message can be ''; ALSO treat empty-message AGG as db-down (pg style)
+    if (anyErr instanceof AggregateError) return true;
+    return /connect|connection refused|does not exist|no pg_hba|timeout|ECONN/i.test(anyErr?.message ?? '');
+  }
+
+  private requireDb<T>(p: Promise<T>): Promise<T> {
+    return p.catch((e: unknown) => {
+      if (this.isInfrastructureError(e)) {
+        this.logger.error(`database unavailable during auth flow: ${(e as Error).message}`);
+        throw new ServiceUnavailableException(ERROR_CODES.AUTH_DEPENDENCY_DOWN);
+      }
+      throw e;
+    });
+  }
+
   private hashCode(code: string): string {
     return crypto.createHmac('sha256', this.otpKey()).update(code).digest('hex');
   }

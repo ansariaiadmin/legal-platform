@@ -66,11 +66,15 @@ export class HealthController {
       await this.pool.query('SELECT 1');
       return { status: 'up', latencyMs: Date.now() - startedAt };
     } catch (error) {
-      return {
-        status: 'down',
-        latencyMs: Date.now() - startedAt,
-        error: error instanceof Error ? error.message : 'query failed',
-      };
+      // P11: AggregateError (pg-pool's no-host wrapper) ships an EMPTY
+      // message — a blank error is how support tickets get expensive.
+      let msg = error instanceof Error ? error.message : 'query failed';
+      if (!msg && Array.isArray((error as AggregateError).errors)) {
+        const inner = (error as AggregateError).errors[0];
+        msg = inner instanceof Error ? `unreachable: ${inner.code ?? inner.message}` : 'unreachable';
+      }
+      if (!msg) msg = 'unreachable (empty driver error)';
+      return { status: 'down', latencyMs: Date.now() - startedAt, error: msg };
     }
   }
 

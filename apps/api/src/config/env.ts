@@ -20,6 +20,14 @@ interface EnvConfig {
   GLOBAL_RATE_LIMIT_PER_MIN: string;
   /** Python worker hard-requirement probe cadence (ms); 0 disables. */
   WORKER_PROBE_INTERVAL_MS: number;
+  /** P9/P10: deployment + multi-node + email-factor knobs. */
+  DEPLOYMENT_MODE: string;
+  RATE_LIMIT_DRIVER: string;
+  TENANT_SLUG: string;
+  EMAIL_DRIVER: string;
+  SMTP_HOST: string;
+  SMTP_PORT: string;
+  SMTP_FROM: string;
 }
 
 /**
@@ -60,6 +68,13 @@ export class EnvService {
       LOG_LEVEL: process.env.LOG_LEVEL || 'info',
       SECURITY_HEADERS: process.env.SECURITY_HEADERS || 'on',
       GLOBAL_RATE_LIMIT_PER_MIN: process.env.GLOBAL_RATE_LIMIT_PER_MIN || '',
+      DEPLOYMENT_MODE: process.env.DEPLOYMENT_MODE || 'single',
+      RATE_LIMIT_DRIVER: process.env.RATE_LIMIT_DRIVER || '',
+      TENANT_SLUG: process.env.TENANT_SLUG || '',
+      EMAIL_DRIVER: process.env.EMAIL_DRIVER || 'mock',
+      SMTP_HOST: process.env.SMTP_HOST || '',
+      SMTP_PORT: process.env.SMTP_PORT || '',
+      SMTP_FROM: process.env.SMTP_FROM || '',
       WORKER_PROBE_INTERVAL_MS: Number(process.env.WORKER_PROBE_INTERVAL_MS) || 60_000,
     };
 

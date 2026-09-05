@@ -394,3 +394,10 @@ Done 2026-09-05 (ADR-022):
 - [x] UI primitives: `<Skeleton/>` (به‌جای اسپینر)، `<Num>` (ارقام فارسی + tabular + bidi isolate)، تمام انیمیشن‌ها تحت prefers-reduced-motion
 - [ ] اعمال همین لایه در بقیهٔ تب‌ها (drafts/kitchen/security) هم‌راستا با همین قواعد
 - [x] عامل احراز ایمیل/جیمیل ✓ (ADR-026: SMTP واقعی stdlib + کارت ورود دوکاناله)
+
+## Phase 11 — صفر خطای قابل‌رؤیت برای تست میدانی (بدون تقلب)
+
+- [x] ADR-027 + `npm run preflight`: DB + مایگریشن + storage/redis/smtp/hygiene با خروجی فارسی و exit code صادق
+- [x] `AUTH_DEPENDENCY_DOWN` (503) به‌جای 500 ناشناس روی هر دو کانال OTP؛ خطای بیزینسی (کد اشتباه) دست‌نخورده صادق می‌ماند
+- [x] billboard برای `GET /` (بدون 404 روی هاست لخت) + 404 ساخت‌یافته برای مسیرهای ناشناس
+- [x] خلاصهٔ وابستگی‌ها در بوت (`[preflight] db=… storage=… rateFloor=… eventBus=… email=…`)
