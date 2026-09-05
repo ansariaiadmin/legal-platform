@@ -2,6 +2,8 @@
 Date: 2026-09-05 · Reviewer: Arena Agent Mode (internal hostile audit) · Scope: full platform, "attack first, defend later" posture
 Standard: findings must cite file:line evidence, carry an exploitation sketch, and end in a concrete remediation. Known-by-design items are marked KBD and not re-litigated.
 
+**Status 2026-09-05 (same-day remediation, commit 49d4125 / ADR-028):** #1, #3, #4, #5-gate, #8-scanned, #9, #16 FIXED & tested. #2-contract-test FIXED (strict ZarinPal-shaped stub), #2b CI profile OPEN. OPEN: #6 (email factor + step-up), #7 (KDF calibration), #10 (per-file egress), #12-13-15 (guardian defaults/alerting/budget halt). Phase 12 in ROADMAP owns the rest.
+
 ---
 
 ## Verdict in one line
