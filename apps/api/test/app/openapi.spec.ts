@@ -63,6 +63,13 @@ describe('OpenAPI completeness (P5-T1)', () => {
       '/dashboard/security/reports/latest',
       '/dashboard/security/scan',
       '/dashboard/security/schedule',
+      // P8 surfaces
+      '/dashboard/vault/areas',
+      '/dashboard/vault/rotation/advice',
+      '/dashboard/vault/rotation/rotate-all',
+      '/dashboard/setup',
+      '/dashboard/ops/backup',
+      '/dashboard/ops/deployment',
     ];
 
     const missing = required.filter((p) => !paths.some((x) => x === p || x === `/api${p}`));
@@ -76,7 +83,7 @@ describe('OpenAPI completeness (P5-T1)', () => {
     );
     const ops = Object.values(doc.paths).flatMap((p) => Object.values(p as Record<string, { tags?: string[]; summary?: string }>));
     const tagged = new Set(ops.flatMap((o) => o.tags ?? []));
-    for (const t of ['corpus', 'rag', 'machine-tokens', 'ext', 'orchestrator', 'security']) {
+    for (const t of ['corpus', 'rag', 'machine-tokens', 'ext', 'orchestrator', 'security', 'vault', 'setup', 'ops']) {
       expect([...tagged]).toContain(t);
     }
   });

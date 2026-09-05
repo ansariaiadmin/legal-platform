@@ -11,6 +11,8 @@ import { RagModule } from './modules/rag/rag.module';
 import { MachineTokensModule } from './modules/machine-tokens/machine-tokens.module';
 import { SecurityModule } from './modules/security/security.module';
 import { OpsModule } from './modules/ops/ops.module';
+import { AuthVaultModule } from './modules/authvault/authvault.module';
+import { SetupModule } from './modules/setup/setup.module';
 import { ConsultationModule } from './modules/consultation/consultation.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { ClientModule } from './modules/billing/client.module';
@@ -41,6 +43,8 @@ import { AuthJwtModule } from './security/jwt.module';
     MachineTokensModule,
     SecurityModule,
     OpsModule,
+    AuthVaultModule,
+    SetupModule,
     NotificationsModule,
     ConsultationModule,
     ClientModule,

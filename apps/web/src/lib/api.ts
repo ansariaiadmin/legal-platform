@@ -11,6 +11,34 @@ export function getToken(): string | null {
   return window.localStorage.getItem(TOKEN_KEY);
 }
 
+const AREA_TICKETS_KEY = 'lp_area_tickets';
+
+/** P8 area tickets: per-area HMAC tickets (12h) the unlock dialog mints. */
+export function getAreaTicket(area: string): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(AREA_TICKETS_KEY);
+    const map = raw ? (JSON.parse(raw) as Record<string, { ticket: string; expiresAt: string }>) : {};
+    const rec = map[area];
+    if (!rec || Date.parse(rec.expiresAt) <= Date.now()) return null;
+    return rec.ticket;
+  } catch {
+    return null;
+  }
+}
+
+export function setAreaTicket(area: string, rec: { ticket: string; expiresAt: string } | null) {
+  if (typeof window === 'undefined') return;
+  let map: Record<string, { ticket: string; expiresAt: string }> = {};
+  try {
+    const raw = window.localStorage.getItem(AREA_TICKETS_KEY);
+    map = raw ? (JSON.parse(raw) as typeof map) : {};
+  } catch { /* corrupt → start fresh */ }
+  if (rec) map[area] = rec;
+  else delete map[area];
+  window.localStorage.setItem(AREA_TICKETS_KEY, JSON.stringify(map));
+}
+
 export function setToken(token: string | null) {
   if (typeof window === 'undefined') return;
   if (token) window.localStorage.setItem(TOKEN_KEY, token);
@@ -30,6 +58,13 @@ async function request<T>(method: string, path: string, body?: unknown, isForm =
   const token = getToken();
   const headers: Record<string, string> = {};
   if (token) headers.Authorization = `Bearer ${token}`;
+  // locked-area calls carry the ticket automatically — one CPU cycle of UX
+  for (const area of ['config', 'vault', 'ops']) {
+    if (path.includes(`/dashboard/${area}`)) {
+      const ticket = getAreaTicket(area);
+      if (ticket) headers['X-Area-Ticket'] = ticket;
+    }
+  }
   let payload: BodyInit | undefined;
   if (body !== undefined) {
     if (isForm) {

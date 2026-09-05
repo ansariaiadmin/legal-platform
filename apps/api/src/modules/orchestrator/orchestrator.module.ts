@@ -1,3 +1,4 @@
+import { AuthVaultModule } from '../authvault/authvault.module';
 import { Module, forwardRef } from '@nestjs/common';
 import { OrchestratorController } from './orchestrator.controller';
 import { OrchestratorService } from './orchestrator.service';
@@ -25,7 +26,7 @@ import { AuditModule } from '../audit/audit.module';
 import { CorpusModule } from '../corpus/corpus.module';
 
 @Module({
-  imports: [AuditModule, forwardRef(() => CorpusModule)],
+  imports: [AuditModule, forwardRef(() => CorpusModule), forwardRef(() => AuthVaultModule)],
   controllers: [OrchestratorController, ConfigHubController],
   providers: [
     OrchestratorService,

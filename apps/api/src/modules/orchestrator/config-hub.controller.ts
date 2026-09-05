@@ -8,6 +8,7 @@ import { CurrentUser } from '../../security/current-user.decorator';
 import type { AuthenticatedUser } from '../../security/authenticated-user';
 import { UserRole } from '@legal-platform/domain';
 import { ConfigHubService, type BrainTarget, type PresetTier } from './config-hub.service';
+import { AreaLockGuard, AreaLocked } from '../authvault/area-lock.guard';
 
 class BrainPatchDto {
   @ApiProperty({ enum: ['local', 'cloud'] })
@@ -46,7 +47,8 @@ class TestConnectionDto extends BrainPatchDto {}
  */
 @ApiTags('config-hub')
 @Controller('dashboard/config')
-@UseGuards(JwtAccessGuard, RolesGuard)
+@UseGuards(JwtAccessGuard, RolesGuard, AreaLockGuard)
+@AreaLocked('config') // P8-T2: EVERY write/read of brain config sits behind the optional second lock
 export class ConfigHubController {
   constructor(private readonly hub: ConfigHubService) {}
 

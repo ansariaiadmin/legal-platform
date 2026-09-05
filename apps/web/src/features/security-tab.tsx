@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { t } from '@/i18n';
+import { VaultPanel } from './vault-panel';
 
 interface Posture {
   scanned: boolean;
@@ -169,6 +170,9 @@ export function SecurityTab() {
           </tbody>
         </table>
       </div>
+
+      {/* P8: the password & security robot lives INSIDE the security desk */}
+      <VaultPanel />
     </section>
   );
 }

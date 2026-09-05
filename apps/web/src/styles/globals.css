@@ -321,3 +321,29 @@ body[data-theme='light'] {
 .tour-card p { margin: 0 0 12px; color: var(--text-dim); font-size: 14px; line-height: 1.8; }
 .tour-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .tour-stepper { font-size: 12px; color: var(--muted, var(--text-dim)); margin-inline-start: auto; }
+
+/* P8 responsive law — one shell, every device: phone OTP users and laptop
+   partners see the same powers without horizontal scroll gymnastics. */
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+@media (max-width: 640px) {
+  .shell { padding: 12px 10px 96px; }
+  .topbar h1 { font-size: 18px; }
+  .card { padding: 12px !important; }
+  .tour-card { inset-inline: 8px; bottom: 8px; max-width: none; }
+  table { font-size: 12px !important; }
+}
+@media (min-width: 641px) and (max-width: 1100px) {
+  .shell { max-width: 100%; padding: 16px 20px 80px; }
+}
+/* grids collapse gracefully */
+.card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }

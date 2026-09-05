@@ -293,6 +293,30 @@ Telegram mini-app, تلفن و… consume it identically.
 - [~] **P5-T4** Persian i18n keys (P5): `library/drafts/machines` scoped; tab headings land; full literal sweep continues in P6 (ADR-020 policy: new strings key-only) (web feature
   `features/agents/`).
 
+## Phase 8 — Vault desk & zero-friction onboarding (قفل + جادوگر)
+
+Done 2026-09-05 (ADR-023):
+
+- [x] **P8-T1** Setup wizard — server-side state machine with seeded defaults
+  (Iran profile, counsel preset, 10/20/30 plans), strict ordering, resume
+  across devices, owner-only reset; web overlay + auto-start on first login.
+- [x] **P8-T2** Area locks (config/vault/ops): scrypt-hashed passwords, 12h
+  HMAC tickets with epoch-based mass invalidation, rate-limited unlock with
+  lockout binding even the right password; `@AreaLocked` guard on config
+  writes; web unlock dialog feeds tickets into api.ts automatically.
+- [x] **P8-T3** Passkeys: WebAuthn ceremony over Node stdlib (one-shot TTL
+  challenges, true ES256 assertion verification, monotonic counters —
+  cloned authenticators flagged `AUTH_CREDENTIAL_COMPROMISED`); register/
+  login/list/revoke endpoints + browser wiring in the vault panel.
+- [x] **P8-T4** Rotation robot: staleness advice per secret class (never/
+  aging/overdue, 1-year JWT env honesty note), one-button rotate-all —
+  machine tokens re-issued same-scope, area epochs bumped, ONE-TIME
+  credentials file downloaded.
+- [x] **P8-T5** Deployment readout `/dashboard/ops/deployment` — single-node
+  blessed; `DEPLOYMENT_MODE=multi` without Redis = loud warning, not silence.
+- [x] **P8-T6** Responsive laws: wrap-safe tabs/topbar, collapsing card
+  grids, phone/平板 breakpoints; wizard + vault usable on mobile fully.
+
 ## Phase 7 — World-facing product (هر کشور، هر زبان، یک باینری)
 
 Done 2026-09-05 (ADR-022):

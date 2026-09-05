@@ -15,6 +15,7 @@ import { DraftsTab } from '@/features/drafts-tab';
 import { SecurityTab } from '@/features/security-tab';
 import { Tour } from '@/features/tour';
 import { UiPrefsBar } from '@/features/ui-prefs-bar';
+import { SetupWizardOverlay } from '@/features/setup-wizard';
 
 type TabId = 'home' | 'brain' | 'fleet' | 'chat' | 'files' | 'kitchen' | 'telecoms' | 'library' | 'drafts' | 'security';
 
@@ -51,7 +52,16 @@ export default function Dashboard() {
   useEffect(() => {
     const existing = getToken();
     setTokenState(existing);
-    if (existing) void refreshBrain();
+    if (existing) {
+      void refreshBrain();
+      // P8: first login ever → step into the wizard (server marks it idempotent)
+      api
+        .get<{ started: boolean }>('/dashboard/setup')
+        .then(async (s) => {
+          if (!s.started) await api.post('/dashboard/setup/start', {});
+        })
+        .catch(() => undefined);
+    }
     setBooting(false);
   }, [refreshBrain]);
 
@@ -108,6 +118,7 @@ export default function Dashboard() {
           {tab === 'library' && <LibraryTab />}
           {tab === 'drafts' && <DraftsTab />}
           {tab === 'security' && <SecurityTab />}
+          <SetupWizardOverlay onNavigate={(id) => setTab(id as TabId)} />
           <Tour activeTab={tab} onNavigate={(id) => setTab(id as TabId)} />
         </>
       )}

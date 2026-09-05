@@ -5,6 +5,60 @@ a new ADR. `scripts/agent_state.json.architectural_decisions` mirrors this file.
 
 ---
 
+## ADR-023: The vault desk — area locks, real passkeys, a rotation robot, and an honest single/multi story (P8, 2026-09-05)
+
+**Status**: accepted · **Area**: authN hardening / ops / deployment · **Phase**: P8
+
+**Context.** The owner wants: real gates on important surfaces beyond the
+session ("برای تمام قسمت های مهم رمز بزاره"), a step-by-step setup wizard,
+passwords that can be OTP-mobile AND biometric (fingerprint/face), a panel
+robot that nags about credential age and rotates EVERYTHING on one button
+with a downloadable file, and free hands for single- OR multi-server
+deployment — guards against the owner misconfiguring themselves.
+
+**Decision.**
+1. **Area locks are a second, independent layer.** `AreaLockService` stores
+   scrypt(salt, password) ONLY; unlock mints a 12h HMAC ticket
+   `alt_<area>_<id>_<exp>_<epoch>_<sig>`, and **bumping the area epoch
+   (password change/disable) instantly invalidates every outstanding
+   ticket**. Unlock attempts are rate-limited with 5-min lockout — lockout
+   binds even the CORRECT password (the spec pins both). Ticket verification
+   is stateless (no storage round-trip per request).
+   `ConfigHubController` (brain + profile writes) is `@AreaLocked('config')`
+   — the session proves WHO you are; the lock re-challenges WHAT you touch.
+2. **Passkeys are real WebAuthn math, stdlib-only.** Challenges: random,
+   one-shot (deleted even on failure), TTL 5min. Login verification is the
+   actual ceremony verification: ES256 signature over
+   `authenticatorData ‖ SHA-256(clientDataJSON)` with the stored P-256 SPKI
+   key, plus monotonic signature counters — a counter rewind returns
+   `AUTH_CREDENTIAL_COMPROMISED` because that is what a cloned authenticator
+   looks like. Attestation is honestly `none` and documented.
+3. **The rotation robot rotates what the PLATFORM OWNS — and says so.**
+   `rotate-all` revokes every live machine token and re-issues same-label
+   same-scope replacements, bumps area-lock epochs, records rotation epochs
+   persisted across restarts, and returns a ONE-TIME `credentialsFile` (the
+   dashboard downloads it as a blob; the server keeps no copy). Env-owned
+   JWT/encryption secrets are listed as notes-reminders, NOT silently
+   "rotated" — the file explicitly tells the operator those live in env.
+4. **Setup wizard is a server-side state machine**, not a client flag:
+   `GET/POST /dashboard/setup`, ordered steps with seeded defaults (Iran
+   profile, counsel preset, 10/20/30-min plans), payload-required steps
+   refuse silent skips, state survives restart (resume from the phone you
+   left on the desk). The web overlay is a thin renderer.
+5. **Deployment shapes: honest readout, not promises.** `/dashboard/ops/
+   deployment` reports in-process bus/limiter truth; `DEPLOYMENT_MODE=multi`
+   WITHOUT `REDIS_URL` is surfaced as an explicit warning — the org is
+   protected from its own misconfig instead of being green-washed.
+
+**Tests** — 8 new specs incl. scrypt roundtrip, ticket-epoch invalidation,
+restart-persistent locks, rate-limited lockout that even the RIGHT password
+can't bypass, full ES256 WebAuthn ceremony with real Node-generated keys,
+cloned-authenticator detection, rotate-all semantics (old dead/new live/
+file contents/restart-surviving epochs), HTTP-level area gate on profile
+writes, wizard ordering/resume/reset. 306 jest total before this ADR.
+
+---
+
 ## ADR-022: One binary, many countries — i18n engine, themes, tour, backup, and a bilingual international desk (P7, 2026-09-05)
 
 **Status**: accepted · **Area**: productization / UX / ops · **Phase**: P7
