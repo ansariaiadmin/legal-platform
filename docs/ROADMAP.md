@@ -127,6 +127,31 @@ the corpus becomes a living library, not a black box.
   12 py tests incl. real-ZIP docx fixture and a crafted FlateDecode PDF;
   ADR-013 pinned. **API 172 jest — Python 36 unittest — build clean.**
 
+## Phase 1f — Self-Service Dashboard & The Live Kitchen (پلتفرمِ خودپیکربند)
+
+The owner configures EVERYTHING with tabs or just by TALKING to the Leader —
+«به مدل محلی وصل شو آدرس http://gpu-box:8080» → پیشنهاد → «بله» → وصل شد.
+
+- [x] **P1f-T1** `ConfigHubService` + `ConfigHubController`: GET view
+  (secrets masked `••••last4`, env/runtime source per brain), POST brain
+  (persisted via StorageProvider port `runtime/brain-config.json`),
+  POST brain/test (honest probe), POST preset. Router consults overrides
+  first — secrecy law still untouchable (no UI switch for it, ever).
+- [x] **P1f-T2** Conversational configuration: deterministic Persian
+  intent parsing → proposal → confirm (chat «بله» OR button
+  `/leader/config-proposals/:id/accept`) → applied + audited.
+  Owner-scoped; intruder proposals are refused.
+- [x] **P1f-T3** `DEV_DASHBOARD_TOKEN` sandbox door — dev-only bypass with
+  fixed `dev-owner` identity; production short-circuits before comparing.
+- [x] **P1f-T4** Next.js RTL Persian dashboard: six tabs (خانه، اتصال مغز،
+  ناوگان، چت با لیدر، فایل‌ها، آشپزخانه زنده), login by OTP + dev token,
+  same-origin `/api` rewrite so preview hosts never touch localhost.
+- [x] **P1f-T5** 🍳 THE live kitchen: SSE → agent orbs light while cooking,
+  golden/violet/green packets FLY leader→expert→back, inference decisions
+  carry model badges, event ticker à la Telegram. `node:http` raw proxy
+  because Next's patched fetch buffers event streams to death (documented).
+- [x] **P1f-T6** +15 jest (187 total), ADR-014, all suites + builds green.
+
 ## Phase 2 — Data Lifecycle (چرخه حیات داده)
 
 Autonomous collectors → validators → updaters. Trust tiers per SPEC §9.

@@ -1,5 +1,6 @@
 import { ConfigService } from '@nestjs/config';
 import { LeaderConversationService } from '../../src/modules/orchestrator/leader-conversation.service';
+import { ConfigHubService } from '../../src/modules/orchestrator/config-hub.service';
 import { FileIntelligenceService } from '../../src/modules/orchestrator/file-intelligence.service';
 import { PlacementService } from '../../src/modules/orchestrator/placement.service';
 import { LeaderVoiceService } from '../../src/modules/orchestrator/leader-voice.service';
@@ -59,8 +60,9 @@ async function bootstrap() {
   const orchestrator = new OrchestratorService(registry, governance, router, bus, new IntentClassifier());
   const files = new FileIntelligenceService(memStorage(), offlinePyj());
   const voice = new LeaderVoiceService();
-  const conversations = new LeaderConversationService(orchestrator, voice, files, new PlacementService(registry), bus);
-  return { conversations, files, orchestrator, governance, bus, voice };
+  const configHub = new ConfigHubService(new ConfigService({ AI_LOCAL_BASE_URL: '', AI_BASE_URL: '' }), memStorage());
+  const conversations = new LeaderConversationService(orchestrator, voice, files, new PlacementService(registry), bus, configHub);
+  return { conversations, files, orchestrator, governance, bus, voice, configHub };
 }
 
 describe('Leader conversation — THE sandbox (P1e / ADR-013)', () => {
@@ -157,5 +159,51 @@ describe('Leader conversation — THE sandbox (P1e / ADR-013)', () => {
       await conversations.chat({ conversationId: conv.conversationId, text: `پیام ${i}` }, OWNER);
     }
     expect(conversations.get(conv.conversationId)!.turns.length).toBeLessThanOrEqual(100);
+  });
+
+  // ---- P1f: conversational configuration ----------------------------------
+
+  it('«مدل محلی وصل کن» → proposal → «بله» → brain actually rewires', async () => {
+    const { conversations, configHub } = await bootstrap();
+    const conv = conversations.open(OWNER.id);
+    const proposalReply = await conversations.chat(
+      { conversationId: conv.conversationId, text: 'به مدل محلی وصل شو آدرس http://gpu-box:8080' },
+      OWNER,
+    );
+    expect(proposalReply.configProposal).toBeDefined();
+    expect(proposalReply.text).toContain('gpu-box');
+    expect(await configHub.peek().local).toBeUndefined(); // NOT yet applied
+
+    const confirmReply = await conversations.chat(
+      { conversationId: conv.conversationId, text: 'بله' },
+      OWNER,
+    );
+    expect(confirmReply.configApplied?.kind).toBe('connect_local');
+    const local = await configHub.effectiveLocal();
+    expect(local?.baseUrl).toBe('http://gpu-box:8080');
+  });
+
+  it('proposal can also be accepted by BUTTON (leader/config-proposals path)', async () => {
+    const { conversations, configHub } = await bootstrap();
+    const conv = conversations.open(OWNER.id);
+    const reply = await conversations.chat(
+      { conversationId: conv.conversationId, text: 'تیر سناتور رو فعال کن' },
+      OWNER,
+    );
+    const applied = await conversations.acceptProposal(reply.configProposal!.proposalId, OWNER.id);
+    expect(applied.kind).toBe('set_preset');
+    expect(configHub.peek().preset).toBe('senator');
+  });
+
+  it('another user cannot hijack MY pending proposal', async () => {
+    const { conversations } = await bootstrap();
+    const conv = conversations.open(OWNER.id);
+    const reply = await conversations.chat(
+      { conversationId: conv.conversationId, text: 'تیر کانسل رو فعال کن' },
+      OWNER,
+    );
+    await expect(
+      conversations.acceptProposal(reply.configProposal!.proposalId, 'intruder'),
+    ).rejects.toThrow('another user');
   });
 });

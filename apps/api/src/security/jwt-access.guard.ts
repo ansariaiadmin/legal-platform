@@ -39,6 +39,23 @@ export class JwtAccessGuard implements CanActivate {
       throw new UnauthorizedException(ERROR_CODES.AUTH_MISSING_TOKEN);
     }
 
+    // -- sandbox door (ADR-014) ---------------------------------------------
+    // Exactly one convenience: when the deployer EXPLICITLY exports
+    // DEV_DASHBOARD_TOKEN outside production, a bearer equal to that secret
+    // maps to a fixed dev owner so the dashboard can be exercised where no
+    // Postgres/Redis exists (e.g. online sandboxes). In production the check
+    // short-circuits BEFORE the comparison — the env var alone does nothing.
+    const devToken = this.configService.get<string>('DEV_DASHBOARD_TOKEN');
+    const isProd = (this.configService.get<string>('NODE_ENV') ?? 'development') === 'production';
+    if (!isProd && devToken && token === devToken) {
+      request.user = {
+        id: 'dev-owner',
+        sessionId: 'dev-session',
+        roles: ['lawyer_owner'],
+      };
+      return true;
+    }
+
     let claims: AccessTokenClaims;
     try {
       claims = this.jwtService.verify<AccessTokenClaims>(token, {

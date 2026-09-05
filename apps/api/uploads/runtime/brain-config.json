@@ -1,0 +1,8 @@
+{
+  "local": {
+    "baseUrl": "http://my-gpu:8080",
+    "model": "local-box-default"
+  },
+  "updatedAt": "2026-09-05T12:29:38.831Z",
+  "updatedBy": "dev-owner"
+}

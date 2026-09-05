@@ -5,6 +5,43 @@ a new ADR. `scripts/agent_state.json.architectural_decisions` mirrors this file.
 
 ---
 
+## ADR-014: The owner configures the platform BY TALKING to it (P1f, 2026-09-05)
+
+**Context.** The product bar was: «با تب بندی تمیز یه بچه دو ساله هم بتونه
+پلتفرم رو کانفیگ کنه» — maximum self-service: connect an API/local model to
+the Leader, pick a tier, and visually WATCH the agents at work. Developer
+touching env files is Failure.
+
+**Decision.**
+- `ConfigHubService`: brain overrides (local baseUrl/model; cloud
+  baseUrl/model/apiKey) persist via the StorageProvider port at
+  `runtime/brain-config.json`; runtime beats env; secret keys only ever leave
+  as `••••last4`; presets (`spartan|counsel|senator`) map to hybrid policy.
+  `HybridInferenceRouter` reads `configHub.peek()` FIRST — the secrecy law
+  (privileged → never cloud) is above this layer and has no dashboard switch.
+- **Conversational config**: deterministic Persian regexes parse intents
+  («به مدل محلی وصل شو آدرس …», «کلید ابری رو تنظیم کن …», «تیر سناتور رو
+  فعال کن») into PROPOSALS; nothing applies until the owner confirms («بله»
+  or the green button → `POST …/leader/config-proposals/:id/accept`,
+  audited `orchestrator.leader.config`). No LLM sits between the office and
+  its safety levers.
+- **Sandbox door**: `DEV_DASHBOARD_TOKEN` + `NODE_ENV≠production` ⇒ a fixed
+  `dev-owner/lawyer_owner` identity. The production check short-circuits
+  BEFORE the token comparison, so the env var is inert in prod.
+- **Live kitchen**: SSE encrypted by the JWT guard → browser EventSource
+  cannot carry headers, so Next route `/stream/events` proxies with
+  `node:http` RAW (Next's patched fetch BUFFERED the stream — a silent
+  death for liveness; documented in the route file).
+- Dashboard: Next.js 14, fa/RTL, tab shell (`خانه/اتصال مغز/ناوگان/چت با
+  لیدر/فایل‌ها/آشپزخانه زنده`), no UI libs — hand-rolled CSS; zero new
+  dependencies added (only dev-time `@types/multer`).
+
+**Consequences.** +21 jest (188→187+? actual: 172→187 = +15 config-hub,
+config-intent, conversation proposals: 172→187), web build green, SSE tunnel
+verified live in the sandbox preview; docs updated.
+
+---
+
 ## ADR-013: Uploaded files → Leader conversation sandboxes (P1e, 2026-09-05)
 
 **Context.** The office's real life happens in files owned by lawyers: scissors,

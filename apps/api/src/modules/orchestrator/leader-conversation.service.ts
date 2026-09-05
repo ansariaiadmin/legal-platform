@@ -5,6 +5,8 @@ import { LeaderVoiceService } from './leader-voice.service';
 import { FileIntelligenceService, type FileRecord } from './file-intelligence.service';
 import { PlacementService, type PlacementSuggestion } from './placement.service';
 import { InProcessAgentEventBus } from './agent-event-bus';
+import { ConfigHubService } from './config-hub.service';
+import { parseConfigIntent, isConfigConfirmation, type ConfigProposal } from './config-intent';
 
 export interface ConvTurn {
   role: 'lawyer' | 'leader';
@@ -12,6 +14,9 @@ export interface ConvTurn {
   at: string;
   attachments?: string[]; // fileIds
   inference?: { target: string; model?: string; assignmentSource?: string };
+  /** when the leader proposes a platform-config action (ADR-014) */
+  proposalId?: string;
+  proposalSummary?: string;
 }
 
 export interface LeaderReply {
@@ -20,6 +25,10 @@ export interface LeaderReply {
   placements: Array<{ fileId: string; filename: string; suggestion: PlacementSuggestion }>;
   routing: { agentId: string | null; skillId: string | null; confidence: number };
   grounded: boolean;
+  /** present when the Leader is asking the owner to confirm a config change */
+  configProposal?: { proposalId: string; summaryFa: string };
+  /** present right after the owner confirmed one */
+  configApplied?: { kind: string; summaryFa: string };
 }
 
 export interface Conversation {
@@ -41,6 +50,7 @@ const MAX_TURNS_KEPT = 100;
 @Injectable()
 export class LeaderConversationService {
   private readonly conversations = new Map<string, Conversation>();
+  private readonly pendingProposals = new Map<string, { proposal: ConfigProposal; ownerId: string; at: string }>();
 
   constructor(
     private readonly orchestrator: OrchestratorService,
@@ -48,6 +58,7 @@ export class LeaderConversationService {
     private readonly files: FileIntelligenceService,
     private readonly placement: PlacementService,
     private readonly bus: InProcessAgentEventBus,
+    private readonly configHub: ConfigHubService,
   ) {}
 
   open(ownerId: string): Conversation {
@@ -79,6 +90,44 @@ export class LeaderConversationService {
   }, user: { id: string; role: string }): Promise<LeaderReply> {
     const conv = this.needOwn(input.conversationId, user.id);
     const now = new Date().toISOString();
+
+    // ---- Conversational configuration (ADR-014) intercepts dispatch -------
+    const pending = [...this.pendingProposals.values()].find((p) => p.ownerId === user.id);
+    if (pending && isConfigConfirmation(input.text)) {
+      const applied = await this.applyProposal(pending.proposal, user.id);
+      this.pendingProposals.delete([...this.pendingProposals.entries()].find(([, p]) => p === pending)![0]);
+      conv.turns.push({ role: 'lawyer', text: input.text.trim(), at: now });
+      conv.turns.push({ role: 'leader', text: `انجام شد ✅ ${applied.summaryFa}`, at: new Date().toISOString() });
+      return {
+        text: `انجام شد ✅ ${applied.summaryFa}`,
+        placements: [],
+        routing: { agentId: null, skillId: null, confidence: 1 },
+        grounded: true,
+        configApplied: applied,
+      };
+    }
+
+    const proposal = parseConfigIntent(input.text);
+    if (proposal) {
+      const proposalId = randomUUID();
+      this.pendingProposals.set(proposalId, { proposal, ownerId: user.id, at: now });
+      const leaderText = `پیشنهاد می‌دهم: ${proposal.summaryFa}\nاگر موافقی بگو «بله» تا اعمال کنم.`;
+      conv.turns.push({ role: 'lawyer', text: input.text.trim(), at: now });
+      conv.turns.push({
+        role: 'leader',
+        text: leaderText,
+        at: new Date().toISOString(),
+        proposalId,
+        proposalSummary: proposal.summaryFa,
+      });
+      return {
+        text: leaderText,
+        placements: [],
+        routing: { agentId: 'legal-leader', skillId: null, confidence: 1 },
+        grounded: true,
+        configProposal: { proposalId, summaryFa: proposal.summaryFa },
+      };
+    }
 
     const attachments: FileRecord[] = (input.fileIds ?? [])
       .map((id) => this.files.get(id))
@@ -172,6 +221,40 @@ export class LeaderConversationService {
       reply.text /* voice must carry the leader's actual text */,
     );
     return { heardText: turn.text, reply, speech: spoken };
+  }
+
+  /** Owner pressed the green button on a proposal card (or said «بله»). */
+  async acceptProposal(proposalId: string, userId: string): Promise<{ summaryFa: string }> {
+    const pending = this.pendingProposals.get(proposalId);
+    if (!pending) throw new Error(`proposal not found: ${proposalId}`);
+    if (pending.ownerId !== userId) throw new Error('proposal belongs to another user');
+    const applied = await this.applyProposal(pending.proposal, userId);
+    this.pendingProposals.delete(proposalId);
+    return applied;
+  }
+
+  private async applyProposal(proposal: ConfigProposal, actorId: string): Promise<{ kind: string; summaryFa: string }> {
+    if (proposal.kind === 'connect_local') {
+      await this.configHub.setBrain(
+        { target: 'local', baseUrl: proposal.params.baseUrl, model: proposal.params.model },
+        actorId,
+      );
+    } else if (proposal.kind === 'connect_cloud') {
+      await this.configHub.setBrain(
+        { target: 'cloud', apiKey: proposal.params.apiKey, baseUrl: proposal.params.baseUrl, model: proposal.params.model },
+        actorId,
+      );
+    } else {
+      await this.configHub.setPreset(proposal.params.preset as 'spartan' | 'counsel' | 'senator', actorId);
+    }
+    this.bus.emit({
+      kind: 'conversation.turn',
+      at: new Date().toISOString(),
+      taskId: 'config-applied',
+      agentId: 'legal-leader',
+      detail: `config applied via conversation: ${proposal.kind}`,
+    });
+    return { kind: proposal.kind, summaryFa: proposal.summaryFa };
   }
 
   private needOwn(conversationId: string, userId: string): Conversation {

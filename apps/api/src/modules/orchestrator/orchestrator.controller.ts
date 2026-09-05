@@ -400,6 +400,15 @@ export class OrchestratorController {
     return reply;
   }
 
+  @Post('leader/config-proposals/:proposalId/accept')
+  @Roles(UserRole.LAWYER_OWNER)
+  @ApiOperation({ summary: 'Green-button a config the Leader proposed in chat (ADR-014)' })
+  async acceptConfig(@Param('proposalId') proposalId: string, @CurrentUser() user: AuthenticatedUser) {
+    const applied = await this.conversations.acceptProposal(proposalId, user.id);
+    await this.auditSafe(user.id, 'orchestrator.leader.config', proposalId, applied);
+    return applied;
+  }
+
   // ---- voice: the manager speaks, the Leader answers ---------------------
 
   @Post('voice/session')

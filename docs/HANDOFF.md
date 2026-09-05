@@ -5,7 +5,7 @@
 ## Where we are
 
 - **Phase:** phase-1-expert-tree — Expert agents: civil, criminal, family, registration
-- **Last checkpoint:** 2026-09-05T12:08:18.249Z
+- **Last checkpoint:** 2026-09-05T12:36:44.421Z
 - **Git:** run `git log --oneline -3` to see the last commits.
 
 ## Protocol (non-negotiable)
@@ -27,15 +27,15 @@
 - [ ] P1e-T4: leader-conversation chat+voice sessions with file context
 - [ ] P1e-T5: inline TS fallback analysis when queue down (SPEC §2)
 - [ ] P1e-T6: tests + ADR-013 + docs + fleet/roadmap updates
+- [ ] P1f-T1 ConfigHubService: runtime brain config facade — GET merged view (masked cloud key, effective vs env), POST config/brain (persist via StorageProvider runtime/config.json), POST config/test-connection (honest probe), POST config/preset (SPARTAN/COUNSEL/SENATOR matrix apply), HybridInferenceRouter consults overrides first
+- [ ] P1f-T2 Conversational config in LeaderConversationService: deterministic Persian intent regexes (connect local X / set cloud key / activate tier) -> proposal card -> chat confirm 'بله' or POST proposals/:id/accept -> applies via ConfigHub + audit + SSE event
+- [ ] P1f-T3 JwtAccessGuard dev bypass: DEV_DASHBOARD_TOKEN env, NODE_ENV!==production only, fixed dev-owner identity lawyer_owner, documented in .env.example + ADR-014
+- [ ] P1f-T4 Next.js RTL fa dashboard: tabs خانه/اتصال مغز/ناوگان/چت با لیدر/فایل‌ها/آشپزخانه زنده, lib/api.ts token, next rewrites /api proxy, login tab OTP + dev token
+- [ ] P1f-T5 Creative live visualization tab: SSE EventSource -> agent node orbs, flying task packets leader->expert, inference badges, event ticker, pure CSS animations
+- [ ] P1f-T6 Tests (config-hub + conversational + bypass-off-in-prod) + ADR-014 + ROADMAP/AGENT_FLEET/.env.example + checkpoint sync + push
 
 ## Completed
 
-- [x] P1c-T4: spawn/governance invariants + audit + events (2026-09-05)
-- [x] P1c-T5: python workers package (stdlib, RESP client, persian_tools) (2026-09-05)
-- [x] P1c-T6: python worker tests + docs + ADR-008/009/010 (2026-09-05)
-- [x] P1d-T1: model-assignment registry (per-agent local/cloud) (2026-09-05)
-- [x] P1d-T2: leader-lend fallback in hybrid router + tracing signal (2026-09-05)
-- [x] P1d-T3: dashboard model matrix endpoints + fleet join (2026-09-05)
 - [x] P1d-T4: pylegal model_client (stdlib urllib, OpenAI-compatible) (2026-09-05)
 - [x] P1d-T5: TS python-jobs bridge via socket RESP (2026-09-05)
 - [x] P1d-T6: tests + docs + ADR-011/012 (2026-09-05)
@@ -45,6 +45,12 @@
 - [x] P1e-T4 (2026-09-05)
 - [x] P1e-T5 (2026-09-05)
 - [x] P1e-T6 (2026-09-05)
+- [x] P1f-T1 (2026-09-05)
+- [x] P1f-T2 (2026-09-05)
+- [x] P1f-T3 (2026-09-05)
+- [x] P1f-T4 (2026-09-05)
+- [x] P1f-T5 (2026-09-05)
+- [x] P1f-T6 (2026-09-05)
 
 ## Architectural decisions
 
@@ -62,3 +68,4 @@
 - **ADR-011** — Model matrix with Leader-lending; secrecy > pin > lend
 - **ADR-012** — One RESP client per language; queue bridge honest degradation
 - **ADR-013** — Uploaded files → Leader conversation sandboxes: FileIntelligenceService (sha256-first, py tools preferred, inline-TEXT fallback when queue down with honest status) PlacementService vocabularyScore ties into same fleet routing; LeaderConversationService owner-scoped chat+voice, turns cap=100, no grant bypass
+- **ADR-014** — Owner configures platform by talking: ConfigHubService (runtime brain overrides via StorageProvider, masked secrets, presets) + conversational config (deterministic Persian intents → proposal → confirm) + DEV_DASHBOARD_TOKEN sandbox door (prod-impotent) + SSE dashboard kitchen via node:http raw proxy (Next patched-fetch buffers event streams) Dashboard Next.js fa/RTL six tabs zero new deps; router consults hub peek first; secrecy law has no UI switch

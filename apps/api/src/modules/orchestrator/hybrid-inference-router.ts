@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type {
   HybridPolicy,
@@ -7,6 +7,7 @@ import type {
 } from '@legal-platform/shared';
 import { AgentTier } from '@legal-platform/domain';
 import { ModelAssignmentService } from './model-assignment.service';
+import { ConfigHubService } from './config-hub.service';
 
 export const HYBRID_POLICY_ENV = 'AI_HYBRID_POLICY';
 export const LOCAL_MODEL_URL_ENV = 'AI_LOCAL_BASE_URL';
@@ -43,15 +44,25 @@ export class HybridInferenceRouter implements InferenceRouter {
   constructor(
     private readonly config: ConfigService,
     private readonly assignments: ModelAssignmentService,
+    /** dashboard-set brain overrides (ADR-014) beat env, secrecy law still wins */
+    @Optional() private readonly configHub?: ConfigHubService,
+    /** test seam — constructor injection keeps unit tests hermetic */
   ) {}
 
   currentPolicy(): HybridPolicy {
+    const preset = this.configHub?.peek().preset;
+    if (preset) {
+      if (preset === 'senator') return 'hybrid_cloud_first';
+      if (preset === 'counsel') return 'hybrid_local_first';
+      return 'local_only';
+    }
     const fromEnv = this.config.get<string>(HYBRID_POLICY_ENV);
     if (
-      fromEnv === 'local_only' ||
-      fromEnv === 'cloud_only' ||
-      fromEnv === 'hybrid_local_first' ||
-      fromEnv === 'hybrid_cloud_first'
+      (fromEnv === 'local_only' ||
+        fromEnv === 'cloud_only' ||
+        fromEnv === 'hybrid_local_first' ||
+        fromEnv === 'hybrid_cloud_first') &&
+      !preset
     ) {
       return fromEnv;
     }
@@ -69,7 +80,8 @@ export class HybridInferenceRouter implements InferenceRouter {
 
   async decide(input: DecisionInput): Promise<InferenceDecision> {
     const policy = this.currentPolicy();
-    const localUrl = this.config.get<string>(LOCAL_MODEL_URL_ENV);
+    const hubLocal = this.configHub?.peek().local;
+    const localUrl = hubLocal?.baseUrl ?? this.config.get<string>(LOCAL_MODEL_URL_ENV);
     const localHealthy = await this.probeLocal();
     const budgetRemainingUsd = this.readBudget();
     const taskSensitivity = input.taskSensitivity ?? 'normal';
@@ -155,7 +167,7 @@ export class HybridInferenceRouter implements InferenceRouter {
 
   /** Local model probe. Honest failure: no healthy local => reported as such. */
   private async probeLocal(): Promise<boolean> {
-    const url = this.config.get<string>(LOCAL_MODEL_URL_ENV);
+    const url = this.configHub?.peek().local?.baseUrl ?? this.config.get<string>(LOCAL_MODEL_URL_ENV);
     if (!url) return false;
     try {
       const controller = new AbortController();
@@ -177,11 +189,11 @@ export class HybridInferenceRouter implements InferenceRouter {
   }
 
   private cloudModel(): string {
-    return this.config.get<string>(CLOUD_MODEL_ENV) || 'leader-gateway-default';
+    return this.configHub?.peek().cloud?.model || this.config.get<string>(CLOUD_MODEL_ENV) || 'leader-gateway-default';
   }
 
   private localModel(): string {
-    return this.config.get<string>(LOCAL_MODEL_ENV) || 'local-box-default';
+    return this.configHub?.peek().local?.model || this.config.get<string>(LOCAL_MODEL_ENV) || 'local-box-default';
   }
 
   describe() {

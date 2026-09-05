@@ -16,11 +16,13 @@ import { PythonWorkerService } from './python-worker.service';
 import { FileIntelligenceService } from './file-intelligence.service';
 import { PlacementService } from './placement.service';
 import { LeaderConversationService } from './leader-conversation.service';
+import { ConfigHubService } from './config-hub.service';
+import { ConfigHubController } from './config-hub.controller';
 import { AuditModule } from '../audit/audit.module';
 
 @Module({
   imports: [AuditModule],
-  controllers: [OrchestratorController],
+  controllers: [OrchestratorController, ConfigHubController],
   providers: [
     OrchestratorService,
     ExpertRegistry,
@@ -38,6 +40,7 @@ import { AuditModule } from '../audit/audit.module';
     FileIntelligenceService,
     PlacementService,
     LeaderConversationService,
+    ConfigHubService,
   ],
   exports: [
     OrchestratorService,
@@ -50,6 +53,7 @@ import { AuditModule } from '../audit/audit.module';
     PythonWorkerService,
     FileIntelligenceService,
     LeaderConversationService,
+    ConfigHubService,
   ],
 })
 export class OrchestratorModule {}
