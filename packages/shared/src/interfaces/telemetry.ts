@@ -29,7 +29,8 @@ export type AgentEventKind =
   | 'draft.generated'
   | 'draft.reviewed'
   | 'usage.alerted'
-  | 'security.scanned';
+  | 'security.scanned'
+  | 'security.regressed'; // a scan FAILURE/regression — the alert relay pages THIS, never heartbeats
 
 export interface AgentEvent {
   kind: AgentEventKind;
