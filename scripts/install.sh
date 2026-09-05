@@ -121,10 +121,21 @@ setup_env() {
     JWT_ACCESS=$(generate_secret)
     JWT_REFRESH=$(generate_secret)
     ENCRYPTION_KEY=$(generate_encryption_key)
-    
+    PG_PASS=$(generate_secret)          # hex — safe to embed in DSN without %-escaping
+    OTP_PEPPER=$(generate_secret)       # per-install HMAC pepper for OTP hashes
+
     sed -i "s/^JWT_ACCESS_SECRET=.*/JWT_ACCESS_SECRET=$JWT_ACCESS/" "$ENV_FILE"
     sed -i "s/^JWT_REFRESH_SECRET=.*/JWT_REFRESH_SECRET=$JWT_REFRESH/" "$ENV_FILE"
     sed -i "s|^ENCRYPTION_MASTER_KEY=.*|ENCRYPTION_MASTER_KEY=$ENCRYPTION_KEY|" "$ENV_FILE"
+    # Keep POSTGRES_PASSWORD and the password inside DATABASE_URL IN SYNC;
+    # the API talks to the postgres container through the DSN line.
+    sed -i "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=$PG_PASS/" "$ENV_FILE"
+    sed -i "s|^DATABASE_URL=postgresql://legal:[^@]*@|DATABASE_URL=postgresql://legal:$PG_PASS@|" "$ENV_FILE"
+    # OTP pepper: fill only if empty (never overwrite an existing one — that
+    # would brick every issued OTP)
+    if grep -qE '^OTP_HASH_PEPPER=$' "$ENV_FILE"; then
+        sed -i "s/^OTP_HASH_PEPPER=$/OTP_HASH_PEPPER=$OTP_PEPPER/" "$ENV_FILE"
+    fi
     
     log_success ".env file created with secure secrets"
 }

@@ -104,9 +104,9 @@ services:
     image: pgvector/pgvector:pg16
     container_name: legal-postgres
     environment:
-      - POSTGRES_USER=legal
-      - POSTGRES_PASSWORD=legal_password_change_me
-      - POSTGRES_DB=legal_platform
+      - POSTGRES_USER=${POSTGRES_USER:-legal}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-legal_password_change_me}
+      - POSTGRES_DB=${POSTGRES_DB:-legal_platform}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
