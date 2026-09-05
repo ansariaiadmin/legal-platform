@@ -76,6 +76,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Build workspace packages (agents + shared types needed by API/Migrations)
+        run: npm run build:packages
+
       - name: "Run migrations (idempotency proof: up, then down:all, then up again)"
         working-directory: apps/api
         env:
