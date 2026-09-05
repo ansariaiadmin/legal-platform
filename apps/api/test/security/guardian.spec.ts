@@ -177,4 +177,29 @@ describe('P6-S3 reports persist + deltas + leader feed', () => {
     expect(sched.state().intervalMs).toBe(86_400_000);
     sched.onModuleDestroy();
   });
+
+  it('#12-close: a scan with a FAILURE or a REGRESSION escalates to the critical channel', async () => {
+    const bus = new InProcessAgentEventBus();
+    const emitted: Array<{ kind: string }> = [];
+    bus.subscribe((e) => emitted.push(e as { kind: string }));
+
+    const fakeReport = (over: Partial<SecurityReport>): SecurityReport => ({
+      reportId: 'r1', at: new Date().toISOString(), standardsVersion: 't',
+      postureScore: 8, applicableChecks: 9, passed: 9, warned: 0, failed: 0,
+      results: [], deltas: { improved: [], regressed: [] }, ...over,
+    } as unknown as SecurityReport);
+    const fakeAudit = { runAndPersist: async () => fakeReport({}) };
+    const sched = new SecuritySchedulerService(fakeAudit as never, bus, new ConfigService({}));
+    await sched.runNow('manual');
+    expect(emitted.map((e) => e.kind)).toEqual(['security.scanned']); // heartbeats don't page anyone
+
+    fakeAudit.runAndPersist = async () => fakeReport({ failed: 1 });
+    await sched.runNow('manual');
+    expect(emitted.map((e) => e.kind).filter((k) => k === 'security.regressed')).toHaveLength(1); // the fire signal
+
+    fakeAudit.runAndPersist = async () =>
+      fakeReport({ deltas: { improved: [], regressed: ['auth.otp-throttle'] } });
+    await sched.runNow('manual');
+    expect(emitted.map((e) => e.kind).filter((k) => k === 'security.regressed')).toHaveLength(2);
+  });
 });

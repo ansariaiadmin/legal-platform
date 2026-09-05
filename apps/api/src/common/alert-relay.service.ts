@@ -17,6 +17,7 @@ const CRITICAL_KINDS = new Set([
   'usage.alerted',
   'task.failed',
   'model.unassigned',
+  'security.regressed', // a new FAILURE/regression in the posture — fire only, never a scan heartbeat
 ]);
 
 @Injectable()

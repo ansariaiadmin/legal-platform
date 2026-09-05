@@ -63,6 +63,18 @@ export class SecuritySchedulerService implements OnModuleInit, OnModuleDestroy {
       agentId: SECURITY_GUARDIAN_ID,
       detail: `posture=${report.postureScore}/10 passed=${report.passed} warn=${report.warned} fail=${report.failed} regressed=${report.deltas.regressed.join(',') || 'none'} reportId=${report.reportId}`,
     });
+    // #12-close: a REGRESSION or a FAIL is a fire, not a heartbeat — escalate
+    // to the critical channel (AlertRelay reads this kind and calls the
+    // office webhook) so a degradation can't die silently in the bus.
+    if (report.deltas.regressed.length > 0 || report.failed > 0) {
+      this.bus.emit({
+        kind: 'security.regressed',
+        at: report.at,
+        taskId: `sec-fire-${Date.now()}`,
+        agentId: SECURITY_GUARDIAN_ID,
+        detail: `regressed=[${report.deltas.regressed.join(',')}] failed=${report.failed}`,
+      });
+    }
     return report;
   }
 }
