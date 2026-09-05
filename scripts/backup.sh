@@ -33,17 +33,70 @@ fi
 
 DATABASE_URL="${DATABASE_URL:-postgresql://postgres:postgres@localhost:5432/legal_platform}"
 
-# Extract database connection details
-DB_HOST=$(echo "$DATABASE_URL" | grep -oP 'host=\K[^ ]+' || echo "localhost")
-DB_PORT=$(echo "$DATABASE_URL" | grep -oP 'port=\K[^ ]+' || echo "5432")
-DB_NAME=$(echo "$DATABASE_URL" | grep -oP 'dbname=\K[^ ]+' || echo "legal_platform")
-DB_USER=$(echo "$DATABASE_URL" | grep -oP 'user=\K[^ ]+' || echo "postgres")
+# Extract database connection details.
+# Supports BOTH forms:
+#   URI:     postgresql://user:pass@host:5432/dbname
+#   keyword: "host=h port=p dbname=d user=u" (libpq style)
+extract_uri_component() {
+    # $1 = DATABASE_URL (URI form), $2 = role: user|pass|host|port|name
+    echo "$1" | awk -v want="${2:-user}" '{
+        if (match($0, /^[^:]+:\/\//)) {
+            uri=$0
+            sub(/^[^:]+:\/\//, "", uri)
+            # uri = user:pass@host:port/name?params
+            auth=uri; sub(/@.*/, "", auth)
+            rest=uri; sub(/^[^@]*@/, "", rest)
+            hostport=rest; sub(/\/.*$/, "", hostport); sub(/\?.*$/, "", hostport)
+            name=rest; sub(/^[^/]*\//, "", name); sub(/\?.*$/, "", name)
+            user=auth; sub(/:.*/, "", user)
+            pass=auth; sub(/^[^:]+:/, "", pass)
+            host=hostport; sub(/:.*/, "", host)
+            port=hostport; sub(/^[^:]+:/, "", port)
+            if (want=="user") print user
+            else if (want=="pass") print pass
+            else if (want=="host") print host
+            else if (want=="port") print port
+            else if (want=="name") print name
+        }
+    }'
+}
+
+url_decode() {
+    # percent-decode for DSN credentials (pg itself decodes the URI; since we
+    # split it manually for PGPASSWORD, we must mirror that)
+    local s="${1//+/ }"
+    printf '%b' "${s//%/\\x}"
+}
+
+
+if echo "$DATABASE_URL" | grep -qE '^[a-z]+://'; then
+    DB_USER=$(extract_uri_component "$DATABASE_URL" user)
+    DB_PASS=$(extract_uri_component "$DATABASE_URL" pass)
+    DB_HOST=$(extract_uri_component "$DATABASE_URL" host); DB_HOST=${DB_HOST:-localhost}
+    DB_PORT=$(extract_uri_component "$DATABASE_URL" port); DB_PORT=${DB_PORT:-5432}
+    DB_NAME=$(extract_uri_component "$DATABASE_URL" name); DB_NAME=${DB_NAME:-legal_platform}
+else
+    DB_HOST=$(echo "$DATABASE_URL" | grep -oP 'host=\K[^ ]+' || echo "localhost")
+    DB_PORT=$(echo "$DATABASE_URL" | grep -oP 'port=\K[^ ]+' || echo "5432")
+    DB_NAME=$(echo "$DATABASE_URL" | grep -oP 'dbname=\K[^ ]+' || echo "legal_platform")
+    DB_USER=$(echo "$DATABASE_URL" | grep -oP 'user=\K[^ ]+' || true)
+    DB_PASS=$(echo "$DATABASE_URL" | grep -oP 'password=\K[^ ]+' || echo "")
+fi
+# Credential priority: what the DSN says explicitly ALWAYS wins;
+# POSTGRES_USER/POSTGRES_PASSWORD are fallback hints for the compose container.
+DB_PASS="${DB_PASS:-${POSTGRES_PASSWORD:-postgres}}"
+DB_USER="${DB_USER:-${POSTGRES_USER:-postgres}}"
+DB_PASS=$(url_decode "$DB_PASS")
+DB_NAME="${DB_NAME:-${POSTGRES_DB:-legal_platform}}"
+if echo "$DATABASE_URL" | grep -qE '^[a-z]+://[^ ]*@'; then
+    log_info "Backup target: $DB_USER@$DB_HOST:$DB_PORT/$DB_NAME"
+fi
 
 # Dump database excluding provider_configs table
 log_info "Dumping database (excluding provider_configs)..."
 DB_DUMP_FILE="$TEMP_DIR/db_dump.sql"
 
-PGPASSWORD="${POSTGRES_PASSWORD:-postgres}" pg_dump \
+PGPASSWORD="$DB_PASS" pg_dump \
     -h "$DB_HOST" \
     -p "$DB_PORT" \
     -U "$DB_USER" \
@@ -54,8 +107,8 @@ PGPASSWORD="${POSTGRES_PASSWORD:-postgres}" pg_dump \
     # Fallback: try with docker compose
     log_info "Direct pg_dump failed, trying via docker compose..."
     docker compose exec -T postgres pg_dump \
-        -U postgres \
-        -d legal_platform \
+        -U "${POSTGRES_USER:-legal}" \
+        -d "${POSTGRES_DB:-legal_platform}" \
         --exclude-table-data=provider_configs \
         -F c > "$DB_DUMP_FILE"
 }
