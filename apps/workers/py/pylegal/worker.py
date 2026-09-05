@@ -8,6 +8,7 @@ show worker provenance on the dashboard.
 """
 from __future__ import annotations
 
+import base64
 import json
 import os
 import time
@@ -16,6 +17,7 @@ import traceback
 
 from . import QUEUE_KEY, RESULT_PREFIX, __version__
 from . import persian_tools as tools
+from . import file_extract
 from . import model_client
 from .resp_client import RespClient, RespError
 
@@ -58,6 +60,13 @@ TOOLS = {
     "article_refs": lambda text, **k: {"refs": tools.article_refs(text)},
     "word_count": lambda text, **k: {"words": tools.word_count(text)},
     "ask_model": _ask_model,
+    # file intelligence (P1e): bytes arrive base64-encoded in the payload
+    "file_digest": lambda data_b64, filename="", **k: file_extract.file_digest(
+        base64.b64decode(data_b64), filename
+    ),
+    "extract_any": lambda data_b64, filename="", **k: file_extract.extract_any(
+        base64.b64decode(data_b64), filename
+    ),
 }
 
 

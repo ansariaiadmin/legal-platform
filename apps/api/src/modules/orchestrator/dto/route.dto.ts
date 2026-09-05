@@ -66,6 +66,51 @@ export class AssignModelDto {
   model!: string;
 }
 
+// ---------- leader conversation (ADR-013) ----------
+
+export class LeaderChatDto {
+  @ApiPropertyOptional({ description: 'existing conversation id; omit to open a new one' })
+  @IsUUID()
+  @IsOptional()
+  conversationId?: string;
+
+  @ApiProperty({ example: 'این سند اجاره فروشگاه رو بررسی کن' })
+  @IsString()
+  @MaxLength(4000)
+  text!: string;
+
+  @ApiPropertyOptional({ type: [String], description: 'fileIds previously uploaded' })
+  @IsString({ each: true })
+  @IsOptional()
+  fileIds?: string[];
+
+  @ApiPropertyOptional({ enum: ['privileged', 'normal'] })
+  @IsIn(['privileged', 'normal'])
+  @IsOptional()
+  sensitivity?: 'privileged' | 'normal';
+}
+
+export class LeaderVoiceChatDto {
+  @ApiProperty()
+  @IsUUID()
+  sessionId!: string;
+
+  @ApiProperty()
+  @IsUUID()
+  conversationId!: string;
+
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  @MaxLength(2000)
+  transcriptHint?: string;
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsString({ each: true })
+  @IsOptional()
+  fileIds?: string[];
+}
+
 export class VoiceTurnDto {
   @ApiProperty({ description: 'session id returned by POST /voice/session' })
   @IsUUID()

@@ -101,6 +101,32 @@ goes through `providers/ai` adapters (SPEC §8), which Phase 1/4 keeps mock-firs
   `resp_client.py` — one codec, two languages (ADR-012); bridge tests against
   a socket-level fake Redis pass.
 
+## Phase 1e — Leader's File Sandbox (جعبه ابزار فایلی لیدر)
+
+The office life is files. Lawyers upload into StorageProvider, the Leader reads
+them FIRST, answers FROM their text, and suggests a content-aware PLACEMENT —
+the corpus becomes a living library, not a black box.
+
+- [x] **P1e-T1** `pylegal/file_extract.py` — pure-stdlib: magic dispatch
+  (`%PDF` / `PK\x03\x04` + name→docx / corrupted→needs_manual_review),
+  PDF regex `Tj/TJ` + FlateDecode, docx via zipfile+ElementTree,
+  scanned PDF ⇒ `needs_ocr: true` (never hallucinated), else UTF-8/Win-1256.
+- [x] **P1e-T2** Files registry (`FileIntelligenceService`) + upload
+  endpoint `POST /dashboard/orchestrator/files` (multer memory, 10 MB cap);
+  sha256 FIRST, StorageProvider put, SSE event `file.uploaded`.
+- [x] **P1e-T3** `PlacementService` — attachment content scored with the
+  SAME `vocabularyScore` agents route by; strong overlap ⇒ concrete
+  `skillId`+collection, weak ⇒ `needs-review`, never a fake pick.
+- [x] **P1e-T4** `LeaderConversationService` — continuous chat +
+  voice (hear → chat → speak) riding the governed dispatch path; owner-scoped
+  conversations; no grant bypass; turns trimmed at 100; SSE `conversation.turn`.
+- [x] **P1e-T5** Inline TS fallback (`completed_inline`) on text when the
+  queue is down (SPEC §2) — binaries honestly report only a digest, no
+  hallucinated parse.
+- [x] **P1e-T6** Tests: 6 new Jest file-intelligence/conversation specs +
+  12 py tests incl. real-ZIP docx fixture and a crafted FlateDecode PDF;
+  ADR-013 pinned. **API 172 jest — Python 36 unittest — build clean.**
+
 ## Phase 2 — Data Lifecycle (چرخه حیات داده)
 
 Autonomous collectors → validators → updaters. Trust tiers per SPEC §9.

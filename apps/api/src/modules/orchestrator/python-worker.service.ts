@@ -11,7 +11,9 @@ export type PyToolName =
   | 'chunk_legal_text'
   | 'article_refs'
   | 'word_count'
-  | 'ask_model';
+  | 'ask_model'
+  | 'file_digest'
+  | 'extract_any';
 
 export interface PyJobHandle {
   jobId: string;

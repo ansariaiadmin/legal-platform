@@ -18,7 +18,10 @@ export type AgentEventKind =
   | 'grant.issued'
   | 'grant.revoked'
   | 'model.assigned'
-  | 'model.unassigned';
+  | 'model.unassigned'
+  | 'file.uploaded'
+  | 'file.analyzed'
+  | 'conversation.turn';
 
 export interface AgentEvent {
   kind: AgentEventKind;

@@ -27,7 +27,8 @@ class TestHandle(unittest.TestCase):
     def test_tools_registry_pure(self):
         self.assertEqual(
             sorted(TOOLS.keys()),
-            ["article_refs", "ask_model", "chunk_legal_text", "normalize_persian", "word_count"],
+            ["article_refs", "ask_model", "chunk_legal_text", "extract_any",
+             "file_digest", "normalize_persian", "word_count"],
         )
 
     def test_ask_model_without_config_is_honest(self):

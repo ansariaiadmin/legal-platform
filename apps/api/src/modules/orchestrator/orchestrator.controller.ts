@@ -7,8 +7,11 @@ import {
   Param,
   Post,
   Sse,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { UserRole } from '@legal-platform/domain';
 import { randomUUID } from 'node:crypto';
@@ -25,7 +28,17 @@ import { MetricsAggregatorService } from './metrics-aggregator.service';
 import { EvaluatorService } from './evaluator.service';
 import { EvolutionService } from './evolution.service';
 import { ModelAssignmentService } from './model-assignment.service';
-import { AssignModelDto, GrantAgentDto, RouteQueryDto, SpawnAgentDto, VoiceTurnDto } from './dto/route.dto';
+import { FileIntelligenceService, type UploadedFilePayload } from './file-intelligence.service';
+import { LeaderConversationService } from './leader-conversation.service';
+import {
+  AssignModelDto,
+  GrantAgentDto,
+  LeaderChatDto,
+  LeaderVoiceChatDto,
+  RouteQueryDto,
+  SpawnAgentDto,
+  VoiceTurnDto,
+} from './dto/route.dto';
 import { AuditService } from '../audit/audit.service';
 import { JwtAccessGuard } from '../../security/jwt-access.guard';
 import { Roles, RolesGuard } from '../../security/roles.guard';
@@ -62,6 +75,8 @@ export class OrchestratorController {
     private readonly evaluator: EvaluatorService,
     private readonly evolution: EvolutionService,
     private readonly modelAssignments: ModelAssignmentService,
+    private readonly files: FileIntelligenceService,
+    private readonly conversations: LeaderConversationService,
   ) {
     this.bus.subscribe((event) => this.eventStream.next(event));
   }
@@ -307,6 +322,82 @@ export class OrchestratorController {
     this.governance.setDisabled(agentId, false);
     await this.auditSafe(user.id, 'orchestrator.agent.enable', agentId, {});
     return { agentId, disabled: false };
+  }
+
+  // ---- the Leader conversation surface (ADR-013) --------------------------
+
+  @Post('files')
+  @Roles(UserRole.LAWYER_OWNER, UserRole.STAFF)
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
+  @ApiOperation({ summary: 'Upload ANY file for the Leader: register + analyze first' })
+  async uploadFile(
+    @UploadedFile() file: UploadedFilePayload | undefined,
+    @Body('sensitivity') sensitivity: 'privileged' | 'normal' | undefined,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    if (!file) throw new BadRequestException('file field is required');
+    const record = await this.files.register(file, user.id);
+    // The Leader READS before anyone talks about the file (product law).
+    const analyzed = await this.files.analyze(record.fileId);
+    await this.auditSafe(user.id, 'orchestrator.file.upload', record.fileId, {
+      filename: record.filename,
+      size: record.size,
+      sha256: record.sha256.slice(0, 16),
+      sensitivity: sensitivity ?? 'normal',
+    });
+    return { file: analyzed };
+  }
+
+  @Post('leader/conversations')
+  @Roles(UserRole.LAWYER_OWNER, UserRole.STAFF)
+  @ApiOperation({ summary: 'Open a continuous chat session with the Leader' })
+  openConversation(@CurrentUser() user: AuthenticatedUser) {
+    return this.conversations.open(user.id);
+  }
+
+  @Get('leader/conversations')
+  @Roles(UserRole.LAWYER_OWNER, UserRole.STAFF)
+  @ApiOperation({ summary: 'List my conversations (leader chats never leave the owner)' })
+  listConversations(@CurrentUser() user: AuthenticatedUser) {
+    return { conversations: this.conversations.listByOwner(user.id) };
+  }
+
+  @Post('leader/chat')
+  @Roles(UserRole.LAWYER_OWNER, UserRole.STAFF)
+  @ApiOperation({ summary: 'Chat with the Leader on text + attached files' })
+  async leaderChat(@Body() dto: LeaderChatDto, @CurrentUser() user: AuthenticatedUser) {
+    const convId = dto.conversationId ?? this.conversations.open(user.id).conversationId;
+    const reply = await this.conversations.chat(
+      {
+        conversationId: convId,
+        text: dto.text,
+        fileIds: dto.fileIds,
+        sensitivity: dto.sensitivity,
+      },
+      { id: user.id, role: user.roles.join(',') },
+    );
+    await this.auditSafe(user.id, 'orchestrator.leader.chat', convId, {
+      files: dto.fileIds?.length ?? 0,
+      routedTo: reply.routing.agentId,
+    });
+    return { conversationId: convId, ...reply };
+  }
+
+  @Post('leader/voice-chat')
+  @Roles(UserRole.LAWYER_OWNER)
+  @ApiOperation({ summary: 'Voice turn: transcribe → chat → speak the Leader answer back' })
+  async leaderVoiceChat(@Body() dto: LeaderVoiceChatDto, @CurrentUser() user: AuthenticatedUser) {
+    const reply = await this.conversations.voiceChat(
+      {
+        sessionId: dto.sessionId,
+        conversationId: dto.conversationId,
+        transcriptHint: dto.transcriptHint,
+        fileIds: dto.fileIds,
+      },
+      { id: user.id, role: user.roles.join(',') },
+    );
+    await this.auditSafe(user.id, 'orchestrator.leader.voice', dto.conversationId, {});
+    return reply;
   }
 
   // ---- voice: the manager speaks, the Leader answers ---------------------

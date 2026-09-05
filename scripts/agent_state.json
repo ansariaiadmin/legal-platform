@@ -156,12 +156,42 @@
     {
       "task": "P1d-T6: tests + docs + ADR-011/012",
       "at": "2026-09-05T11:47:47.551Z"
+    },
+    {
+      "task": "P1e-T1",
+      "at": "2026-09-05T12:08:13.542Z"
+    },
+    {
+      "task": "P1e-T2",
+      "at": "2026-09-05T12:08:13.578Z"
+    },
+    {
+      "task": "P1e-T3",
+      "at": "2026-09-05T12:08:13.610Z"
+    },
+    {
+      "task": "P1e-T4",
+      "at": "2026-09-05T12:08:13.642Z"
+    },
+    {
+      "task": "P1e-T5",
+      "at": "2026-09-05T12:08:13.680Z"
+    },
+    {
+      "task": "P1e-T6",
+      "at": "2026-09-05T12:08:13.711Z"
     }
   ],
   "pending_tasks": [
     "P1-T8: cross-field routing integration test (Nest module compile)",
     "P1-T5: agent lifecycle queue",
-    "P1-T6: DB-backed registry swap"
+    "P1-T6: DB-backed registry swap",
+    "P1e-T1: pylegal file_extract (txt/docx/pdf/ddigest, honest unknown)",
+    "P1e-T2: files registry + upload endpoint (StorageProvider)",
+    "P1e-T3: placement.service — where does this file belong",
+    "P1e-T4: leader-conversation chat+voice sessions with file context",
+    "P1e-T5: inline TS fallback analysis when queue down (SPEC §2)",
+    "P1e-T6: tests + ADR-013 + docs + fleet/roadmap updates"
   ],
   "architectural_decisions": [
     {
@@ -228,9 +258,14 @@
       "id": "ADR-012",
       "reasoning": "One RESP client per language; queue bridge honest degradation",
       "at": "2026-09-05T11:47:47.618Z"
+    },
+    {
+      "id": "ADR-013",
+      "reasoning": "Uploaded files → Leader conversation sandboxes: FileIntelligenceService (sha256-first, py tools preferred, inline-TEXT fallback when queue down with honest status) PlacementService vocabularyScore ties into same fleet routing; LeaderConversationService owner-scoped chat+voice, turns cap=100, no grant bypass",
+      "at": "2026-09-05T12:08:18.249Z"
     }
   ],
-  "last_checkpoint": "2026-09-05T11:47:47.618Z",
-  "updated_at": "2026-09-05T11:47:47.618Z",
-  "update_count": 67
+  "last_checkpoint": "2026-09-05T12:08:18.249Z",
+  "updated_at": "2026-09-05T12:08:18.249Z",
+  "update_count": 80
 }

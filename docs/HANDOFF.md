@@ -5,7 +5,7 @@
 ## Where we are
 
 - **Phase:** phase-1-expert-tree — Expert agents: civil, criminal, family, registration
-- **Last checkpoint:** 2026-09-05T11:47:47.618Z
+- **Last checkpoint:** 2026-09-05T12:08:18.249Z
 - **Git:** run `git log --oneline -3` to see the last commits.
 
 ## Protocol (non-negotiable)
@@ -21,15 +21,15 @@
 - [ ] P1-T8: cross-field routing integration test (Nest module compile)
 - [ ] P1-T5: agent lifecycle queue
 - [ ] P1-T6: DB-backed registry swap
+- [ ] P1e-T1: pylegal file_extract (txt/docx/pdf/ddigest, honest unknown)
+- [ ] P1e-T2: files registry + upload endpoint (StorageProvider)
+- [ ] P1e-T3: placement.service — where does this file belong
+- [ ] P1e-T4: leader-conversation chat+voice sessions with file context
+- [ ] P1e-T5: inline TS fallback analysis when queue down (SPEC §2)
+- [ ] P1e-T6: tests + ADR-013 + docs + fleet/roadmap updates
 
 ## Completed
 
-- [x] P1-T4: registration-expert package (2026-09-05)
-- [x] P1-T8: cross-field routing integration test (2026-09-05)
-- [x] P1-T13: /fleet endpoint — dashboard cards data (2026-09-05)
-- [x] P1c-T1: metrics-aggregator (live stats from event bus) (2026-09-05)
-- [x] P1c-T2: evaluator.service — ranked evolution suggestions (2026-09-05)
-- [x] P1c-T3: evolution.service — runtime agent spawn behind owner grant (2026-09-05)
 - [x] P1c-T4: spawn/governance invariants + audit + events (2026-09-05)
 - [x] P1c-T5: python workers package (stdlib, RESP client, persian_tools) (2026-09-05)
 - [x] P1c-T6: python worker tests + docs + ADR-008/009/010 (2026-09-05)
@@ -39,6 +39,12 @@
 - [x] P1d-T4: pylegal model_client (stdlib urllib, OpenAI-compatible) (2026-09-05)
 - [x] P1d-T5: TS python-jobs bridge via socket RESP (2026-09-05)
 - [x] P1d-T6: tests + docs + ADR-011/012 (2026-09-05)
+- [x] P1e-T1 (2026-09-05)
+- [x] P1e-T2 (2026-09-05)
+- [x] P1e-T3 (2026-09-05)
+- [x] P1e-T4 (2026-09-05)
+- [x] P1e-T5 (2026-09-05)
+- [x] P1e-T6 (2026-09-05)
 
 ## Architectural decisions
 
@@ -55,3 +61,4 @@
 - **ADR-010** — Python sidecar workers, stdlib-only, RESP2 socket client, toolbox not decision-maker
 - **ADR-011** — Model matrix with Leader-lending; secrecy > pin > lend
 - **ADR-012** — One RESP client per language; queue bridge honest degradation
+- **ADR-013** — Uploaded files → Leader conversation sandboxes: FileIntelligenceService (sha256-first, py tools preferred, inline-TEXT fallback when queue down with honest status) PlacementService vocabularyScore ties into same fleet routing; LeaderConversationService owner-scoped chat+voice, turns cap=100, no grant bypass

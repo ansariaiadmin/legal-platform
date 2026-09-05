@@ -13,6 +13,9 @@ import { EvaluatorService } from './evaluator.service';
 import { EvolutionService } from './evolution.service';
 import { ModelAssignmentService } from './model-assignment.service';
 import { PythonWorkerService } from './python-worker.service';
+import { FileIntelligenceService } from './file-intelligence.service';
+import { PlacementService } from './placement.service';
+import { LeaderConversationService } from './leader-conversation.service';
 import { AuditModule } from '../audit/audit.module';
 
 @Module({
@@ -32,6 +35,9 @@ import { AuditModule } from '../audit/audit.module';
     EvolutionService,
     ModelAssignmentService,
     PythonWorkerService,
+    FileIntelligenceService,
+    PlacementService,
+    LeaderConversationService,
   ],
   exports: [
     OrchestratorService,
@@ -42,6 +48,8 @@ import { AuditModule } from '../audit/audit.module';
     MetricsAggregatorService,
     ModelAssignmentService,
     PythonWorkerService,
+    FileIntelligenceService,
+    LeaderConversationService,
   ],
 })
 export class OrchestratorModule {}

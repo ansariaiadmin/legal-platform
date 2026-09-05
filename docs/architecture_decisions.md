@@ -5,6 +5,39 @@ a new ADR. `scripts/agent_state.json.architectural_decisions` mirrors this file.
 
 ---
 
+## ADR-013: Uploaded files → Leader conversation sandboxes (P1e, 2026-09-05)
+
+**Context.** The office's real life happens in files owned by lawyers: scissors,
+staples and "دادن یک فایل به لیدر و باهاش گفت‌وگو کردن" — قرار گرفتن هر فایل هرجایی
+needs **content-aware placement**. A file is not a chat message; it is an object that
+the Leader reads FIRST, then answers FROM its TEXT, then suggests where it should
+live so agents can use it.
+
+**Decision.** `FileIntelligenceService` — uploads land in the StorageProvider port
+(`uploads/<sha256-prefix>/<safeName>`), sha256-digested BEFORE any interpretation,
+THEN extracted. The python sidecar (`worker.py` tools `file_digest`/`extract_any`,
+pure stdlib, zero deps) is preferred: magic-byte dispatch, `PK³` zip → docx (strip
+Word XML), `%PDF` → regex over `Tj/TJ` streams with FlateDecode, scanned PDFs
+HONESTLY marked `needs_ocr` (never invented text). If the queue is down, the TS
+inline pre-read handles text files only (no false extraction of binaries) and the
+record declares `status: 'completed_inline'` — ROUTE A: honest degradation stays
+the law (SPEC §2).
+
+`PlacementService` — computes content-vs-fleet affinity with the EXACT SAME
+`vocabularyScore` the routing tree uses; a file walks toward the agent that would
+answer its questions. Unmatched (score < 0.3) lands in `needs-review` instead of a
+confident lie.
+
+`LeaderConversationService` — text chat + voice chat (hear → chat → speak) routed
+through the governed dispatch path **without bypassing grants** (SPEC §11a law).
+Conversations are owner-scoped, in-memory (roadmap P3 pins durable persistence),
+turns trimmed at 100 per session.
+
+**Consequences.** Tests: 6 file-intelligence + 6 conversation (172 jest total). The
+dashboard now sees `file.uploaded`/`file.analyzed`/`conversation.turn` SSE events.
+
+---
+
 ## ADR-000: The Agentic Layer is real and pinned in SPEC (2026-09-05)
 
 **Context.** The platform brief (SPEC §1) lists an "AI workspace (RAG + drafts)"
