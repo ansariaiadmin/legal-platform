@@ -172,7 +172,9 @@ export default function Dashboard() {
 }
 
 function LoginCard({ onDone }: { onDone: (token: string) => void }) {
+  const [channel, setChannel] = useState<'phone' | 'email'>('phone');
   const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [challengeSent, setChallengeSent] = useState(false);
   const [devToken, setDevToken] = useState('');
@@ -182,7 +184,8 @@ function LoginCard({ onDone }: { onDone: (token: string) => void }) {
   async function requestOtp() {
     setBusy(true); setErr(null);
     try {
-      await api.post('/auth/otp/request', { phone });
+      // P10: one honest switch — same 6-digit math, either channel
+      await api.post(channel === 'email' ? '/auth/email-otp/request' : '/auth/otp/request', channel === 'email' ? { email } : { phone });
       setChallengeSent(true);
     } catch (e) {
       setErr(errText(e));
@@ -194,7 +197,8 @@ function LoginCard({ onDone }: { onDone: (token: string) => void }) {
   async function verify() {
     setBusy(true); setErr(null);
     try {
-      const r = await api.post<{ accessToken: string }>('/auth/otp/verify', { phone, code });
+      const body = channel === 'email' ? { email, code } : { phone, code };
+      const r = await api.post<{ accessToken: string }>(channel === 'email' ? '/auth/email-otp/verify' : '/auth/otp/verify', body);
       setToken(r.accessToken);
       onDone(r.accessToken);
     } catch (e) {
@@ -215,14 +219,41 @@ function LoginCard({ onDone }: { onDone: (token: string) => void }) {
       <div className="card">
         <h3>{t('auth.title')}</h3>
         <p className="hint">با موبایل وارد شو — در محیط سندباکس از توکن توسعه‌گر استفاده کن.</p>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 14 }} role="tablist" aria-label="login channel">
+          {(['phone', 'email'] as const).map((c) => (
+            <button
+              key={c}
+              role="tab"
+              aria-selected={channel === c}
+              className={`tab ${channel === c ? 'active' : ''}`}
+              style={{ flex: 1, justifyContent: 'center' }}
+              onClick={() => { setChannel(c); setChallengeSent(false); setCode(''); }}
+            >
+              {c === 'phone' ? '📱' : '✉️'} {t(`auth.channel.${c}` as never)}
+            </button>
+          ))}
+        </div>
         <div className="field">
-          <label>{t('auth.phone')}</label>
-          <input
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            placeholder="0912..."
-            dir="ltr"
-          />
+          <label>{channel === 'email' ? t('auth.email' as never) : t('auth.phone')}</label>
+          {channel === 'email' ? (
+            <input
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="vakil@example.com"
+              dir="ltr"
+              inputMode="email"
+              autoComplete="email"
+            />
+          ) : (
+            <input
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="0912..."
+              dir="ltr"
+              inputMode="tel"
+              autoComplete="tel"
+            />
+          )}
         </div>
         {challengeSent && (
           <div className="field">
@@ -233,8 +264,8 @@ function LoginCard({ onDone }: { onDone: (token: string) => void }) {
         {err && <p className="hint" style={{ color: 'var(--bad)' }}>{err}</p>}
         <div style={{ display: 'flex', gap: 8 }}>
           {!challengeSent ? (
-            <button className="btn primary big" disabled={busy || !phone} onClick={requestOtp}>
-              {t('auth.sendOtp')}
+            <button className="btn primary big" disabled={busy || (channel === 'email' ? !email : !phone)} onClick={requestOtp}>
+              {channel === 'email' ? t('auth.sendEmailOtp' as never) : t('auth.sendOtp')}
             </button>
           ) : (
             <button className="btn primary big" disabled={busy || !code} onClick={verify}>

@@ -5,6 +5,8 @@ import type { EnvService } from './config/env';
 import { RateLimitService } from './common/rate-limit.service';
 import { securityHeadersMiddleware } from './common/security-headers.middleware';
 import { globalRateLimitMiddleware, GLOBAL_RATE_LIMIT_ENV } from './common/global-rate-limit.middleware';
+import { RedisRateLimitService } from './common/redis-rate-limit.service';
+import type { FloorLimiter } from './common/global-rate-limit.middleware';
 
 /** Comma-separated allow-list; APP_URL is always permitted. */
 export function corsOrigins(env: EnvService): string[] {
@@ -35,9 +37,13 @@ export function configureApp(app: INestApplication, env: EnvService): void {
   if ((env.get('SECURITY_HEADERS') || 'on') !== 'off') {
     app.use(securityHeadersMiddleware(env.isProduction));
   }
+  // P10-T-floor: shared Redis limiter when RATE_LIMIT_DRIVER=redis (visible
+  // on /dashboard/ops/deployment); otherwise the honest in-process floor.
+  const sharedLimiter = app.get(RedisRateLimitService, { strict: false }) as RedisRateLimitService | null;
+  const floor: FloorLimiter = sharedLimiter ?? app.get(RateLimitService);
   app.use(
     globalRateLimitMiddleware(
-      app.get(RateLimitService),
+      floor,
       Number(env.get(GLOBAL_RATE_LIMIT_ENV)) || 300,
     ),
   );

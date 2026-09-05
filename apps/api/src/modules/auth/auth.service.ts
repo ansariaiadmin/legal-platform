@@ -12,10 +12,11 @@ import { Pool, PoolClient } from 'pg';
 import * as crypto from 'crypto';
 import { ERROR_CODES } from '@legal-platform/contracts';
 import { UserRole } from '@legal-platform/domain';
-import { normalizeIranPhone } from '@legal-platform/shared';
+import { normalizeEmail, normalizeIranPhone } from '@legal-platform/shared';
 import { AuditService } from '../audit/audit.service';
 import { SmsProvider } from '../../providers/sms/sms.provider';
-import { SMS_PROVIDER } from '../../providers/provider.tokens';
+import { EMAIL_PROVIDER, SMS_PROVIDER } from '../../providers/provider.tokens';
+import type { EmailProvider } from '../../providers/email/email.provider';
 import { RateLimitService } from '../../common/rate-limit.service';
 import type { AccessTokenClaims, RefreshTokenClaims } from '../../security/authenticated-user';
 
@@ -65,6 +66,7 @@ export class AuthService {
     private readonly auditService: AuditService,
     private readonly rateLimiter: RateLimitService,
     @Inject(SMS_PROVIDER) private readonly smsProvider: SmsProvider,
+    @Inject(EMAIL_PROVIDER) private readonly emailProvider: EmailProvider,
   ) {
     this.otpTtlSeconds = Number(this.configService.get<string>('OTP_TTL_SECONDS')) || 120;
   }
@@ -239,6 +241,143 @@ export class AuthService {
     return { accessToken: session.accessToken, refreshToken: session.refreshToken, user };
   }
 
+  /**
+   * P10 — email as a first-class auth factor (owed from P8). Identical
+   * security math to the phone flow: same challenges table, same attempts/
+   * TTL/lockout, same audit trail. The destination column just holds an
+   * email now; purpose 'login' keeps ONE validation path for both channels.
+   */
+  async requestEmailOtp(email: string, ip?: string): Promise<{ challengeId: string }> {
+    const normalized = normalizeEmail(email);
+    if (!normalized) {
+      throw new BadRequestException(ERROR_CODES.VALIDATION_INVALID_INPUT);
+    }
+
+    const destDecision = this.rateLimiter.consume(`otp:request:email:${normalized}`, {
+      limit: 5,
+      windowMs: 10 * 60 * 1000,
+      cooldownMs: 60 * 1000,
+      lockMs: 10 * 60 * 1000,
+    });
+    if (!destDecision.allowed) {
+      await this.auditService.log({
+        module: 'auth',
+        action: 'otp.request',
+        entityType: 'otp_challenge',
+        metadata: { destination: normalized, channel: 'email', reason: destDecision.rejection },
+        ip,
+        result: 'failure',
+      });
+      throw new ForbiddenException(
+        destDecision.rejection === 'cooldown'
+          ? ERROR_CODES.AUTH_RESEND_COOLDOWN
+          : ERROR_CODES.AUTH_RATE_LIMITED,
+      );
+    }
+    if (ip) {
+      const ipDecision = this.rateLimiter.consume(`otp:request:ip:${ip}`, {
+        limit: 20,
+        windowMs: 10 * 60 * 1000,
+        lockMs: 10 * 60 * 1000,
+      });
+      if (!ipDecision.allowed) {
+        throw new ForbiddenException(ERROR_CODES.AUTH_RATE_LIMITED);
+      }
+    }
+
+    const code = crypto.randomInt(100000, 999999).toString();
+    const challengeId = crypto.randomUUID();
+    const expiresAt = new Date(Date.now() + this.otpTtlSeconds * 1000);
+
+    await this.pool.query(
+      `INSERT INTO otp_challenges (id, destination, code_hash, purpose, expires_at)
+       VALUES ($1, $2, $3, 'login', $4)`,
+      [challengeId, normalized, this.hashCode(code), expiresAt],
+    );
+
+    const mail = await this.emailProvider.sendMail({
+      to: normalized,
+      subject: 'کد ورود شما به پلتفرم حقوقی',
+      text: `کد تأیید شما: ${code}\n\nاین کد ${Math.round(this.otpTtlSeconds / 60)} دقیقه معتبر است. اگر شما آن را نخواسته‌اید، همین را نادیده بگیرید.`,
+    });
+    if (!mail.success) {
+      this.logger.warn(`Email delivery failed for ${normalized}`);
+    }
+
+    await this.auditService.log({
+      module: 'auth',
+      action: 'otp.request',
+      entityType: 'otp_challenge',
+      entityId: challengeId,
+      metadata: { destination: normalized, channel: 'email', mailSuccess: mail.success },
+      ip,
+      result: 'success',
+    });
+    return { challengeId };
+  }
+
+  async verifyEmailOtp(email: string, code: string, ip?: string): Promise<AuthTokens & { user: PublicUser }> {
+    const normalized = normalizeEmail(email);
+    if (!normalized) {
+      throw new BadRequestException(ERROR_CODES.VALIDATION_INVALID_INPUT);
+    }
+
+    const verifyKey = `otp:verify:email:${normalized}`;
+    const decision = this.rateLimiter.consume(verifyKey, {
+      limit: 5,
+      windowMs: 15 * 60 * 1000,
+      lockMs: 15 * 60 * 1000,
+    });
+    if (!decision.allowed) {
+      throw new ForbiddenException(ERROR_CODES.AUTH_RATE_LIMITED);
+    }
+
+    const challenge = await this.pool.query<OtpChallengeRow>(
+      `SELECT id, code_hash, attempts, max_attempts, expires_at
+         FROM otp_challenges
+        WHERE destination = $1
+          AND purpose = 'login'
+          AND verified_at IS NULL
+        ORDER BY created_at DESC
+        LIMIT 1`,
+      [normalized],
+    );
+    const row = challenge.rows[0];
+    if (!row) {
+      throw new UnauthorizedException(ERROR_CODES.AUTH_INVALID_CODE);
+    }
+    if (new Date(row.expires_at).getTime() <= Date.now()) {
+      throw new UnauthorizedException(ERROR_CODES.AUTH_CODE_EXPIRED);
+    }
+    if (!this.hashMatches(code, row.code_hash)) {
+      const attempts = row.attempts + 1;
+      await this.pool.query(`UPDATE otp_challenges SET attempts = $1 WHERE id = $2`, [attempts, row.id]);
+      if (attempts >= row.max_attempts) {
+        throw new ForbiddenException(ERROR_CODES.AUTH_RATE_LIMITED);
+      }
+      throw new UnauthorizedException(ERROR_CODES.AUTH_INVALID_CODE);
+    }
+
+    await this.pool.query(`UPDATE otp_challenges SET verified_at = NOW() WHERE id = $1`, [row.id]);
+    this.rateLimiter.reset(verifyKey, `otp:request:email:${normalized}`);
+
+    const user = await this.findOrCreateEmailUser(normalized);
+    const session = await this.createSession(user, ip);
+
+    await this.auditService.log({
+      actorId: user.id,
+      module: 'auth',
+      action: 'otp.verify',
+      entityType: 'user_session',
+      entityId: session.sessionId,
+      metadata: { destination: normalized, channel: 'email' },
+      ip,
+      result: 'success',
+    });
+
+    return { accessToken: session.accessToken, refreshToken: session.refreshToken, user };
+  }
+
   async refreshToken(refreshToken: string, ip?: string): Promise<AuthTokens> {
     let claims: RefreshTokenClaims;
     try {
@@ -392,6 +531,45 @@ export class AuthService {
         [crypto.randomUUID(), userId, clientRole.rows[0].id],
       );
 
+      await client.query('COMMIT');
+      return this.loadUser(userId);
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  /** Email-channel twin of findOrCreateUser: match on the email column,
+   * same advisory lock + client role bootstrap discipline (P10). */
+  private async findOrCreateEmailUser(normalized: string): Promise<PublicUser> {
+    const client: PoolClient = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const lockKey = BigInt(`0x${crypto.createHash('sha256').update(`email:${normalized}`).digest('hex').slice(0, 15)}`);
+      await client.query('SELECT pg_advisory_xact_lock($1)', [lockKey.toString()]);
+
+      const existing = await client.query<UserRow>(
+        `SELECT id, phone_normalized, email, display_name, status FROM users WHERE email = $1`,
+        [normalized],
+      );
+      if (existing.rows.length > 0) {
+        await client.query('COMMIT');
+        return this.loadUser(existing.rows[0].id);
+      }
+
+      const clientRole = await client.query<{ id: string }>(`SELECT id FROM roles WHERE key = $1`, [UserRole.CLIENT]);
+      if (clientRole.rows.length === 0) {
+        throw new Error(`Role '${UserRole.CLIENT}' is missing - run migrations`);
+      }
+
+      const userId = crypto.randomUUID();
+      await client.query(`INSERT INTO users (id, email, status) VALUES ($1, $2, 'active')`, [userId, normalized]);
+      await client.query(
+        `INSERT INTO role_assignments (id, user_id, role_id) VALUES ($1, $2, $3)`,
+        [crypto.randomUUID(), userId, clientRole.rows[0].id],
+      );
       await client.query('COMMIT');
       return this.loadUser(userId);
     } catch (error) {

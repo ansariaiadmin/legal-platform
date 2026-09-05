@@ -830,3 +830,38 @@ and 2026 RTL guides (Vazirmatn-class fonts, line-height 1.7+, letter-spacing
 every visual choice is traceable to a named principle or a sourced 2026
 trend — no vibes-based UI. a11y (focus ring, reduced motion, aria on the
 menu) is part of the definition of done, not a later audit.
+
+## ADR-026: Email joins auth; the floor and the bus go shared; debts settled (P10, 2026-09-05)
+
+**Context.** "بدهی‌ها صاف شن، ۱۰ از ۱۰." Three debts remained: (1) email/Gmail
+as an auth factor promised in P8; (2) the shared Redis rate-limiter existed
+since P9 but served NOTHING — a loaded gun on the table; (3) the event bus
+was per-replica, so a multi-node deployment's kitchen showed different films
+per process.
+
+**Decision.**
+1. **Email OTP (T-email).** New provider port `EmailProvider` with
+   `MockEmailAdapter` (dev outbox, inspectable like mock SMS) and
+   `SmtpEmailAdapter` — REAL SMTP over stdlib sockets (EHLO/STARTTLS/
+   AUTH LOGIN/DATA, RFC 2047 base64 subject for Persian, dot-stuffing
+   honored), zero new dependencies. AuthService gains
+   `requestEmailOtp`/`verifyEmailOtp` on the SAME otp_challenges table with
+   the same TTL/attempt/lockout math; `normalizeEmail` (packages/shared)
+   folds case/space so attackers cannot multiply rate-limit buckets. Phones
+   and emails meet in one login card with a channel toggle.
+2. **The floor actually shares (T-floor).** `globalRateLimitMiddleware` now
+   accepts any limiter (sync in-process or async Redis); setup.ts picks
+   `RedisRateLimitService` when `RATE_LIMIT_DRIVER=redis` & `REDIS_URL`. The
+   429 payload stays byte-compatible (SPEC §7 shape rendered directly —
+   middleware sits outside Nest's route pipeline).
+3. **One film for every replica (T-bus).** `RedisEventBridge` + raw
+   RESP2 `RespSubscriber` (dedicated socket, push-frame parser): local emits
+   are PUBLISHed with an origin UUID envelope; foreign envelopes re-enter via
+   `bus.emitRemote` (no re-forward — belt and suspenders with the origin
+   check). Subscriber failures retry with bounded backoff and never break the
+   in-process path; `/dashboard/ops/deployment` tells ops WHICH bridge runs.
+
+**Consequences.** Email factor delivered debt-free; per-replica rate limits
+and per-replica dashboards are now provably honest deployment outcomes, not
+vibes. Email-otp logic covered by 8 unit tests (scripted pool), SMTP by a
+5-test real-wire stub, bridge by 3 tests over real pubsub sockets.

@@ -384,7 +384,7 @@ Done 2026-09-05 (ADR-022):
 - [x] Rate limiter مشترک روی Redis RESP2 (INCR/PEXPIRE) — fail-closed با retry ۵ ثانیه‌ای وقتی Redis خوابه؛ readout در `/dashboard/ops/deployment`
 - [x] `local_answer` v2 — normalize فارسی قبل از توکنایز + boost دوتایی‌های متوالی (عبارات حقوقی مثل «اجاره‌نامه» راست می‌آیند)
 - [ ] عامل احراز ایمیل/جیمیل (از P8 بدهکار)
-- [ ] Phase 10: پل pub/sub روی Redis برای event bus و رسیدن همهٔ ابعاد به ۱۰
+- [x] Phase 10: پل pub/sub روی Redis برای event bus ✓ + کفِ rate-limit مشترک واقعی ✓
 
 ## Phase 10 — رابط‌کاربری در سطح ۱۰ (تحقیق‌محور، روایت‌محور)
 
@@ -393,4 +393,4 @@ Done 2026-09-05 (ADR-022):
 - [x] خانهٔ bento: hero + KPI + کشوی «وضعیت سیستم» با دادهٔ زندهٔ ops
 - [x] UI primitives: `<Skeleton/>` (به‌جای اسپینر)، `<Num>` (ارقام فارسی + tabular + bidi isolate)، تمام انیمیشن‌ها تحت prefers-reduced-motion
 - [ ] اعمال همین لایه در بقیهٔ تب‌ها (drafts/kitchen/security) هم‌راستا با همین قواعد
-- [ ] عامل احراز ایمیل/جیمیل (بدهکار)
+- [x] عامل احراز ایمیل/جیمیل ✓ (ADR-026: SMTP واقعی stdlib + کارت ورود دوکاناله)

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { Num, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { t } from '@/i18n';
 
@@ -140,8 +141,8 @@ export function DraftsTab() {
         {usage ? (
           <>
             <div className="grid cols-3" style={{ marginTop: 8 }}>
-              <MiniV k="درخواست‌ها" v={usage.totals.requests} />
-              <MiniV k="توکن‌ها" v={usage.totals.tokens} />
+              <MiniV k="درخواست‌ها" v={<Num value={usage.totals.requests} />} />
+              <MiniV k="توکن‌ها" v={<Num value={usage.totals.tokens} />} />
               <MiniV k="هزینهٔ تخمینی" v={usage.totals.costUsd === null ? 'بدون قیمت‌گذاری' : `$${usage.totals.costUsd.toFixed(4)}`} />
             </div>
             {usage.features.length > 0 && (
@@ -150,7 +151,13 @@ export function DraftsTab() {
               </div>
             )}
           </>
-        ) : <p className="hint">در حال بارگیری…</p>}
+        ) : (
+          // P10: skeleton over spinner — the shape previews the panel, so the
+          // wait feels shorter and the layout never jumps when data lands.
+          <div className="grid cols-3" style={{ marginTop: 8 }}>
+            <Skeleton height={52} /><Skeleton height={52} /><Skeleton height={52} />
+          </div>
+        )}
         <button className="btn" style={{ marginTop: 12, padding: '8px 16px' }} disabled={busy} onClick={() => void rebuildIndex()}>
           بازسازی ایندکس برداری (قفسهٔ تأییدشده)
         </button>
@@ -230,7 +237,7 @@ export function DraftsTab() {
   );
 }
 
-function MiniV({ k, v }: { k: string; v: string | number }) {
+function MiniV({ k, v }: { k: string; v: React.ReactNode }) {
   return (
     <div style={{ textAlign: 'center', padding: '10px 0' }}>
       <div style={{ fontSize: 20, fontWeight: 700 }}>{v}</div>

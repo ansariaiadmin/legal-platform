@@ -8,6 +8,7 @@ import { AgentsBootstrap } from './agents.bootstrap';
 import { HybridInferenceRouter } from './hybrid-inference-router';
 import { AgentGovernanceService } from './agent-governance.service';
 import { InProcessAgentEventBus } from './agent-event-bus';
+import { RedisEventBridge } from './redis-event-bridge.service';
 import { LeaderVoiceService } from './leader-voice.service';
 import { MetricsAggregatorService } from './metrics-aggregator.service';
 import { EvaluatorService } from './evaluator.service';
@@ -36,6 +37,7 @@ import { CorpusModule } from '../corpus/corpus.module';
     HybridInferenceRouter,
     AgentGovernanceService,
     InProcessAgentEventBus,
+    RedisEventBridge,
     LeaderVoiceService,
     MetricsAggregatorService,
     EvaluatorService,

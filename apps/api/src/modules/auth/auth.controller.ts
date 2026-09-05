@@ -1,7 +1,7 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Ip, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
-import { RefreshTokenDto, RequestOtpDto, VerifyOtpDto } from './dto/auth.dto';
+import { RefreshTokenDto, RequestEmailOtpDto, RequestOtpDto, VerifyEmailOtpDto, VerifyOtpDto } from './dto/auth.dto';
 import { JwtAccessGuard } from '../../security/jwt-access.guard';
 import { CurrentUser } from '../../security/current-user.decorator';
 import type { AuthenticatedUser } from '../../security/authenticated-user';
@@ -29,6 +29,26 @@ export class AuthController {
   @ApiResponse({ status: 429, description: 'AUTH_RATE_LIMITED' })
   async verifyOtp(@Body() dto: VerifyOtpDto, @Ip() ip: string) {
     return this.authService.verifyOtp(dto.phone, dto.code, ip);
+  }
+
+  @Post('email-otp/request')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Request a login OTP over email (P10 factor)' })
+  @ApiResponse({ status: 201, description: 'OTP challenge created' })
+  @ApiResponse({ status: 400, description: 'VALIDATION_INVALID_INPUT' })
+  @ApiResponse({ status: 429, description: 'AUTH_RATE_LIMITED or AUTH_RESEND_COOLDOWN' })
+  async requestEmailOtp(@Body() dto: RequestEmailOtpDto, @Ip() ip: string) {
+    return this.authService.requestEmailOtp(dto.email, ip);
+  }
+
+  @Post('email-otp/verify')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Verify an email OTP and receive tokens' })
+  @ApiResponse({ status: 200, description: 'Tokens issued' })
+  @ApiResponse({ status: 401, description: 'AUTH_INVALID_CODE or AUTH_CODE_EXPIRED' })
+  @ApiResponse({ status: 429, description: 'AUTH_RATE_LIMITED' })
+  async verifyEmailOtp(@Body() dto: VerifyEmailOtpDto, @Ip() ip: string) {
+    return this.authService.verifyEmailOtp(dto.email, dto.code, ip);
   }
 
   @Post('refresh')

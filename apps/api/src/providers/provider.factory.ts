@@ -11,6 +11,8 @@ import { PgStorageAdapter } from './storage/pg-storage.adapter';
 import { TenantScopedStorageAdapter, assertTenantSlug } from './storage/tenant-scoped-storage.adapter';
 import type { StorageProvider } from './storage/storage.provider';
 import { OpenAiCompatibleAIAdapter } from './ai/openai-compatible.adapter';
+import { MockEmailAdapter } from './email/mock-email.adapter';
+import { SmtpEmailAdapter } from './email/smtp-email.adapter';
 import { ZarinpalAdapter } from './payment/zarinpal.adapter';
 import { KavenegarSmsAdapter } from './sms/kavenegar.adapter';
 import type { ProviderCategory } from './provider.tokens';
@@ -64,6 +66,13 @@ export function createAdapterFor(
         return new OpenAiCompatibleAIAdapter(config);
       }
       return new MockAIAdapter(config);
+    case 'email':
+      // P10: EMAIL_DRIVER=smtp → real relay; anything else → dev outbox
+      // (the mock-in-production guard above already keys off adapterKey).
+      if (config.get<string>('EMAIL_DRIVER') === 'smtp') {
+        return new SmtpEmailAdapter(config);
+      }
+      return new MockEmailAdapter();
     case 'storage': {
       // P9-T1: DRIVER decides — 'pg' = durable replica-shared runtime state
       // (migration 008 required), anything else = local files. In production

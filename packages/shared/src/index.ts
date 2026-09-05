@@ -65,3 +65,17 @@ export function normalizeIranPhone(phone: string): string | null {
   return `+98${digits}`;
 }
 
+
+/** Lowercases + trims an email and validates it conservatively (ASCII-safe,
+ * rejects consecutive dots; enough for an auth destination, not a regex IQ
+ * test). Returns null for anything not a single well-formed address. */
+export function normalizeEmail(raw: string | null | undefined): string | null {
+  if (typeof raw !== 'string') return null;
+  const v = raw.trim().toLowerCase();
+  if (v.length > 254) return null;
+  if (!/^[^\s@]{1,64}@[^\s@]{1,255}$/.test(v)) return null;
+  if (v.includes('..')) return null;
+  const [local, domain] = v.split('@');
+  if (!local || !domain || !domain.includes('.') || domain.startsWith('-')) return null;
+  return v;
+}

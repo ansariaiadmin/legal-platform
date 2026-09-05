@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { Num, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { t } from '@/i18n';
 import { VaultPanel } from './vault-panel';
@@ -94,7 +95,7 @@ export function SecurityTab() {
       <div className="card" style={{ display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' }}>
         <div style={{ textAlign: 'center' }}>
           <div style={{ fontSize: 44, fontWeight: 800, color: scoreTone || 'var(--muted)' }}>
-            {score === null ? '—' : score}
+            {posture === null ? <Skeleton width={48} height={34} /> : score === null ? '—' : <Num value={score} />}
             <span style={{ fontSize: 18, color: 'var(--muted)' }}>/10</span>
           </div>
           <div style={{ fontSize: 12, color: 'var(--muted)' }}>{t('security.posture')}</div>
@@ -113,7 +114,7 @@ export function SecurityTab() {
           </div>
         </div>
         <button className="pill teal" onClick={() => void runScan()} disabled={busy} style={{ cursor: 'pointer' }}>
-          {busy ? '…' : t('security.rescan')}
+          {busy ? <span className="sk" style={{ display: 'inline-block', width: 52, height: 14 }} /> : t('security.rescan')}
         </button>
       </div>
 

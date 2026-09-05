@@ -60,7 +60,7 @@ export class OpsController {
     return {
       mode,
       capabilities: {
-        inProcessEventBus: true,             // SSE kitchen + security feed (P10: Redis pub/sub bridge)
+        eventBusBridge: (mode === 'multi' && redisConfigured) ? 'redis-pubsub' : 'in-process',  // P10-T-bus
         rateLimiterDriver: rateDriver,     // redis = shared across replicas (P9-T4)
         sharedStorageDriver: this.config.get<string>('STORAGE_DRIVER') === 'pg' ? 'pg' : 'local-files',
         redisBridgeReady: redisConfigured,

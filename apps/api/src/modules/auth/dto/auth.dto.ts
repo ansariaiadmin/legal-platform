@@ -27,3 +27,13 @@ export class RefreshTokenDto {
   @IsString()
   refreshToken!: string;
 }
+
+/** P10: email channel (owed since P8) — same discipline as phone OTP. */
+export class RequestEmailOtpDto {
+  email!: string;
+}
+
+export class VerifyEmailOtpDto {
+  email!: string;
+  code!: string;
+}

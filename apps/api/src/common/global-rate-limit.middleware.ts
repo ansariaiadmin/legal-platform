@@ -1,7 +1,11 @@
 import type { Request, Response, NextFunction } from 'express';
-import { HttpException } from '@nestjs/common';
-import { ERROR_CODES } from '@legal-platform/contracts';
-import type { RateLimitService } from './rate-limit.service';
+import { ERROR_CODES, errorResponse } from '@legal-platform/contracts';
+import type { RateLimitDecision, RateLimitRule } from './rate-limit.service';
+
+/** What the floor needs: any limiter — in-process OR shared Redis (P10). */
+export interface FloorLimiter {
+  consume(key: string, rule: RateLimitRule): RateLimitDecision | Promise<RateLimitDecision>;
+}
 
 export const GLOBAL_RATE_LIMIT_ENV = 'GLOBAL_RATE_LIMIT_PER_MIN';
 
@@ -16,22 +20,32 @@ export const GLOBAL_RATE_LIMIT_ENV = 'GLOBAL_RATE_LIMIT_PER_MIN';
  * don't eat the bucket.
  */
 export function globalRateLimitMiddleware(
-  rateLimiter: RateLimitService,
+  rateLimiter: FloorLimiter,
   perMinute: number,
 ): (req: Request, res: Response, next: NextFunction) => void {
   return (req: Request, res: Response, next: NextFunction): void => {
     if (req.path === '/api/health' || req.path === '/health') return next();
 
-    const decision = rateLimiter.consume(`global:${req.ip}`, {
-      limit: perMinute,
-      windowMs: 60_000,
-    });
-    if (decision.allowed) {
-      res.setHeader('X-RateLimit-Limit', String(perMinute));
-      res.setHeader('X-RateLimit-Remaining', String(decision.remaining));
-      return next();
+    // The limiter may be synchronous (in-process) or async (shared Redis);
+    // the floor supports both without lying about which one served.
+    const settle = (decision: RateLimitDecision): void => {
+      if (decision.allowed) {
+        res.setHeader('X-RateLimit-Limit', String(perMinute));
+        res.setHeader('X-RateLimit-Remaining', String(decision.remaining));
+        return next();
+      }
+      res.setHeader('Retry-After', String(decision.retryAfterSeconds));
+      // P10: the floor is plain middleware (outside Nest's route pipeline),
+      // and async limiters cannot throw into the global filter — so render
+      // the EXACT same SPEC §7 payload directly. Same shape, both drivers.
+      res.status(429).json(errorResponse(ERROR_CODES.SECURITY_RATE_LIMITED, ERROR_CODES.SECURITY_RATE_LIMITED));
+    };
+    try {
+      void Promise.resolve(rateLimiter.consume(`global:${req.ip}`, { limit: perMinute, windowMs: 60_000 }))
+        .then(settle)
+        .catch(next);
+    } catch (e) {
+      next(e);
     }
-    res.setHeader('Retry-After', String(decision.retryAfterSeconds));
-    throw new HttpException(ERROR_CODES.SECURITY_RATE_LIMITED, 429);
   };
 }

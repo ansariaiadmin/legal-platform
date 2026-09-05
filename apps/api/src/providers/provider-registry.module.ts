@@ -2,6 +2,7 @@ import { Global, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   AI_PROVIDER,
+  EMAIL_PROVIDER,
   PAYMENT_PROVIDER,
   PUSH_PROVIDER,
   SMS_PROVIDER,
@@ -54,7 +55,13 @@ import { adapterKeyFromEnv, createAdapterFor } from './provider.factory';
       useFactory: (config: ConfigService) =>
         createAdapterFor('storage', adapterKeyFromEnv('storage', config), config),
     },
+    {
+      provide: EMAIL_PROVIDER,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) =>
+        createAdapterFor('email', adapterKeyFromEnv('email', config), config),
+    },
   ],
-  exports: [SMS_PROVIDER, PAYMENT_PROVIDER, PUSH_PROVIDER, TELEPHONY_PROVIDER, AI_PROVIDER, STORAGE_PROVIDER],
+  exports: [SMS_PROVIDER, PAYMENT_PROVIDER, PUSH_PROVIDER, TELEPHONY_PROVIDER, AI_PROVIDER, STORAGE_PROVIDER, EMAIL_PROVIDER],
 })
 export class ProviderRegistryModule {}

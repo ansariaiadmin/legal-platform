@@ -121,6 +121,10 @@ export const en = {
   'auth.sendOtp': 'Send code',
   'auth.verify': 'Sign in',
   'auth.devToken': 'Dev token (sandbox only)',
+  'auth.channel.phone': 'Mobile',
+  'auth.channel.email': 'Email',
+  'auth.email': 'Email address',
+  'auth.sendEmailOtp': 'Email me the code',
   'auth.devLogin': 'Dev sign-in',
 
   // ops / backup
@@ -332,7 +336,11 @@ export const fa: Record<keyof typeof en, string> = {
   'auth.sendOtp': 'ارسال کد',
   'auth.verify': 'ورود',
   'auth.devToken': 'توکن توسعه (فقط سندباکس)',
-  'auth.devLogin': 'ورود توسعه',
+  'auth.channel.phone': 'موبایل',
+  'auth.channel.email': 'ایمیل',
+  'auth.email': 'نشانی ایمیل',
+  'auth.sendEmailOtp': 'کد را ایمیل کن',
+'auth.devLogin': 'ورود توسعه',
 
   'ops.backup': 'نسخهٔ پشتیبان',
   'ops.backup.download': 'دانلود بستهٔ پشتیبان',

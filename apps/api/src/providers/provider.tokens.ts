@@ -12,6 +12,7 @@ export const PUSH_PROVIDER = Symbol.for('legal-platform.provider.push');
 export const TELEPHONY_PROVIDER = Symbol.for('legal-platform.provider.telephony');
 export const AI_PROVIDER = Symbol.for('legal-platform.provider.ai');
 export const STORAGE_PROVIDER = Symbol.for('legal-platform.provider.storage');
+export const EMAIL_PROVIDER = Symbol.for('legal-platform.provider.email');
 
 export const PROVIDER_TOKENS = {
   sms: SMS_PROVIDER,
@@ -20,6 +21,7 @@ export const PROVIDER_TOKENS = {
   telephony: TELEPHONY_PROVIDER,
   ai: AI_PROVIDER,
   storage: STORAGE_PROVIDER,
+  email: EMAIL_PROVIDER,
 } as const;
 
 export type ProviderCategory = keyof typeof PROVIDER_TOKENS;
