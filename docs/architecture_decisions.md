@@ -5,6 +5,52 @@ a new ADR. `scripts/agent_state.json.architectural_decisions` mirrors this file.
 
 ---
 
+## ADR-017: Collection loop — mock-first adapters, a state machine that owns up to halves, retry that links back (P2, 2026-09-05)
+
+**Status**: accepted · **Area**: corpus / ingestion · **Phase**: P2-T2/T5/T6
+
+**Context.** The remaining half of SPEC §9 was the LOOP: scheduled collection
+from official sources, an ingestion worker handling mixed windows honestly
+(success N of M is PARTIAL, not success), and operator diagnostics with
+manual retry. The roadmap names Redis as the queue transport; the sandbox
+has no Redis — but the lifecycle and its accounting are the PRODUCT, not
+the transport.
+
+**Decision.**
+1. **Collector adapters, mock-first.** `CollectorSourceAdapter` is the port:
+   `fetchLatest(windowLabel)` returning `{canonicalTitle, bodyRaw}[]`. The
+   shipped mock (`rooznameh-mock`) emits two deterministic tier-1 fixtures
+   (with the official «روزنامه رسمی» marker so the validator CAN pass them)
+   plus a `FAIL` fixture that simulates a wire failure — failure counting is
+   exercised by the fixtures themselves, so partial_success behavior is
+   REAL code under test, not a logging belief.
+2. **The same sha the validator re-checks is the sha of the SHIPPED text.**
+   A subtle honesty rule discovered in tests: hashing `bodyRaw` while
+   shipping `title + bodyRaw` fails provenance. The collector hashes the
+   exact bytes it emits (`contentSha256` over the emitted `rawText`).
+3. **State machine**: `queued → running → succeeded | partial_success |
+   failed`, persisted via StorageProvider (`runtime/corpus/jobs.json`) with
+   `attempted/succeeded/failed` counts. Job id = sha256(sourceId, window)
+   → re-running the same window REPLAYS THE SAME JOB as a no-op; a manual
+   retry re-clocks the same row with `retryOf` pointing at the previous
+   attempt — history of attempts, never multiplied jobs.
+4. **Validation inside the loop.** Every collected item that lands on the
+   shelf is passed through `DataValidatorService`; failures LIST the sha256
+   prefix in `rejectedIds` for the diagnostics surface (no silent green
+   ticks; ADR-016 rule 2 applies inside workers too).
+5. **Diagnostics is a READ model**: `GET /api/dashboard/corpus/diagnostics`
+   returns failures (failed | partial_success | validator-rejections) +
+   available collector sources; `POST /api/dashboard/corpus/sync` runs a
+   window NOW; `POST /api/dashboard/corpus/jobs/:id/retry` re-runs linked.
+   The Redis transport upgrade swaps the service internals; the API and
+   state machine stay.
+
+**Tests** — `test/corpus/collector-worker.spec.ts` (5 specs: fixture
+counting, partial_success auto-verify, idempotent replay, retry linking,
+per-window job separation).
+
+---
+
 ## ADR-016: The corpus shelf — trust tiers, validator-only ticks, temporal truth, deterministic grounding (P2, 2026-09-05)
 
 **Status**: accepted · **Area**: corpus / RAG · **Phase**: P2 (data lifecycle)

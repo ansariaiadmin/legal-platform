@@ -206,3 +206,5 @@ zig-out/
 # .bmp
 # .gif
 # .webm
+# runtime state (StorageProvider local adapter writes here; never tracked)
+apps/api/uploads/

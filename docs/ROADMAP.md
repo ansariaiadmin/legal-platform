@@ -196,8 +196,11 @@ Law versioning = temporal (valid_from/valid_to), never overwrite history.
   NOTE: `citation_links` / `retrieval_sessions` / `retrieval_results` defer
   to the P4c embedding phase — P2 grounding carries citations on `result.meta`.
   Rehearsal (`test:migrations`) needs a live DATABASE_URL — see ADR-016.
-- [ ] **P2-T2** `ICollectorAgent` implementations: official-source scrapers
-  (روزنامه رسمی، پایگاه قوانین) behind a per-source adapter interface; mock-first.
+- [x] **P2-T2** `CollectorSourceAdapter` port + mock-first collector (ADR-017):
+  `rooznameh-mock` emits deterministic tier-1 fixtures (with an official
+  marker so the validator can pass) + a FAIL fixture so wire-failure counting
+  is REAL code; sha256 hashed over the exact emitted rawText. Real
+  روزنامه رسمی/پایگاه قوانین adapters plug the same interface later.
 - [x] **P2-T3** `DataValidatorService` (corpus shelf IS the validator surface):
   sha256 recompute, min length, Persian ratio, tier-1 official-marker rule;
   `verified_at` written ONLY when every rule passes; Persian reasons leak out
@@ -206,10 +209,15 @@ Law versioning = temporal (valid_from/valid_to), never overwrite history.
   "no change"; new text on a known title closes the previous `valid_to` and
   appends the version with `supersedes_id` — history never overwritten.
   Effective-date SCHEDULING (collected for tomorrow) lands with P2-T5's worker.
-- [ ] **P2-T5** Ingestion worker (Redis queue, `IngestionJobState` machine)
-  with idempotent re-runs and partial_success accounting.
-- [ ] **P2-T6** Diagnostics surfacing: sync failures visible in
-  `/api/dashboard/diagnostics` with manual retry (SPEC §9).
+- [x] **P2-T5** `IngestionWorkerService` state machine (queued → running →
+  succeeded | partial_success | failed), persisted via StorageProvider.
+  Job id = sha(sourceId, window) → same-window replay is a NO-OP; retry
+  re-clocks the same row with `retryOf`; validator sits inside the loop and
+  rejections list sha prefixes. Redis transport = later swap, API stable.
+- [x] **P2-T6** Diagnostics surfacing: `GET /api/dashboard/corpus/diagnostics`
+  (failed | partial_success | rejected runs + collector sources), `POST
+  /sync` (sync now, idempotent per window), `POST /jobs/:id/retry`; the
+  dashboard کتابخانه tab shows jobs + stats + retry buttons.
 - [x] **P2-T7** Corpus grounding at dispatch (ADR-016): corpus search runs
   BEFORE the expert; verified hits fold into `task.context` and only then
   `meta.grounded=true` with `meta.citations[]` (title, tier, preview).

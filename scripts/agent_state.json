@@ -378,9 +378,14 @@
       "id": "ADR-016",
       "reasoning": "Corpus shelf: trust tiers, validator-only ticks, temporal truth, deterministic grounding StorageProvider-persisted now with SQL shapes in 006; validator owns verified_at; updater appends versions; dispatcher folds hits into context and only then claims grounded=true",
       "at": "2026-09-05T13:39:57.975Z"
+    },
+    {
+      "id": "ADR-017",
+      "reasoning": "Collection loop — mock-first adapters, honest partial_success state machine, linked retries CollectorSourceAdapter port + rooznameh-mock fixtures; ingestion worker persisted via StorageProvider with (source,window)-keyed idempotency; diagnostics read model + retry; Redis = later transport swap",
+      "at": "2026-09-05T13:52:38.142Z"
     }
   ],
-  "last_checkpoint": "2026-09-05T13:39:57.976Z",
-  "updated_at": "2026-09-05T13:39:57.976Z",
-  "update_count": 123
+  "last_checkpoint": "2026-09-05T13:52:38.142Z",
+  "updated_at": "2026-09-05T13:52:38.142Z",
+  "update_count": 125
 }

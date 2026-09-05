@@ -6,6 +6,8 @@ import { RolesGuard } from '../../security/roles.guard';
 import { CurrentUser } from '../../security/current-user.decorator';
 import type { AuthenticatedUser } from '../../security/authenticated-user';
 import { CorpusService, DataValidatorService, LawUpdaterService } from './index';
+import { IngestionWorkerService } from './ingestion-worker.service';
+import { CollectorAgentService } from './collector-agent.service';
 import { FileIntelligenceService } from '../orchestrator/file-intelligence.service';
 import { createHash } from 'node:crypto';
 
@@ -20,6 +22,8 @@ export class CorpusController {
     private readonly corpus: CorpusService,
     private readonly validator: DataValidatorService,
     private readonly updater: LawUpdaterService,
+    private readonly worker: IngestionWorkerService,
+    private readonly collector: CollectorAgentService,
     private readonly files: FileIntelligenceService,
   ) {}
 
@@ -132,5 +136,38 @@ export class CorpusController {
   @Get('search')
   async search(@Query('q') q: string, @Query('all') all?: string) {
     return this.corpus.search(q ?? '', { verifiedOnly: all !== 'true' });
+  }
+
+  /* ---- collection & diagnostics (P2-T2/T5/T6) ---------------------------- */
+
+  /** List collector sources with mock adapters (wire-ready contract). */
+  @Get('jobs')
+  async jobs() {
+    return this.worker.list();
+  }
+
+  /** SPEC §9 diagnostics: the stuff a human should look at — failed,
+   *  partial, or validator-rejected runs, newest first. */
+  @Get('diagnostics')
+  async diagnostics() {
+    return {
+      failures: await this.worker.failures(),
+      collectorSources: this.collector.listSources(),
+    };
+  }
+
+  /** Kick a sync NOW for a source (mock adapter in dev). Idempotent per
+   *  (source, window): re-asking the same day replays as a no-op. */
+  @Post('sync')
+  async sync(@Body() body: { sourceId?: string; date?: string }) {
+    return this.worker.sync(body.sourceId ?? 'rooznameh-mock', body.date);
+  }
+
+  /** Manual retry for a seen failure — linked to the old run, counted fresh. */
+  @Post('jobs/:id/retry')
+  async retry(@Param('id') id: string) {
+    const job = await this.worker.retry(id);
+    if (!job) return { retried: false, reason: 'کار یافت نشد' };
+    return { retried: true, job };
   }
 }

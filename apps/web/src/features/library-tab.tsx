@@ -3,6 +3,22 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, type FileRecordView } from '@/lib/api';
 
+interface IngestionJob {
+  jobId: string;
+  sourceId: string;
+  windowLabel: string;
+  status: 'queued' | 'running' | 'succeeded' | 'partial_success' | 'failed';
+  attempted: number;
+  succeeded: number;
+  failed: number;
+  documentIds: string[];
+  rejectedIds: string[];
+  startedAt: string;
+  finishedAt: string | null;
+  errorSummary: string | null;
+  retryOf: string | null;
+}
+
 interface Stats {
   sources: number;
   documents: number;
@@ -51,6 +67,7 @@ export function LibraryTab() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [docs, setDocs] = useState<Doc[]>([]);
   const [files, setFiles] = useState<FileRecordView[]>([]);
+  const [jobs, setJobs] = useState<IngestionJob[]>([]);
   const [query, setQuery] = useState('');
   const [hits, setHits] = useState<Hit[] | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
@@ -69,6 +86,8 @@ export function LibraryTab() {
       setStats(s);
       const d = await api.get<Doc[]>('/api/dashboard/corpus/documents');
       setDocs(d);
+      const j = await api.get<IngestionJob[]>('/api/dashboard/corpus/jobs').catch(() => []);
+      setJobs(j);
     } catch {
       /* the shelf may not be reachable yet; heartbeat keeps retrying per click */
     }
@@ -143,6 +162,40 @@ export function LibraryTab() {
     setHits(await api.get<Hit[]>(`/api/dashboard/corpus/search?q=${encodeURIComponent(query)}`));
   }
 
+  async function syncNow() {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const j = await api.post<IngestionJob>('/api/dashboard/corpus/sync', {});
+      setMsg(
+        j.status === 'succeeded'
+          ? `همگام‌سازی تمام: ${j.succeeded}/${j.attempted} سند قفسه شد.`
+          : j.status === 'partial_success'
+            ? `موفقیت نیمه‌تمام: ${j.succeeded}/${j.attempted} سند؛ ${j.failed} مورد واقعاً از سیم افتاد.`
+            : `شکست: ${j.errorSummary ?? 'ناشناخته'}`,
+      );
+      await refresh();
+    } catch (e) {
+      setMsg((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function retryJob(id: string) {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const r = await api.post<{ retried: boolean; job?: IngestionJob }>(`/api/dashboard/corpus/jobs/${id}/retry`);
+      setMsg(r.retried && r.job ? `دوباره رفت: ${r.job.status} — ${r.job.succeeded}/${r.job.attempted}` : 'کار یافت نشد.');
+      await refresh();
+    } catch (e) {
+      setMsg((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="grid" style={{ gap: 18 }}>
 
@@ -166,6 +219,46 @@ export function LibraryTab() {
           </p>
         </div>
       )}
+
+      {/* — collection & diagnostics (P2-T2/T5/T6) — */}
+      <div className="card">
+        <h3 style={{ margin: '0 0 6px' }}>گردآوری از منابع + عیب‌یابی عمیق</h3>
+        <p className="hint">
+          دکمهٔ زیر منبع رسمی (mock) را همگام می‌کند. نتیجه دقیقاً همان چیزی گزارش می‌شود که اتفاق افتاده است —
+          نیمه‌تمام هم اعلام می‌شود.
+        </p>
+        <button className="btn primary" disabled={busy} onClick={() => void syncNow()}>
+          همگام‌سازی حالا (روزنامه‌نمونه)
+        </button>
+        {jobs.length > 0 && (
+          <div style={{ marginTop: 12 }}>
+            {jobs.slice(0, 6).map((j) => (
+              <div key={j.jobId} style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '8px 0', borderBottom: '1px dashed var(--line)' }}>
+                <span className={`pill ${j.status === 'succeeded' ? 'ok' : j.status === 'partial_success' ? 'gold' : 'bad'}`}>
+                  {j.status === 'succeeded' ? '✅ کامل'
+                    : j.status === 'partial_success' ? '⚠️ نیمه‌تمام'
+                    : j.status === 'failed' ? '❌ شکست'
+                    : '⏳'}
+                </span>
+                <div style={{ flex: 1, fontSize: 13 }}>
+                  <b>{j.sourceId}</b> · پنجرهٔ {j.windowLabel} · {j.succeeded}/{j.attempted} قفسه شد
+                  {j.failed > 0 && <span style={{ color: 'var(--rose)' }}> · {j.failed} شکست</span>}
+                  {j.rejectedIds.length > 0 && <span style={{ color: 'var(--gold)' }}> · {j.rejectedIds.length} رد اعتبارسنجی</span>}
+                  <div className="hint" style={{ marginTop: 2 }}>
+                    {new Date(j.startedAt).toLocaleString('fa-IR')}{j.retryOf ? ' · اجرای دوباره' : ''}
+                    {j.errorSummary ? ` · ${j.errorSummary}` : ''}
+                  </div>
+                </div>
+                {(j.status === 'failed' || j.status === 'partial_success') && (
+                  <button className="btn" style={{ padding: '6px 12px' }} disabled={busy} onClick={() => void retryJob(j.jobId)}>
+                    تلاش دوباره
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* — deterministic search — */}
       <div className="card">

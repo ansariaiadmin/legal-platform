@@ -5,7 +5,7 @@
 ## Where we are
 
 - **Phase:** phase-1-expert-tree — Expert agents: civil, criminal, family, registration
-- **Last checkpoint:** 2026-09-05T13:39:57.976Z
+- **Last checkpoint:** 2026-09-05T13:52:38.142Z
 - **Git:** run `git log --oneline -3` to see the last commits.
 
 ## Protocol (non-negotiable)
@@ -47,6 +47,7 @@
 - [ ] P2-T4 corpus grounding layer: orchestrator dispatch attaches meta.citations (docTitle, chunkPreview, trustTier) + meta.grounded=true only when deterministic corpus hits exist — LLM untouched
 - [ ] P2-T5 dashboard tab «کتابخانه» (corpus): list docs + trust tier chip + verify button + ingest-from-file + search; bus events corpus.ingested/corpus.validated
 - [ ] P2-T6 tests (corpus search scoring, tier gates, workflow ingest→validate→cite, updater temporal) + ADR-016 + ROADMAP Phase2 + docs + checkpoint sync + push
+- [ ] P2-T2[done] CollectorSourceAdapter + mock collector (rolznameh fixtures, FAIL wire counting) — ADR-017
 
 ## Completed
 
@@ -85,3 +86,4 @@
 - **ADR-014** — Owner configures platform by talking: ConfigHubService (runtime brain overrides via StorageProvider, masked secrets, presets) + conversational config (deterministic Persian intents → proposal → confirm) + DEV_DASHBOARD_TOKEN sandbox door (prod-impotent) + SSE dashboard kitchen via node:http raw proxy (Next patched-fetch buffers event streams) Dashboard Next.js fa/RTL six tabs zero new deps; router consults hub peek first; secrecy law has no UI switch
 - **ADR-015** — Commerce+telecoms: WalletService (per-user lock, idempotent topup, WALLET_INSUFFICIENT_FUNDS 402), BillingService (plans 10/20/30 lawyer-edited + per-feature AI subscriptions 1/3/12m, duplicate-active 409), ConsultationQueueService (join⇒paid-and-online, honest ETA, lifecycle + refund on cancel, queue.updated bus events), CommsSettingsService (sms+call panels masked persisted, REAL test shots), NotificationService (in-app + SMS + outbound call at up_next) Client site = OWN Next server apps/client (PWA installable, 4 tabs, manifest+SW, 12s queue polling); dashboard gains telecoms tab; error codes prefix-mapped
 - **ADR-016** — Corpus shelf: trust tiers, validator-only ticks, temporal truth, deterministic grounding StorageProvider-persisted now with SQL shapes in 006; validator owns verified_at; updater appends versions; dispatcher folds hits into context and only then claims grounded=true
+- **ADR-017** — Collection loop — mock-first adapters, honest partial_success state machine, linked retries CollectorSourceAdapter port + rooznameh-mock fixtures; ingestion worker persisted via StorageProvider with (source,window)-keyed idempotency; diagnostics read model + retry; Redis = later transport swap

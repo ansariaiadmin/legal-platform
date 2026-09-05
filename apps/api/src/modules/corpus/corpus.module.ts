@@ -3,6 +3,8 @@ import { OrchestratorModule } from '../orchestrator/orchestrator.module';
 import { CorpusService } from './corpus.service';
 import { DataValidatorService } from './data-validator.service';
 import { LawUpdaterService } from './law-updater.service';
+import { CollectorAgentService } from './collector-agent.service';
+import { IngestionWorkerService } from './ingestion-worker.service';
 
 /**
  * P2-T2..T5: the corpus shelf — knowledge sources, documents with trust
@@ -16,7 +18,7 @@ import { LawUpdaterService } from './law-updater.service';
  */
 @Module({
   imports: [forwardRef(() => OrchestratorModule)],
-  providers: [CorpusService, DataValidatorService, LawUpdaterService],
-  exports: [CorpusService, DataValidatorService, LawUpdaterService],
+  providers: [CorpusService, DataValidatorService, LawUpdaterService, CollectorAgentService, IngestionWorkerService],
+  exports: [CorpusService, DataValidatorService, LawUpdaterService, CollectorAgentService, IngestionWorkerService],
 })
 export class CorpusModule {}
