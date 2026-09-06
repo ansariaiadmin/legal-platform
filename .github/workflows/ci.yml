@@ -3,6 +3,10 @@ name: CI
 on:
   push:
     branches: [main, master, arena/01a070f0-legal-platform]
+
+permissions:
+  contents: write
+  checks: write
   pull_request:
     branches: [main, master]
 
@@ -160,10 +164,8 @@ jobs:
             head -c 800 /tmp/drillB.log > /tmp/drillB.head || true
             tail -c 8000 /tmp/drillB.log > /tmp/drillB.tail || true
             { echo "CI drill-B FAILED:"; echo '```'; cat /tmp/drillB.head; echo "…"; cat /tmp/drillB.tail; echo '```'; } > /tmp/drillBody.md
-            BODY=$(jq -Rs '{body: .}' < /tmp/drillBody.md)
-            GH_TOKEN="${{ secrets.GITHUB_TOKEN }}";
-            export GH_TOKEN
-            gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/comments" -X POST --input /tmp/drillBody.md --jq .html_url -f "body=$(cat /tmp/drillBody.md)" || echo "::warning::comment channel failed, dumping inline instead"
+            jq -Rs '{body: .}' < /tmp/drillBody.md > /tmp/drillBody.json
+            GH_TOKEN="${{ secrets.GITHUB_TOKEN }}" gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/comments" -X POST --input /tmp/drillBody.json --jq .html_url || { echo "::warning::comment channel failed — dumping inline instead"; cat /tmp/drillBody.md; }
             echo "===DRILL-B-LOG-END==="
             exit $rc
           fi
