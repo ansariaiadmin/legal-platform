@@ -74,15 +74,25 @@ log_info "Extracting backup archive..."
 tar -xzf "$BACKUP_FILE" -C "$TEMP_DIR"
 
 # Find manifest file
+# NOTE (caught by the CI backup/restore drill): bash's [[ -f path* ]] does NOT
+# glob-expand the asterisk inside [[ ]]—that branch always silently failed.
+# Use a real glob loop outside the test instead.
 MANIFEST_FILE=""
 if [[ -f "$TEMP_DIR/manifest.json" ]]; then
     MANIFEST_FILE="$TEMP_DIR/manifest.json"
-elif [[ -f "$TEMP_DIR/manifest-"*".json" ]]; then
-    MANIFEST_FILE=$(ls "$TEMP_DIR"/manifest-*.json | head -1)
 else
+    shopt -s nullglob
+    for f in "$TEMP_DIR"/manifest-*.json; do
+        MANIFEST_FILE="$f"
+        break
+    done
+    shopt -u nullglob
+fi
+if [[ -z "$MANIFEST_FILE" ]]; then
     log_error "Manifest file not found in backup archive"
     exit 1
 fi
+log_info "Found manifest: $MANIFEST_FILE"
 
 log_info "Verifying checksums from manifest..."
 
