@@ -174,11 +174,16 @@ docker compose stop api worker || true
 log_info "Restoring database..."
 if command -v pg_restore >/dev/null 2>&1 && [ -n "${DB_HOST:-}" ]; then
     log_info "Using direct pg_restore against $DB_HOST:$DB_PORT/$DB_NAME..."
+    # --exit-on-error: pg_restore's DEFAULT exit semantics are broken for
+    # scripting (exit 1 on harmless "errors ignored" warnings even when the
+    # restore fully succeeded). With --exit-on-error, exit 1 means a REAL
+    # error aborted the restore — a signal we can trust.
     PGPASSWORD="$DB_PASS" pg_restore \
         -h "$DB_HOST" \
         -p "$DB_PORT" \
         -U "$DB_USER" \
         -d "$DB_NAME" \
+        --exit-on-error \
         --no-owner --no-privileges \
         --clean \
         --if-exists \

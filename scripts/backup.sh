@@ -124,12 +124,18 @@ else
     tar -cf "$UPLOADS_DUMP" -C "$TEMP_DIR" empty_uploads
 fi
 
-# Create manifest with metadata
+# Create manifest with metadata.
+# IMPORTANT ORDERING: the manifest must live INSIDE $TEMP_DIR before tar runs,
+# because the tar command packages manifest-${TIMESTAMP}.json from $TEMP_DIR.
+# Writing it only to $BACKUP_DIR used to make tar die with:
+#   tar: manifest-YYYYMMDD-HHMMSS.json: Cannot stat: No such file or directory
+# (the CI backup/restore drill caught this).
 log_info "Creating manifest..."
 DB_CHECKSUM=$(sha256sum "$DB_DUMP_FILE" | awk '{print $1}')
 UPLOADS_CHECKSUM=$(sha256sum "$UPLOADS_DUMP" | awk '{print $1}')
 
-cat > "$MANIFEST_FILE" << EOF
+LOCAL_MANIFEST="$TEMP_DIR/manifest-${TIMESTAMP}.json"
+cat > "$LOCAL_MANIFEST" << EOF
 {
   "timestamp": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
   "backup_name": "$BACKUP_NAME",
@@ -148,7 +154,7 @@ cat > "$MANIFEST_FILE" << EOF
       "sha256": "$UPLOADS_CHECKSUM"
     }
   },
-  "version": "1.0.0"
+  "backup_format_version": "1.0.0"
 }
 EOF
 
@@ -158,10 +164,10 @@ tar -czf "$BACKUP_DIR/$BACKUP_NAME" \
     -C "$TEMP_DIR" \
     db_dump.sql \
     uploads.tar \
-    manifest-${TIMESTAMP}.json
+    "manifest-${TIMESTAMP}.json"
 
-# Copy manifest into the backup archive too
-cp "$MANIFEST_FILE" "$TEMP_DIR/manifest.json"
+# Keep a manifest copy next to the archive for quick inventory (non-fatal)
+cp "$LOCAL_MANIFEST" "$MANIFEST_FILE"
 
 log_success "Backup completed successfully"
 log_info "Backup file: $BACKUP_DIR/$BACKUP_NAME"
