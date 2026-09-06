@@ -158,17 +158,12 @@ jobs:
             DATABASE_URL="$RESTORE_URL" bash ./scripts/restore.sh --confirm "$BACKUP_FILE"
           } 2>&1 | tee /tmp/drillB.log
           rc=${PIPESTATUS[0]}
-          if [ $rc -ne 0 ]; then
-            # Channel discipline: artifacts/logs are Azure-CDN-hosted and unreachable
-            # from our sandbox; repo commit-comments go through api.github.com.
-            head -c 800 /tmp/drillB.log > /tmp/drillB.head || true
-            tail -c 8000 /tmp/drillB.log > /tmp/drillB.tail || true
-            { echo "CI drill-B FAILED:"; echo '```'; cat /tmp/drillB.head; echo "…"; cat /tmp/drillB.tail; echo '```'; } > /tmp/drillBody.md
-            jq -Rs '{body: .}' < /tmp/drillBody.md > /tmp/drillBody.json
-            GH_TOKEN="${{ secrets.GITHUB_TOKEN }}" gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/comments" -X POST --input /tmp/drillBody.json --jq .html_url || { echo "::warning::comment channel failed — dumping inline instead"; cat /tmp/drillBody.md; }
-            echo "===DRILL-B-LOG-END==="
-            exit $rc
-          fi
+          head -c 4000 /tmp/drillB.log > /tmp/drillB.head || true
+          tail -c 4000 /tmp/drillB.log > /tmp/drillB.tail || true
+          { echo "Drill B (restore) — rc=$rc"; echo '```'; cat /tmp/drillB.head; echo "…"; cat /tmp/drillB.tail; echo '```'; } > /tmp/drillBody.md
+          jq -Rs '{body: .}' < /tmp/drillBody.md > /tmp/drillBody.json
+          GH_TOKEN="${{ secrets.GITHUB_TOKEN }}" gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/comments" -X POST --input /tmp/drillBody.json --jq .html_url
+          if [ $rc -ne 0 ]; then exit $rc; fi
 
       - name: Upload drill logs as artifact on failure
         if: failure()
