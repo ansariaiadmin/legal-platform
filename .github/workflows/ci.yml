@@ -136,12 +136,14 @@ jobs:
             echo "backup_file=$BACKUP_FILE" >> $GITHUB_OUTPUT
           } 2>&1 | tee /tmp/drillA.log
           rc=${PIPESTATUS[0]}
-          head -c 4000 /tmp/drillA.log > /tmp/drillA.head || true
-          tail -c 4000 /tmp/drillA.log > /tmp/drillA.tail || true
-          { echo "Drill A (seed+backup) — rc=$rc"; echo '```'; cat /tmp/drillA.head; echo "…"; cat /tmp/drillA.tail; echo '```'; } > /tmp/drillABody.md
-          jq -Rs '{body: .}' < /tmp/drillABody.md > /tmp/drillABody.json
-          GH_TOKEN="${{ secrets.GITHUB_TOKEN }}" gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/comments" -X POST --input /tmp/drillABody.json --jq .html_url
-          if [ $rc -ne 0 ]; then exit $rc; fi
+          if [ $rc -ne 0 ]; then
+            head -c 4000 /tmp/drillA.log > /tmp/drillA.head || true
+            tail -c 4000 /tmp/drillA.log > /tmp/drillA.tail || true
+            { echo "💥 Drill A (seed+backup) FAILED rc=$rc:"; echo '```'; cat /tmp/drillA.head; echo "…"; cat /tmp/drillA.tail; echo '```'; } > /tmp/drillABody.md
+            jq -Rs '{body: .}' < /tmp/drillABody.md > /tmp/drillABody.json
+            GH_TOKEN="${{ secrets.GITHUB_TOKEN }}" gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/comments" -X POST --input /tmp/drillABody.json --jq .html_url || true
+            exit $rc
+          fi
 
       - name: "Drill B — restore into FRESH database via scripts/restore.sh"
         env:
@@ -159,12 +161,13 @@ jobs:
             DATABASE_URL="$RESTORE_URL" bash ./scripts/restore.sh --confirm "$BACKUP_FILE"
           } 2>&1 | tee /tmp/drillB.log
           rc=${PIPESTATUS[0]}
-          head -c 4000 /tmp/drillB.log > /tmp/drillB.head || true
-          tail -c 4000 /tmp/drillB.log > /tmp/drillB.tail || true
-          { echo "Drill B (restore) — rc=$rc"; echo '```'; cat /tmp/drillB.head; echo "…"; cat /tmp/drillB.tail; echo '```'; } > /tmp/drillBody.md
-          jq -Rs '{body: .}' < /tmp/drillBody.md > /tmp/drillBody.json
-          GH_TOKEN="${{ secrets.GITHUB_TOKEN }}" gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/comments" -X POST --input /tmp/drillBody.json --jq .html_url
-          if [ $rc -ne 0 ]; then exit $rc; fi
+          if [ $rc -ne 0 ]; then
+            tail -c 6000 /tmp/drillB.log > /tmp/drillB.tail || true
+            { echo "💥 Drill B (restore) FAILED rc=$rc:"; echo '```'; cat /tmp/drillB.tail; echo '```'; } > /tmp/drillBody.md
+            jq -Rs '{body: .}' < /tmp/drillBody.md > /tmp/drillBody.json
+            GH_TOKEN="${{ secrets.GITHUB_TOKEN }}" gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/comments" -X POST --input /tmp/drillBody.json --jq .html_url || true
+            exit $rc
+          fi
 
       - name: Upload drill logs as artifact on failure
         if: failure()
