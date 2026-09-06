@@ -3,12 +3,12 @@ name: CI
 on:
   push:
     branches: [main, master, arena/01a070f0-legal-platform]
+  pull_request:
+    branches: [main, master]
 
 permissions:
   contents: write
   checks: write
-  pull_request:
-    branches: [main, master]
 
 jobs:
   build-and-test:
