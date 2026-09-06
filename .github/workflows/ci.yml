@@ -162,6 +162,17 @@ jobs:
             exit $rc
           fi
 
+      - name: Upload drill logs as artifact on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: drill-logs
+          path: |
+            /tmp/drillA.log
+            /tmp/drillB.log
+          if-no-files-found: ignore
+          retention-days: 3
+
       - name: "Drill C — verify the seed row survived the hard round-trip"
         run: |
           RESTORE_URL=postgresql://legal:ci-legal-password@127.0.0.1:5432/legal_platform_restored
