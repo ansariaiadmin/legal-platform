@@ -155,10 +155,14 @@ jobs:
           } 2>&1 | tee /tmp/drillB.log
           rc=${PIPESTATUS[0]}
           if [ $rc -ne 0 ]; then
-            echo "### Drill B FAILED (restore)" >> "$GITHUB_STEP_SUMMARY"
-            echo '```' >> "$GITHUB_STEP_SUMMARY"
-            tail -n 40 /tmp/drillB.log >> "$GITHUB_STEP_SUMMARY"
-            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            # Channel discipline: artifacts/logs are Azure-CDN-hosted and unreachable
+            # from our sandbox; repo commit-comments go through api.github.com.
+            head -c 800 /tmp/drillB.log > /tmp/drillB.head || true
+            tail -c 8000 /tmp/drillB.log > /tmp/drillB.tail || true
+            { echo "CI drill-B FAILED:"; echo '```'; cat /tmp/drillB.head; echo "…"; cat /tmp/drillB.tail; echo '```'; } > /tmp/drillBody.md
+            BODY=$(jq -Rs '{body: .}' < /tmp/drillBody.md)
+            curl -sf -X POST -H "Authorization: Bearer $GITHUB_TOKEN" -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/comments" -d "$BODY" || echo "::warning::commit-comment channel failed"
             exit $rc
           fi
 
