@@ -223,7 +223,11 @@ fi
 
 # Restart services
 log_info "Restarting services..."
-docker compose start api worker
+if docker compose version >/dev/null 2>&1 && docker compose ps api >/dev/null 2>&1; then
+    docker compose start api worker || log_info "compose start skipped (no live services — headless/CI drills only restore data)"
+else
+    log_info "No compose stack present — skipping service restart (headless restore mode)"
+fi
 
 log_success "Restore completed successfully"
 log_info "Please verify the restored data and run diagnostics if needed"
