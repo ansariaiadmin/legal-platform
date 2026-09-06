@@ -144,7 +144,12 @@ jobs:
           } 2>&1 | tee /tmp/drill.log
           rc=${PIPESTATUS[0]}
           if [ $rc -ne 0 ]; then
-            echo "::error title=DRILL-FAILED::$(tail -n 25 /tmp/drill.log | base64 -w0)"
+            echo "::error::DRILL-FAILED exit=$rc — last lines follow as separate annotations"
+            i=0
+            tail -n 20 /tmp/drill.log | while IFS= read -r line && [ $i -lt 15 ]; do
+              printf '::error::drill-tail[%02d] %s\\n' "$i" "$line"
+              i=$((i+1))
+            done
             exit $rc
           fi
 
