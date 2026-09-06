@@ -173,5 +173,18 @@ log_success "Backup completed successfully"
 log_info "Backup file: $BACKUP_DIR/$BACKUP_NAME"
 log_info "Manifest file: $MANIFEST_FILE"
 
+# ----- Retention: prune old backups (default: keep 30 days) ---------------
+BACKUP_RETAIN_DAYS="${BACKUP_RETAIN_DAYS:-30}"
+log_info "Pruning backups older than ${BACKUP_RETAIN_DAYS} days..."
+PRUNED=0
+while IFS= read -r -d '' old_backup; do
+    rm -f "$old_backup"
+    # Also remove the sibling manifest
+    ts=$(echo "$old_backup" | grep -oE '[0-9]{8}-[0-9]{6}' || true)
+    [[ -n "$ts" ]] && rm -f "$BACKUP_DIR/manifest-${ts}.json"
+    PRUNED=$((PRUNED + 1))
+done < <(find "$BACKUP_DIR" -name 'backup-*.tar.gz' -mtime +"$BACKUP_RETAIN_DAYS" -print0 2>/dev/null)
+[[ $PRUNED -gt 0 ]] && log_info "Pruned $PRUNED old backup(s)" || log_info "No old backups to prune"
+
 # List backup info
 ls -lh "$BACKUP_DIR/$BACKUP_NAME"

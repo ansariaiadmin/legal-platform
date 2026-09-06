@@ -45,12 +45,17 @@ else
 fi
 
 # Check 3: PostgreSQL ping
+# Uses the same env-aware parse as backup.sh — never hardcode user/db
 echo "Checking PostgreSQL..."
+if [[ -f "$ROOT_DIR/.env" ]]; then
+    set -a; source "$ROOT_DIR/.env" 2>/dev/null || true; set +a
+fi
+PG_USER="${POSTGRES_USER:-legal}"
+PG_DB="${POSTGRES_DB:-legal_platform}"
 cd "$ROOT_DIR"
-if docker compose exec -T postgres pg_isready -U postgres -d legal_platform >/dev/null 2>&1; then
-    check_pass "PostgreSQL accepting connections"
+if docker compose exec -T postgres pg_isready -U "$PG_USER" -d "$PG_DB" >/dev/null 2>&1; then
+    check_pass "PostgreSQL accepting connections as $PG_USER/$PG_DB"
 else
-    # Try alternative check
     if docker compose ps postgres 2>/dev/null | grep -q "running\|healthy"; then
         check_pass "PostgreSQL container running"
     else
@@ -85,9 +90,29 @@ echo "Checking backups directory..."
 BACKUP_DIR="$ROOT_DIR/backups"
 if mkdir -p "$BACKUP_DIR" 2>/dev/null && touch "$BACKUP_DIR/.write_test" 2>/dev/null; then
     rm -f "$BACKUP_DIR/.write_test"
-    check_pass "Backups directory writable"
+    LAST_BACKUP=$(ls -t "$BACKUP_DIR"/backup-*.tar.gz 2>/dev/null | head -1 || true)
+    if [[ -n "$LAST_BACKUP" ]]; then
+        AGE_DAYS=$(( ($(date +%s) - $(date -r "$LAST_BACKUP" +%s)) / 86400 ))
+        if [[ $AGE_DAYS -gt 7 ]]; then
+            check_fail "Latest backup is ${AGE_DAYS} days old (stale > 7d)"
+        else
+            check_pass "Backups directory writable; latest backup: $(basename "$LAST_BACKUP") (${AGE_DAYS}d old)"
+        fi
+    else
+        check_pass "Backups directory writable (no backups yet)"
+    fi
 else
     check_fail "Backups directory not writable"
+fi
+
+# Check 7: WAL-level backup health (still in-memory manifest sanity is n/a at this layer;
+# instead we verify the last backup archive is usable)
+if [[ -n "${LAST_BACKUP:-}" ]]; then
+    if tar -tzf "$LAST_BACKUP" 2>/dev/null | grep -q 'manifest-.*\.json'; then
+        check_pass "Latest backup archive is structurally valid (manifest inside)"
+    else
+        check_fail "Latest backup archive unparseable or missing manifest"
+    fi
 fi
 
 echo ""

@@ -80,4 +80,18 @@ describe('one-click installer contract', () => {
       expect(rb).toContain(step);
     }
   });
+
+  it('backup.sh prunes old backups (retention, default 30d) and sibling manifests too', () => {
+    const bk = read('scripts/backup.sh');
+    expect(bk).toContain('BACKUP_RETAIN_DAYS');
+    expect(bk).toContain('manifest-${ts}.json'); // sibling manifest pruned too
+  });
+
+  it('diagnostics.sh never hardcodes -U postgres (env-aware like backup.sh)', () => {
+    const dg = read('scripts/diagnostics.sh');
+    expect(dg).not.toMatch(/pg_isready -U postgres/);
+    expect(dg).toContain('POSTGRES_USER');
+    // stale-backup alarm
+    expect(dg).toContain('AGE_DAYS');
+  });
 });
