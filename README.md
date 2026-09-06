@@ -2,18 +2,37 @@
 
 Self-hosted, single-tenant legal practice platform for Iranian lawyers.
 
-## Quickstart
+[![CI](https://github.com/ansariaiadmin/legal-platform/actions/workflows/ci.yml/badge.svg?branch=arena/01a070f0-legal-platform)](https://github.com/ansariaiadmin/legal-platform/actions/workflows/ci.yml)
+
+## Quickstart (production / field trial)
 
 ```bash
-# Copy environment template and configure
+# One command — validates host, installs Docker if needed, generates all
+# secrets, builds & starts the stack, runs migrations, waits until healthy:
+sudo ./setup.sh
+
+# Preflight-only (no changes):
+sudo ./setup.sh --check
+```
+
+📘 **Step-by-step Persian guide (wizard, cron backup, troubleshooting): [`docs/RUNBOOK.md`](docs/RUNBOOK.md)**
+
+## Quickstart (development)
+
+```bash
 cp .env.example .env
-
-# Start all services
 docker compose up --build
-
-# Open in browser
 open http://localhost:8080
 ```
+
+## Operations
+
+| Task | Command |
+|---|---|
+| Backup (auto-rotated, 30d retention) | `./scripts/backup.sh` |
+| Restore (hard-confirmed) | `./scripts/restore.sh --confirm backups/backup-*.tar.gz` |
+| Update with auto rollback | `./scripts/update.sh` |
+| Health & stale-backup checks | `./scripts/diagnostics.sh` |
 
 ## Services
 
