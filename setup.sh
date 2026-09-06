@@ -33,8 +33,9 @@ CHECK_ONLY=0
 banner
 
 # ── Step 0: housekeeping ──────────────────────────────────────────────
-if [[ $EUID -ne 0 ]]; then
-  c_dim "نکته: بدون sudo فقط اعتبارسنجی انجام می‌شود."
+if [[ $EUID -ne 0 && $CHECK_ONLY -eq 0 ]]; then
+  c_dim "نکته: نصب کامل به sudo نیاز دارد — در حال ارتقاء به root…"
+  exec sudo -E bash "$SCRIPT_DIR/setup.sh" "$@"
 fi
 
 # ── Step 1: delegate to the hardened installer ───────────────────────

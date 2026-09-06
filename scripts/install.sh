@@ -69,23 +69,49 @@ install_docker() {
         log_info "Docker already installed: $(docker --version)"
     else
         log_info "Installing Docker..."
+        export DEBIAN_FRONTEND=noninteractive
         apt-get update -qq
         apt-get install -y -qq ca-certificates curl gnupg
         install -m 0755 -d /etc/apt/keyrings
         curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
         chmod a+r /etc/apt/keyrings/docker.gpg
         echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" > /etc/apt/sources.list.d/docker.list
-        
+
         apt-get update -qq
         apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
         log_success "Docker installed"
     fi
-    
+
+    # Ubuntu 24.04 (noble): docker.service may be installed-but-stopped, and
+    # containerd's socket activation needs an explicit nudge on some images.
+    systemctl enable --now docker >/dev/null 2>&1 || true
+    systemctl enable --now containerd >/dev/null 2>&1 || true
+
+    # Add the invoking user to the docker group so post-install ops
+    # (diagnostics/backup) don't need sudo.
+    if [[ -n "${SUDO_USER:-}" ]] && ! id -nG "$SUDO_USER" | grep -qw docker; then
+        usermod -aG docker "$SUDO_USER" || true
+        log_info "User '$SUDO_USER' added to docker group (log out/in to take effect)"
+    fi
+
+    # Wait for the daemon to be truly ready (socket up, version answered)
+    log_info "Waiting for docker daemon..."
+    local attempts=0
+    until docker info >/dev/null 2>&1; do
+        attempts=$((attempts + 1))
+        if [[ $attempts -ge 30 ]]; then
+            log_error "Docker daemon did not become ready in 30s"
+            exit 1
+        fi
+        sleep 1
+    done
+    log_success "Docker daemon ready"
+
     if ! docker compose version &>/dev/null; then
         log_error "Docker compose plugin not found after installation"
         exit 1
     fi
-    
+
     log_success "Docker compose plugin available: $(docker compose version)"
 }
 
