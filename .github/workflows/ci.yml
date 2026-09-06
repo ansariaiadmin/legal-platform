@@ -105,6 +105,12 @@ jobs:
           NODE_ENV: test
         run: npm run test:e2e -- --forceExit
 
+      - name: Install pg client matching server version (pg16) — pg_dump REFUSES server newer than itself
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-16
+          psql --version && pg_dump --version && pg_restore --version
+
       - name: Backup/Restore real drill (dump, verify checksums, restore into FRESH db, compare rows)
         env:
           DATABASE_URL: postgresql://legal:ci-legal-password@127.0.0.1:5432/legal_platform_test
@@ -129,7 +135,10 @@ jobs:
           # The seed must exist in the restored clone
           CLONE_COUNT=$($PSQL "$RESTORE_URL" -c "SELECT count(*) FROM users WHERE phone_normalized='09120000000'" | tr -d '[:space:]')
           [ "$CLONE_COUNT" -ge 1 ] || { echo "RESTORE DRILL FAILED — seed absent in clone (count='$CLONE_COUNT')"; exit 1; }
-          echo "BACKUP/RESTORE DRILL PASSED: row survived hard round-trip"
+          echo "BACKUP/RESTORE DRILL PASSED: row survived hard round-trip" > /tmp/drill-result.txt
+          echo "seed_in_source=$SEED_COUNT" >> /tmp/drill-result.txt
+          echo "seed_in_restored=$CLONE_COUNT" >> /tmp/drill-result.txt
+          cat /tmp/drill-result.txt
 
       - name: Preflight must say FAIL in production-hygiene mode with missing secrets
         working-directory: apps/api
