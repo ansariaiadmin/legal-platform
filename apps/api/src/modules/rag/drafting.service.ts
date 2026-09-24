@@ -7,6 +7,7 @@ import type { StorageProvider } from '../../providers/storage/storage.provider';
 import { InProcessAgentEventBus } from '../orchestrator/agent-event-bus';
 import { CorpusService } from '../corpus/corpus.service';
 import { EmbeddingIndexService } from './embedding-index.service';
+import { PgEmbeddingIndexService } from './pg-embedding-index.service';
 import { RerankerService, type RerankedHit } from './reranker.service';
 import { UsageMeterService } from './usage-meter.service';
 import { AI_PROVIDER } from '../../providers/provider.tokens';
@@ -98,6 +99,7 @@ export class DraftingService {
     @Inject(STORAGE_PROVIDER) private readonly storage: StorageProvider,
     private readonly corpus: CorpusService,
     private readonly index: EmbeddingIndexService,
+    @Optional() private readonly pgIndex: PgEmbeddingIndexService,
     private readonly reranker: RerankerService,
     private readonly meter: UsageMeterService,
     @Optional() @Inject(forwardRef(() => InProcessAgentEventBus)) private readonly bus?: InProcessAgentEventBus,
@@ -107,6 +109,14 @@ export class DraftingService {
     // spans instead of dying. Never presented as composed advice (SPEC §9).
     @Optional() private readonly workers?: PythonWorkerService,
   ) {}
+
+  /** Prefer pgvector if available, else fallback to JSON */
+  private get semanticIndex(): EmbeddingIndexService | PgEmbeddingIndexService {
+    if (this.pgIndex && this.pgIndex.availability().pg) {
+      return this.pgIndex;
+    }
+    return this.index;
+  }
 
   private async ensure(): Promise<void> {
     if (this.loaded) return;
@@ -183,7 +193,7 @@ export class DraftingService {
 
     // 2) vector hits on top of the SAME shelf; fuse through the reranker —
     //    a draft's facts may sit at odd phrasing angles to the prompt
-    const semantic = await this.index.search(d.prompt, { topK: opts?.topK ?? 5 });
+    const semantic = await this.semanticIndex.search(d.prompt, { topK: opts?.topK ?? 5 });
     const candidates = new Map<string, RerankedHit>();
     for (const l of lexical) {
       candidates.set(l.documentId, {
