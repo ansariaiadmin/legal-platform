@@ -6,7 +6,7 @@ import { PipeTransform, Injectable, BadRequestException } from '@nestjs/common';
  */
 
 export interface ZodLikeSchema {
-  safeParse?: (data: unknown) => { success: boolean; data?: unknown; error?: any };
+  safeParse?: (data: unknown) => { success: boolean; data?: unknown; error?: unknown };
   parse?: (data: unknown) => unknown;
 }
 
@@ -29,7 +29,7 @@ export class ZodValidationPipe implements PipeTransform {
     if (this.schema.parse) {
       try {
         return this.schema.parse(value);
-      } catch (error: any) {
+      } catch (error: unknown) {
         throw new BadRequestException({
           message: 'Validation failed',
           errors: error.errors || error.issues || error.message,
@@ -87,7 +87,7 @@ export function sanitizeInput(input: string): string {
 // Zod-like schemas using regex fallback
 export const AuthSchemas = {
   phone: {
-    safeParse: (data: any) => {
+    safeParse: (data: unknown) => {
       const phone = data?.phone || data;
       if (typeof phone !== 'string' || !PersianValidation.phone.test(phone)) {
         return { success: false, error: { message: 'Invalid phone format' } };
@@ -96,7 +96,7 @@ export const AuthSchemas = {
     },
   },
   otp: {
-    safeParse: (data: any) => {
+    safeParse: (data: unknown) => {
       const code = data?.code || data;
       if (typeof code !== 'string' || !PersianValidation.otpCode.test(code)) {
         return { success: false, error: { message: 'Invalid OTP format' } };
@@ -105,7 +105,7 @@ export const AuthSchemas = {
     },
   },
   email: {
-    safeParse: (data: any) => {
+    safeParse: (data: unknown) => {
       const email = data?.email || data;
       if (typeof email !== 'string' || !PersianValidation.email.test(email)) {
         return { success: false, error: { message: 'Invalid email format' } };

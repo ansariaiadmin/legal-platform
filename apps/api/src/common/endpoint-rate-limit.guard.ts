@@ -20,7 +20,7 @@ export interface EndpointRateLimitConfig {
  * - API: 1000/hour/user
  */
 export const EndpointRateLimit = (config: EndpointRateLimitConfig) => {
-  return (target: any, propertyKey?: string, descriptor?: PropertyDescriptor) => {
+  return (target: object, propertyKey?: string, descriptor?: PropertyDescriptor) => {
     Reflect.defineMetadata(ENDPOINT_RATE_LIMIT_KEY, config, descriptor?.value || target);
     return descriptor;
   };
@@ -43,7 +43,7 @@ export class EndpointRateLimitGuard implements CanActivate {
       return true; // No rate limit configured
     }
 
-    const request = context.switchToHttp().getRequest<Request & { user?: any; ip: string }>();
+    const request = context.switchToHttp().getRequest<Request & { user?: { id?: string; role?: string } & Record<string, unknown>; ip: string }>();
     const key = this.buildKey(request, config, context);
 
     const rule: RateLimitRule = {
@@ -68,7 +68,7 @@ export class EndpointRateLimitGuard implements CanActivate {
     return true;
   }
 
-  private buildKey(request: Request & { user?: any }, config: EndpointRateLimitConfig, context: ExecutionContext): string {
+  private buildKey(request: Request & { user?: { id?: string } & Record<string, unknown> }, config: EndpointRateLimitConfig, context: ExecutionContext): string {
     const handler = context.getHandler().name;
     const controller = context.getClass().name;
 

@@ -103,14 +103,16 @@ services:
   postgres:
     image: pgvector/pgvector:pg16
     container_name: legal-postgres
+    env_file:
+      - .env
     environment:
-      - POSTGRES_USER=${POSTGRES_USER:-legal}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-legal_password_change_me}
-      - POSTGRES_DB=${POSTGRES_DB:-legal_platform}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U legal -d legal_platform"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 12

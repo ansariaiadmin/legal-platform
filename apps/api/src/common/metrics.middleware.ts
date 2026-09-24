@@ -16,7 +16,7 @@ export function metricsMiddleware(metrics: MetricsService) {
     const originalEnd = res.end.bind(res);
 
     // @ts-ignore — monkey patch end to capture status
-    res.end = function (...args: any[]) {
+    res.end = function (...args: unknown[]) {
       const duration = Date.now() - start;
       const route = req.route?.path || req.path || 'unknown';
       metrics.recordHttpRequest(req.method, route, res.statusCode, duration);

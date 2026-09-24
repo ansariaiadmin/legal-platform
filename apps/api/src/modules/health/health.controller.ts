@@ -219,7 +219,7 @@ export class HealthController {
 
   @Get('health/alerts')
   @ApiOperation({ summary: 'Recent alerts' })
-  async alerts(): Promise<{ alerts: any[] }> {
+  async alerts(): Promise<{ alerts: Array<Record<string, unknown>> }> {
     return { alerts: this.alerting.getRecentAlerts(50) };
   }
 

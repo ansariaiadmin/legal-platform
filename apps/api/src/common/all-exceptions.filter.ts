@@ -126,8 +126,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
     if (anyError && typeof anyError.code === 'string' && isKnownErrorCode(anyError.code)) {
       return {
         status: httpStatusForCode(anyError.code),
-        code: anyError.code,
-        message: anyError.message ?? 'Operation failed',
+        code: (anyError as { code?: unknown })?.code,
+        message: (anyError as { message?: unknown })?.message ?? 'Operation failed',
       };
     }
 

@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { SmsProvider, SendSmsResult } from './sms.provider';
 
 const MAX_CAPTURED = 100;
@@ -18,6 +19,7 @@ export interface CapturedSms {
  * provider on a real deployment (SPEC section 12).
  */
 export class MockSmsAdapter implements SmsProvider {
+  private readonly logger = new Logger(MockSmsAdapter.name);
   private readonly captured: CapturedSms[] = [];
 
   async sendSms(input: { phone: string; message: string }): Promise<SendSmsResult> {
@@ -29,9 +31,9 @@ export class MockSmsAdapter implements SmsProvider {
     if (process.env.NODE_ENV !== 'production') {
       const otpMatch = input.message.match(/\b(\d{6})\b/);
       if (otpMatch) {
-        console.log(`[MOCK SMS] OTP code for ${input.phone}: ${otpMatch[1]}`);
+        this.logger.log(`[MOCK SMS] OTP code for ${input.phone}: ${otpMatch[1]}`);
       } else {
-        console.log(`[MOCK SMS] Message to ${input.phone}: ${input.message}`);
+        this.logger.log(`[MOCK SMS] Message to ${input.phone}: ${input.message}`);
       }
     }
 

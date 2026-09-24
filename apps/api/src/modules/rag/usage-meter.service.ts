@@ -168,14 +168,14 @@ export class UsageMeterService {
     const all = this.state.records
       .filter((r) => r.monthKey === m && r.costUsd !== null)
       .reduce((s, r) => s + (r.costUsd ?? 0), 0);
-    const anyUnpriced = this.state.records.some((r) => r.monthKey === m);
+    const unpriced = this.state.records.some((r) => r.monthKey === m);
     return {
       month: m,
       features,
       totals: {
         requests: features.reduce((s, r) => s + r.requests, 0),
         tokens: features.reduce((s, r) => s + r.tokens, 0),
-        costUsd: anyUnpriced ? all : null,
+        costUsd: unpriced ? all : null,
       },
       alerted: this.state.alertedAt && this.state.alertedAt.slice(0, 7) === m ? 1 : null,
     };
