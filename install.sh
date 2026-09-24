@@ -9,7 +9,7 @@ NC='\033[0m'
 
 echo -e "${BLUE}========================================${NC}"
 echo -e "${BLUE}  Legal Platform — سیستم حقوقی برای وکلای ایرانی${NC}"
-echo -e "${BLUE}  نصب خودکار - Auto Installer v1.0.1${NC}"
+echo -e "${BLUE}  نصب خودکار - Auto Installer v1.0.4${NC}"
 echo -e "${BLUE}  پلتفرم حقوقی خودمیزبان برای وکلای ایرانی${NC}"
 echo -e "${BLUE}========================================${NC}"
 echo ""
