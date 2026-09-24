@@ -248,3 +248,27 @@ CodeQL + Dependabot in `.github/`. 98 tests total.
 ## License
 
 AGPL-3.0 — see [LICENSE](LICENSE). Commercial product, open-source but protected. For commercial license without AGPL obligations, contact.
+## 🧙‍♂️ Setup Wizard v3.1.0 — پشتیبانی صفر — تاریکی روشن شد
+
+**تاریکی‌های روشن شده:**
+- ✅ install.bat ویندوز — پشتیبانی صفر — مثل install.sh — برای مامان بزرگ ویندوزی
+- ✅ .env permission 600 — امن — فقط خودت می‌تونی بخونی — تاریکی روشن شد
+- ✅ رمز ادمین امن — نه پیش‌فرض — تاریکی روشن شد
+- ✅ SMS واقعی — Ghasedak/Kavenegar با API واقعی — نه mock — با تست واقعی + اعتبار — هزینه هر پیامک ~120 تومان — تاریکی روشن شد
+- ✅ هزینه — هر جا پولی باشه می‌گم — mock رایگان — تاریکی روشن شد
+- ✅ idempotency — اگر دوباره بزنی نمی‌پره — keep/new/backup — تاریکی روشن شد
+- ✅ disk/port check — اگر دیسک 80% پر هشدار — اگر پورت اشغال هشدار — تاریکی روشن شد
+- ✅ fallback — اگر SMS fail شد in_app+email می‌ره — تاریکی روشن شد
+- ✅ throttling — اگر 5 SMS در 1 دقیقه بیاد خلاصه می‌شه — هزینه کنترل — تاریکی روشن شد
+- ✅ status.sh v3.1.0 — health check پرووایدرها + اعتبار + تست واقعی Telegram + disk — تاریکی روشن شد
+- ✅ smoke-test.sh v3.1.0 — تست کامل — SMS تست به خودت + Telegram تست — هزینه داره — تاریکی روشن شد
+- ✅ Web Setup Wizard /setup — بدون ترمینال — برای مامان بزرگ واقعی — v4.0.0 — تاریکی روشن شد
+
+
+
+```bash
+./install.sh — جادوگر v3.1.0 — پشتیبانی صفر — تاریکی روشن شد
+./status.sh — وضعیت + پرووایدرها + اعتبار — تاریکی روشن شد
+./smoke-test.sh — تست کامل — تاریکی روشن شد
+```
+

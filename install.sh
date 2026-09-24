@@ -35,7 +35,7 @@ Legal OS + 6 AI Lawyers + RAG + E-Signature + PWA + SMS + Notification — Zero 
 BANNER
 echo -e "${NC}"
 echo -e "${BLUE}========================================${NC}"
-echo -e "${BLUE}  🧙‍♂️ جادوگر نصب Legal Platform v3.0.0 — پشتیبانی صفر${NC}"
+echo -e "${BLUE}  🧙‍♂️ جادوگر نصب Legal Platform v3.1.0 — پشتیبانی صفر — تاریکی روشن شد${NC}"
 echo -e "${BLUE}  برای وکیل — فقط ضروری‌ها — پرووایدر + پیامک + ناتیف${NC}"
 echo -e "${BLUE}========================================${NC}"
 echo ""
@@ -62,6 +62,7 @@ sleep 1
 echo -e "${BLUE}[5/8] 📱 پنل پیامکی — برای نوبت‌دهی و اطلاع موکل${NC}"
 explain "وقتی نوبت موکل می‌شه پیامک می‌ره: 'نفر بعدی تویی' — یا پرداخت"
 echo -e "${YELLOW}   گزینه‌ها: ghasedak (قاصدک), kavenegar (کاوه‌نگار), mock${NC}"
+# هزینه: هر پیامک ~120 تومان — تاریکی روشن شد — cost warning
 SMS_PROVIDER=$(ask_with_help "پنل پیامکی کدوم؟" "برای اطلاع موکل از نوبت — اگر نداری mock" "ghasedak یا kavenegar یا mock" "https://ghasedak.me/ — API Key" "mock" "false")
 SMS_KEY=""; SMS_SENDER=""
 if [ "$SMS_PROVIDER" != "mock" ]; then
@@ -110,8 +111,19 @@ fi
 sleep 1
 
 echo -e "${BLUE}[8/8] ⚙️ .env + 🏗️ اجرا${NC}"
+if [ -f .env ]; then
+  echo -e "${YELLOW}  .env وجود دارد — keep/new/backup? — تاریکی روشن شد — idempotency${NC}"
+  read -p "   keep (نگه دار) / new (جدید) / backup (بکاپ بعد جدید) [keep]: " KEEP_ENV
+  [ -z "$KEEP_ENV" ] && KEEP_ENV="keep"
+  if [ "$KEEP_ENV" = "backup" ]; then cp .env .env.backup.$(date +%Y%m%d_%H%M%S); echo -e "${GREEN}✅ بکاپ گرفته شد — تاریکی روشن شد${NC}"; KEEP_ENV="new"; fi
+  if [ "$KEEP_ENV" = "keep" ]; then echo -e "${GREEN}✅ .env نگه داشته شد — idempotency — تاریکی روشن شد${NC}"; SKIP_ENV="true"; else SKIP_ENV="false"; fi
+else
+  SKIP_ENV="false"
+fi
+
+if [ "$SKIP_ENV" = "false" ]; then
 cat > .env <<EOF
-# Legal Platform — .env — جادوگر v3.0.0 — پشتیبانی صفر — $(date)
+# Legal Platform — .env — جادوگر v3.1.0 — پشتیبانی صفر — تاریکی روشن شد — $(date)
 DATABASE_URL=postgresql://legal:legal@db:5432/legal
 REDIS_URL=redis://redis:6379/0
 JWT_SECRET=${SECRET_JWT}
@@ -125,6 +137,7 @@ OPENAI_API_KEY=${AI_KEY}
 ANTHROPIC_API_KEY=${AI_KEY}
 
 # SMS — پنل پیامکی — برای نوبت‌دهی موکل
+# هزینه: هر پیامک ~120 تومان — تاریکی روشن شد — cost warning
 SMS_PROVIDER=${SMS_PROVIDER}
 SMS_API_KEY=${SMS_KEY}
 SMS_SENDER=${SMS_SENDER}
@@ -167,7 +180,13 @@ API_PORT=3001
 LOG_LEVEL=info
 EOF
 
-ok ".env ساخته شد — $(wc -l < .env) خط"
+chmod 600 .env 2>/dev/null || true
+ok ".env ساخته شد — permission 600 — امن — تاریکی روشن شد"
+fi
+if [ "$SKIP_ENV" = "true" ]; then
+  chmod 600 .env 2>/dev/null || true
+  echo -e "${GREEN}✅ .env permission 600 — امن — تاریکی روشن شد${NC}"
+fi — امن — تاریکی روشن شد — $(wc -l < .env) خط"
 
 echo -e "${MAGENTA}  docker compose up --build -d${NC}"
 docker compose up --build -d 2>&1 | tail -n 20 || docker compose up -d
