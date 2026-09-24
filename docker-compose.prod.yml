@@ -7,10 +7,34 @@ services:
       - "443:443"
     volumes:
       - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./infra/nginx/certs:/etc/nginx/certs:ro
+      - proxy_logs:/var/log/nginx
     depends_on:
-      - api
-      - web
-    restart: always
+      api:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service=proxy"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
     networks:
       - legal-network
 
@@ -20,9 +44,31 @@ services:
     environment:
       - NODE_ENV=production
       - API_URL=http://api:3001
+      - NEXT_TELEMETRY_DISABLED=1
     depends_on:
-      - api
-    restart: always
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+        labels: "service=web"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health || wget --no-verbose --tries=1 --spider http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     networks:
       - legal-network
 
@@ -38,6 +84,7 @@ services:
       - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
       - ENCRYPTION_MASTER_KEY=${ENCRYPTION_MASTER_KEY}
       - APP_URL=${APP_URL}
+      - CORS_ORIGINS=${CORS_ORIGINS}
       - SMS_PROVIDER=${SMS_PROVIDER:-mock}
       - PAYMENT_PROVIDER=${PAYMENT_PROVIDER:-mock}
       - PUSH_PROVIDER=${PUSH_PROVIDER:-mock}
@@ -50,14 +97,42 @@ services:
       - STORAGE_DRIVER=${STORAGE_DRIVER:-local}
       - LOCAL_STORAGE_PATH=${LOCAL_STORAGE_PATH:-/app/uploads}
       - LOG_LEVEL=${LOG_LEVEL:-info}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_ALERT_CHAT_ID=${TELEGRAM_ALERT_CHAT_ID}
+      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL}
+      - S3_BUCKET=${S3_BUCKET}
+      - S3_ENDPOINT=${S3_ENDPOINT}
+      - BACKUP_ENCRYPTION_KEY=${BACKUP_ENCRYPTION_KEY}
     volumes:
       - uploads:/app/uploads
+      - api_logs:/app/logs
+      - ./backups:/app/backups
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-    restart: always
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
+        reservations:
+          cpus: '1.0'
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+        labels: "service=api"
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3001/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     networks:
       - legal-network
 
@@ -84,14 +159,38 @@ services:
       - STORAGE_DRIVER=${STORAGE_DRIVER:-local}
       - LOCAL_STORAGE_PATH=${LOCAL_STORAGE_PATH:-/app/uploads}
       - LOG_LEVEL=${LOG_LEVEL:-info}
+      - PYTHON_WORKER_ENABLED=${PYTHON_WORKER_ENABLED:-true}
     volumes:
       - uploads:/app/uploads
+      - worker_logs:/app/logs
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-    restart: always
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+        labels: "service=worker"
+    healthcheck:
+      test: ["CMD-SHELL", "ps aux | grep -v grep | grep -q 'node.*worker.js' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
     networks:
       - legal-network
 
@@ -102,36 +201,168 @@ services:
       - POSTGRES_USER=legal
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
       - POSTGRES_DB=legal_platform
+      - PGDATA=/var/lib/postgresql/data/pgdata
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - postgres_logs:/var/log/postgresql
+      - ./backups:/backups
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U legal -d legal_platform"]
-      interval: 5s
+      interval: 10s
       timeout: 5s
       retries: 12
-    restart: always
+      start_period: 20s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
+        reservations:
+          cpus: '1.0'
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+        labels: "service=postgres"
     networks:
       - legal-network
 
   redis:
     image: redis:7-alpine
     container_name: legal-redis
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
     volumes:
       - redis_data:/data
+      - redis_logs:/var/log/redis
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
+      interval: 10s
       timeout: 3s
       retries: 12
-    restart: always
+      start_period: 10s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service=redis"
     networks:
       - legal-network
 
+  # Optional: Prometheus for monitoring (uncomment to enable)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: legal-prometheus
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infra/prometheus/alert.rules.yml:/etc/prometheus/alert.rules.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=15d'
+      - '--web.enable-lifecycle'
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - legal-network
+    profiles:
+      - monitoring
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: legal-grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infra/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./infra/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - legal-network
+    profiles:
+      - monitoring
+
 volumes:
   postgres_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${POSTGRES_DATA_PATH:-./data/postgres}
   redis_data:
+    driver: local
   uploads:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${UPLOADS_PATH:-./data/uploads}
+  api_logs:
+    driver: local
+  worker_logs:
+    driver: local
+  postgres_logs:
+    driver: local
+  redis_logs:
+    driver: local
+  proxy_logs:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
 
 networks:
   legal-network:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

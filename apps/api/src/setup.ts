@@ -7,6 +7,9 @@ import { securityHeadersMiddleware } from './common/security-headers.middleware'
 import { globalRateLimitMiddleware, GLOBAL_RATE_LIMIT_ENV } from './common/global-rate-limit.middleware';
 import { RedisRateLimitService } from './common/redis-rate-limit.service';
 import type { FloorLimiter } from './common/global-rate-limit.middleware';
+import { MetricsService } from './modules/health/metrics.service';
+import { metricsMiddleware } from './common/metrics.middleware';
+import { helmetMiddleware, defaultHelmetConfig } from './common/helmet.middleware';
 
 /** Comma-separated allow-list; APP_URL is always permitted. */
 export function corsOrigins(env: EnvService): string[] {
@@ -34,6 +37,8 @@ export function configureApp(app: INestApplication, env: EnvService): void {
   // (fingerprint minimization), security headers for every response, global
   // per-IP bucket before any controller — feature limiters still apply AFTER.
   app.getHttpAdapter().getInstance().disable('x-powered-by');
+  // Helmet.js equivalent — OWASP secure headers
+  app.use(helmetMiddleware(defaultHelmetConfig));
   if ((env.get('SECURITY_HEADERS') || 'on') !== 'off') {
     app.use(securityHeadersMiddleware(env.isProduction));
   }
@@ -56,13 +61,40 @@ export function configureApp(app: INestApplication, env: EnvService): void {
     next();
   });
 
+  // Prometheus metrics middleware — must be early to capture all requests
+  try {
+    const metricsService = app.get(MetricsService, { strict: false }) as MetricsService | null;
+    if (metricsService) {
+      app.use(metricsMiddleware(metricsService));
+    }
+  } catch {
+    // Metrics service not available in some test contexts — skip
+  }
+
   const origins = corsOrigins(env);
   app.enableCors({
     // Secure by default: no origins configured means no CORS headers at all.
-    origin: origins.length > 0 ? origins : false,
+    // Strict CORS: only allow configured origins, no wildcard in production.
+    origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+      // Allow requests with no origin (mobile apps, curl, same-origin)
+      if (!origin) {
+        return callback(null, true);
+      }
+      if (origins.length === 0) {
+        // In production with no origins configured, deny all cross-origin
+        return callback(null, false);
+      }
+      if (origins.includes(origin)) {
+        return callback(null, true);
+      }
+      // Log blocked origin for security monitoring
+      callback(new Error(`CORS blocked: ${origin} not in allowed list`), false);
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id', 'Idempotency-Key'],
+    exposedHeaders: ['X-Request-Id', 'X-RateLimit-Limit', 'X-RateLimit-Remaining'],
+    maxAge: 86400, // 24h preflight cache
   });
 
   app.useGlobalPipes(

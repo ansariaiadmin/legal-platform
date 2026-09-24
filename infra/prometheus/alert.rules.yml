@@ -1,0 +1,116 @@
+groups:
+  - name: legal-platform-alerts
+    interval: 30s
+    rules:
+      # High error rate >5% for 5 minutes
+      - alert: HighErrorRate
+        expr: legal_platform_http_error_rate_percent > 5
+        for: 5m
+        labels:
+          severity: critical
+          service: api
+        annotations:
+          summary: "نرخ خطای بالا - {{ $value }}% در 5 دقیقه"
+          description: "نرخ خطای API بیش از 5% است (فعلی: {{ $value }}%). نیاز به بررسی فوری."
+          runbook_url: "https://github.com/legal-platform/docs/MONITORING.md#high-error-rate"
+
+      # DB connection failures
+      - alert: DatabaseConnectionFailures
+        expr: increase(legal_platform_db_failures_total[5m]) > 5
+        for: 2m
+        labels:
+          severity: critical
+          service: postgres
+        annotations:
+          summary: "خطای اتصال دیتابیس - {{ $value }} خطا در 5 دقیقه"
+          description: "تعداد خطاهای اتصال به دیتابیس از حد مجاز گذشته. بررسی وضعیت PostgreSQL."
+          runbook_url: "https://github.com/legal-platform/docs/MONITORING.md#db-failures"
+
+      # Disk space <10% (requires node_exporter)
+      - alert: DiskSpaceLow
+        expr: (1 - (node_filesystem_avail_bytes / node_filesystem_size_bytes)) * 100 > 90
+        for: 5m
+        labels:
+          severity: critical
+          service: system
+        annotations:
+          summary: "فضای دیسک کم - کمتر از 10% باقی مانده"
+          description: "فضای دیسک سرور کمتر از 10% است. بکاپ‌ها و لاگ‌ها را بررسی و پاکسازی کنید."
+          runbook_url: "https://github.com/legal-platform/docs/MONITORING.md#disk-space"
+
+      - alert: DiskSpaceWarning
+        expr: (1 - (node_filesystem_avail_bytes / node_filesystem_size_bytes)) * 100 > 80
+        for: 10m
+        labels:
+          severity: warning
+          service: system
+        annotations:
+          summary: "هشدار فضای دیسک - کمتر از 20% باقی مانده"
+          description: "فضای دیسک کمتر از 20% است. برنامه پاکسازی را بررسی کنید."
+
+      # Agent failures
+      - alert: AgentFailuresHigh
+        expr: increase(legal_platform_agent_failures_total[10m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+          service: agents
+        annotations:
+          summary: "خطای ایجنت‌ها بالا - {{ $value }} خطا در 10 دقیقه"
+          description: "تعداد خطاهای ایجنت‌های حقوقی از حد مجاز گذشته. لاگ‌ها را بررسی کنید."
+          runbook_url: "https://github.com/legal-platform/docs/MONITORING.md#agent-failures"
+
+      - alert: SpecificAgentFailures
+        expr: legal_platform_agent_failures_total > 5
+        for: 10m
+        labels:
+          severity: warning
+          service: agents
+        annotations:
+          summary: "ایجنت {{ $labels.agent }} دچار {{ $value }} خطا شده"
+          description: "ایجنت {{ $labels.agent }} به طور مکرر خطا می‌دهد."
+
+      # Backup failures
+      - alert: BackupFailures
+        expr: increase(legal_platform_backup_failures_total[1h]) > 0
+        for: 1m
+        labels:
+          severity: critical
+          service: backup
+        annotations:
+          summary: "خطا در بکاپ - بکاپ اخیر ناموفق بوده"
+          description: "عملیات بکاپ با خطا مواجه شده. لاگ بکاپ را بررسی کنید."
+          runbook_url: "https://github.com/legal-platform/docs/BACKUP.md#troubleshooting"
+
+      # API down
+      - alert: APIDown
+        expr: up{job="legal-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: api
+        annotations:
+          summary: "سرویس API از دسترس خارج شده"
+          description: "سرویس API پاسخ نمی‌دهد. وضعیت کانتینر api را بررسی کنید: docker compose ps api"
+
+      # High latency
+      - alert: HighLatency
+        expr: legal_platform_http_request_duration_avg_ms > 2000
+        for: 5m
+        labels:
+          severity: warning
+          service: api
+        annotations:
+          summary: "تاخیر بالا - میانگین {{ $value }}ms"
+          description: "میانگین زمان پاسخ API بیش از 2 ثانیه است."
+
+      # Redis down
+      - alert: RedisDown
+        expr: increase(legal_platform_redis_failures_total[5m]) > 10
+        for: 2m
+        labels:
+          severity: warning
+          service: redis
+        annotations:
+          summary: "خطای Redis بالا"
+          description: "تعداد خطاهای Redis زیاد است. وضعیت Redis را بررسی کنید."

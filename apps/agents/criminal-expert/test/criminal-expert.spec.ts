@@ -18,17 +18,50 @@ describe('criminal-expert (fleet member contract)', () => {
     expect(['crim:crimes', 'crim:defense']).toContain(r?.skillId);
   });
 
-  it('flags output as ungrounded pending RAG (SPEC §9)', async () => {
-    const r = await criminalExpert.executeExpert({ taskId: 'x', query: 'مجازات حبس' });
+  it('real agent: provides crime analysis with punishment (not mock)', async () => {
+    const r = await criminalExpert.executeExpert({ taskId: 'test-1', query: 'اتهام سرقت و مجازات آن چیست' });
     expect(r.ok).toBe(true);
-    expect(r.meta?.grounded).toBe(false);
-    expect(r.citations).toBeUndefined();
+    expect(r.meta?.requiresReview).toBe(true);
     expect(r.output).toContain('کارشناس ارشد امور کیفری');
+    // Real agent should provide analysis, not mock
+    expect(r.output).not.toContain('این پاسخ مولدنشده است');
+    expect(r.output).toContain('تحلیل کیفری');
+    expect(r.output).toContain('سرقت');
+    expect(r.citations).toBeDefined();
+    expect(r.citations!.length).toBeGreaterThan(0);
+    expect(r.meta?.grounded).toBe(true);
+  });
+
+  it('real agent: analyzes fraud with defenses', async () => {
+    const r = await criminalExpert.executeExpert({ taskId: 'test-2', query: 'کلاهبرداری و دفاعیات آن' });
+    expect(r.ok).toBe(true);
+    expect(r.output).toContain('کلاهبرداری');
+    expect(r.output).toContain('دفاعیات');
+    expect(r.citations!.length).toBeGreaterThan(0);
+  });
+
+  it('real agent: procedure analysis', async () => {
+    const r = await criminalExpert.executeExpert({ taskId: 'test-3', query: 'مراحل دادرسی کیفری و قرارهای تامین' });
+    expect(r.ok).toBe(true);
+    expect(r.output).toContain('دادرسی کیفری');
+    expect(r.output).toContain('قرارهای تامین');
+  });
+
+  it('real agent: sentencing and mitigation', async () => {
+    const r = await criminalExpert.executeExpert({ taskId: 'test-4', query: 'تخفیف مجازات و تعلیق اجرای مجازات' });
+    expect(r.ok).toBe(true);
+    expect(r.output).toContain('مجازات');
+    expect(r.output).toContain('تخفیف');
   });
 
   it('all skill ids unique and namespaced', () => {
     const ids = skills.map((s) => s.id);
     expect(new Set(ids).size).toBe(ids.length);
     for (const id of ids) expect(id.startsWith('crim:')).toBe(true);
+  });
+
+  it('health check returns healthy', async () => {
+    const health = await criminalExpert.health();
+    expect(health.healthy).toBe(true);
   });
 });

@@ -1,0 +1,45 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  scrape_timeout: 10s
+  external_labels:
+    monitor: 'legal-platform'
+
+rule_files:
+  - '/etc/prometheus/alert.rules.yml'
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+      # Uncomment to enable Alertmanager
+      # - targets: ['alertmanager:9093']
+
+scrape_configs:
+  - job_name: 'legal-api'
+    metrics_path: '/api/metrics'
+    scrape_interval: 15s
+    scrape_timeout: 10s
+    static_configs:
+      - targets: ['api:3001']
+        labels:
+          service: 'api'
+          environment: 'production'
+
+  - job_name: 'legal-postgres'
+    static_configs:
+      - targets: ['postgres:5432']
+        labels:
+          service: 'postgres'
+
+  - job_name: 'legal-redis'
+    static_configs:
+      - targets: ['redis:6379']
+        labels:
+          service: 'redis'
+
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          service: 'prometheus'

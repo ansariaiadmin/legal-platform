@@ -33,6 +33,12 @@ export interface ExpertAgentSpec {
   subspecialties?: readonly string[];
   /** routing bar for this agent (default 0.4) */
   minScore?: number;
+  /**
+   * Optional custom executor for real agents (civil, criminal).
+   * If provided, will be used instead of mock response.
+   * Must still respect requiresReview invariant.
+   */
+  customExecute?: (task: AgentTask, routed: { skillId: string; score: number } | null) => Promise<AgentResult> | AgentResult;
 }
 
 /**
@@ -74,6 +80,40 @@ export function createExpertAgent(spec: ExpertAgentSpec): IExpertAgent {
 
     async executeExpert(task: AgentTask): Promise<AgentResult> {
       const routed = await agent.route(task);
+
+      // If custom executor provided (real agent), use it
+      if (spec.customExecute) {
+        try {
+          const result = await spec.customExecute(task, routed);
+          // Enforce invariants: requiresReview always true, grounded false unless RAG
+          return {
+            ...result,
+            meta: {
+              ...result.meta,
+              requiresReview: true,
+              grounded: result.meta?.grounded ?? false,
+              routedSkillId: routed?.skillId ?? null,
+              score: routed?.score ?? 0,
+              persona: spec.persona.displayName,
+            },
+          };
+        } catch (error) {
+          return {
+            ok: false,
+            output: `خطا در اجرای ایجنت ${spec.agentId}: ${error instanceof Error ? error.message : String(error)}`,
+            errorCode: 'AGENT_EXECUTION_FAILED',
+            meta: {
+              grounded: false,
+              requiresReview: true,
+              routedSkillId: routed?.skillId ?? null,
+              score: routed?.score ?? 0,
+              error: error instanceof Error ? error.message : String(error),
+            },
+          };
+        }
+      }
+
+      // Default mock behavior (for agents not yet real)
       return {
         ok: true,
         output:
