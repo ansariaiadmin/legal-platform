@@ -1,7 +1,8 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import { SMS_PROVIDER } from '../../providers/provider.tokens';
+import { SMS_PROVIDER, STORAGE_PROVIDER } from '../../providers/provider.tokens';
 import type { SmsProvider } from '../../providers/sms/sms.provider';
+import type { StorageProvider } from '../../providers/storage/storage.provider';
 import { CommsSettingsService } from './comms-settings.service';
 import type { QueueTicket } from '../consultation/queue.service';
 
@@ -18,6 +19,7 @@ export interface Notification {
 }
 
 const CAP = 50; // per-user notifications
+const INBOX_KEY = 'runtime/notifications/inbox.json';
 
 /**
  * Notification fanout (P2a): EVERY ticket motion reaches the client through
@@ -25,25 +27,54 @@ const CAP = 50; // per-user notifications
  * outbound call ("وقتشه، بیا تو تماس") via telephony port — when the panel
  * isn't connected the event is still recorded with delivered.call=false and
  * never PRETENDS the phone rang.
+ *
+ * FIX v3.2.1 — تاریکی روشن شد — قبلا Map تو RAM بود — ریست می‌شد همه نوتیف‌ها می‌پرید — فاجعه — حالا StorageProvider persist — runtime/notifications/inbox.json
  */
 @Injectable()
 export class NotificationService {
   private readonly logger = new Logger(NotificationService.name);
-  private readonly inbox = new Map<string, Notification[]>();
+  private inbox = new Map<string, Notification[]>();
+  private loaded = false;
 
   constructor(
     @Inject(SMS_PROVIDER) private readonly sms: SmsProvider,
+    @Inject(STORAGE_PROVIDER) private readonly storage: StorageProvider,
     private readonly comms: CommsSettingsService,
   ) {}
 
-  list(userId: string, unreadOnly = false): Notification[] {
+  private async ensureLoaded(): Promise<void> {
+    if (this.loaded) return;
+    try {
+      const raw = await this.storage.get(INBOX_KEY);
+      const parsed = JSON.parse(raw.toString('utf8')) as Record<string, Notification[]>;
+      this.inbox = new Map(Object.entries(parsed));
+    } catch {
+      // empty inbox is honest first state
+    }
+    this.loaded = true;
+  }
+
+  private async persist(): Promise<void> {
+    const obj = Object.fromEntries(this.inbox.entries());
+    await this.storage.put({
+      key: INBOX_KEY,
+      content: Buffer.from(JSON.stringify(obj)),
+      contentType: 'application/json',
+      metadata: { kind: 'notifications-inbox' },
+    });
+  }
+
+  async list(userId: string, unreadOnly = false): Promise<Notification[]> {
+    await this.ensureLoaded();
     const arr = this.inbox.get(userId) ?? [];
     return unreadOnly ? arr.filter((n) => !n.read) : arr;
   }
 
-  markRead(userId: string, notificationIds: string[]): void {
+  async markRead(userId: string, notificationIds: string[]): Promise<void> {
+    await this.ensureLoaded();
     const arr = this.inbox.get(userId) ?? [];
     for (const n of arr) if (notificationIds.includes(n.notificationId)) n.read = true;
+    await this.persist();
   }
 
   /** Position after join / reorder: "نفر Nم هستی، حدود M دقیقه" */
@@ -134,11 +165,13 @@ export class NotificationService {
     arr.push(n);
     if (arr.length > CAP) arr.splice(0, arr.length - CAP);
     this.inbox.set(userId, arr);
+    await this.persist();
 
     if (phone && payload.channels.includes('sms')) {
       try {
         const r = await this.sms.sendSms({ phone, message: `${n.titleFa}\n${n.bodyFa}` });
         n.delivered.sms = Boolean(r.success);
+        await this.persist();
       } catch (err) {
         this.logger.warn(`SMS failed: ${(err as Error).message}`);
       }
