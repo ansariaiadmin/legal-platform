@@ -1,3 +1,4 @@
+# تاریکی روشن شد — v3.1.0 — NOTIF + SMS + TELEGRAM + fallback + throttling — .env شامل همه — docker-compose env_file .env را می‌خواند — امن
 services:
   proxy:
     image: nginx:alpine
