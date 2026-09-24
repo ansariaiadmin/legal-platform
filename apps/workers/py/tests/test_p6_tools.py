@@ -1,11 +1,10 @@
 """P6-S4 worker tools: ping / security_scan / local_answer."""
-import sys
 import os
+import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from pylegal import worker, security_tools, local_answer
-
+from pylegal import local_answer, security_tools, worker
 
 # ---------- ping ----------
 
@@ -99,7 +98,7 @@ def test_local_answer_deterministic():
     assert a == b
 
 
-class TestLocalAnswerV2(P9T5 := type('ns', (), {})):  # noqa: N801 — simple grouping
+class TestLocalAnswerV2(P9T5 := type('ns', (), {})):
     pass
 
 

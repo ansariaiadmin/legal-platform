@@ -12,7 +12,7 @@ catalog (OWASP/CWE), matching standards.ts on the API side.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 
 
 @dataclass(frozen=True)

@@ -4,13 +4,13 @@ import threading
 import unittest
 from http.server import BaseHTTPRequestHandler
 
-from pylegal.model_client import ModelConfig, ModelCallError, chat_completion
+from pylegal.model_client import ModelCallError, ModelConfig, chat_completion
 
 
 class FakeGateway(BaseHTTPRequestHandler):
     """Fakes just enough of /v1/chat/completions for wire tests."""
 
-    def do_POST(self):  # noqa: N802
+    def do_POST(self):
         length = int(self.headers.get("Content-Length", 0))
         body = json.loads(self.rfile.read(length) or b"{}")
         auth = self.headers.get("Authorization", "")

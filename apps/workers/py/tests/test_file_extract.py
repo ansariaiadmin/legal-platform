@@ -15,7 +15,7 @@ def make_minimal_docx(text: str) -> bytes:
     <w:p><w:r><w:t>{text}</w:t></w:r></w:p>
     <w:p><w:r><w:t>خط دوم سند</w:t></w:r></w:p>
   </w:body>
-</w:document>""".encode("utf-8")
+</w:document>""".encode()
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
         z.writestr("word/document.xml", xml)
@@ -30,9 +30,9 @@ def make_minimal_pdf(stream_text: bytes) -> bytes:
 
 class TestFileDigest(unittest.TestCase):
     def test_digest_text(self):
-        d = fx.file_digest("سلام".encode("utf-8"), "note.txt")
+        d = fx.file_digest("سلام".encode(), "note.txt")
         self.assertEqual(d["kindGuess"], "text")
-        self.assertEqual(d["bytes"], len("سلام".encode("utf-8")))
+        self.assertEqual(d["bytes"], len("سلام".encode()))
         self.assertEqual(len(d["sha256"]), 64)
 
     def test_digest_pdf_by_magic(self):
@@ -74,7 +74,7 @@ class TestExtract(unittest.TestCase):
             fx.extract_pdf(b"NOTAPDF")
 
     def test_worker_tool_roundtrip_base64(self):
-        raw = "تعهد به پرداخت".encode("utf-8")
+        raw = "تعهد به پرداخت".encode()
         r = handle({"jobId": "fx1", "tool": "extract_any",
                     "input": {"data_b64": base64.b64encode(raw).decode(), "filename": "تعهد.txt"}})
         self.assertTrue(r["ok"])

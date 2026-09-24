@@ -1,6 +1,6 @@
 import unittest
 
-from pylegal.worker import handle, TOOLS
+from pylegal.worker import TOOLS, handle
 
 
 class TestHandle(unittest.TestCase):
