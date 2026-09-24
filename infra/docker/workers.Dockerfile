@@ -1,4 +1,4 @@
-FROM python:3.11-slim AS base
+FROM python:3.14-slim AS base
 
 # pylegal worker (apps/workers/py) — stdlib only, so no pip install step
 # at all. That is the point: zero supply-chain surface in the build.
