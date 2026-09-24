@@ -16,6 +16,7 @@ import { SetupModule } from './modules/setup/setup.module';
 import { ConsultationModule } from './modules/consultation/consultation.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { ClientModule } from './modules/billing/client.module';
+import { SignatureModule } from './modules/signature/signature.module';
 import { DatabaseModule } from './database/database.module';
 import { ProviderRegistryModule } from './providers/provider-registry.module';
 import { EnvService } from './config/env';
@@ -48,6 +49,7 @@ import { AuthJwtModule } from './security/jwt.module';
     NotificationsModule,
     ConsultationModule,
     ClientModule,
+    SignatureModule,
   ],
   providers: [
     EnvService,

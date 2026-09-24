@@ -64,10 +64,10 @@ export class TelecomsController {
   @Get('telecoms')
   @Roles(UserRole.LAWYER_OWNER, UserRole.STAFF)
   @ApiOperation({ summary: 'Lawyer telecoms state: online? queue open? next-up stats' })
-  state() {
+  async state() {
     return {
-      telecoms: this.queue.telecomsState(),
-      waitingCount: this.queue.waiting().length,
+      telecoms: await this.queue.telecomsState(),
+      waitingCount: (await this.queue.waiting()).length,
       plans: this.billing.getPlans(),
     };
   }
@@ -75,29 +75,29 @@ export class TelecomsController {
   @Post('telecoms/online')
   @Roles(UserRole.LAWYER_OWNER)
   @ApiOperation({ summary: 'The hukm spring — the lawyer goes on call' })
-  toggle(@Body() dto: ToggleOnlineDto) {
-    return { telecoms: this.queue.setOnline(dto.online) };
+  async toggle(@Body() dto: ToggleOnlineDto) {
+    return { telecoms: await this.queue.setOnline(dto.online) };
   }
 
   @Post('telecoms/queue/open')
   @Roles(UserRole.LAWYER_OWNER)
   @ApiOperation({ summary: 'Open the gate — clients may join the line' })
-  open() {
-    return { telecoms: this.queue.setQueueOpen(true) };
+  async open() {
+    return { telecoms: await this.queue.setQueueOpen(true) };
   }
 
   @Post('telecoms/queue/close')
   @Roles(UserRole.LAWYER_OWNER)
   @ApiOperation({ summary: 'Close the gate — the queue closes with a Persian reason' })
-  close(@Body() dto: CloseDto) {
-    return { telecoms: this.queue.setQueueOpen(false, dto.reason) };
+  async close(@Body() dto: CloseDto) {
+    return { telecoms: await this.queue.setQueueOpen(false, dto.reason) };
   }
 
   @Post('telecoms/queue/next')
   @Roles(UserRole.LAWYER_OWNER)
   @ApiOperation({ summary: 'Call the next ticket — whoever is in_call ends done' })
-  next() {
-    const t = this.queue.next();
+  async next() {
+    const t = await this.queue.next();
     if (!t) return { up: null, message: 'صف خالی است' };
     return { up: t };
   }
@@ -105,37 +105,37 @@ export class TelecomsController {
   @Post('telecoms/queue/skip/:ticketId')
   @Roles(UserRole.LAWYER_OWNER)
   @ApiOperation({ summary: 'Skip: push a ticket to the end of the line, honestly' })
-  skip(@Param('ticketId') ticketId: string) {
+  async skip(@Param('ticketId') ticketId: string) {
     return this.queue.skip(ticketId);
   }
 
   @Post('telecoms/queue/call/:ticketId')
   @Roles(UserRole.LAWYER_OWNER)
   @ApiOperation({ summary: 'Start the actual call for an up_next ticket' })
-  startCall(@Param('ticketId') ticketId: string) {
+  async startCall(@Param('ticketId') ticketId: string) {
     return this.queue.startCall(ticketId);
   }
 
   @Post('telecoms/queue/end/:ticketId')
   @Roles(UserRole.LAWYER_OWNER)
   @ApiOperation({ summary: 'End an in-call ticket: done or no_show' })
-  endCall(@Param('ticketId') ticketId: string, @Body('endAs') endAs: 'done' | 'no_show') {
+  async endCall(@Param('ticketId') ticketId: string, @Body('endAs') endAs: 'done' | 'no_show') {
     if (endAs !== 'done' && endAs !== 'no_show') {
       throw new BadRequestException({ code: 'VALIDATION_INVALID_INPUT', message: 'endAs باید done یا no_show باشد' });
     }
-    this.queue.endTicket(ticketId, endAs);
+    await this.queue.endTicket(ticketId, endAs);
     return { ended: ticketId, as: endAs };
   }
 
   @Get('telecoms/queue')
   @Roles(UserRole.LAWYER_OWNER, UserRole.STAFF)
   @ApiOperation({ summary: 'The whole line — for the dashboard board' })
-  board() {
+  async board() {
     return {
-      waiting: this.queue.waiting(),
-      current: this.queue.list(['in_call']),
-      doneToday: this.queue.list(['done']).length,
-      states: { noShow: this.queue.list(['no_show']).length, cancelled: this.queue.list(['cancelled']).length },
+      waiting: await this.queue.waiting(),
+      current: await this.queue.list(['in_call']),
+      doneToday: (await this.queue.list(['done'])).length,
+      states: { noShow: (await this.queue.list(['no_show'])).length, cancelled: (await this.queue.list(['cancelled'])).length },
     };
   }
 

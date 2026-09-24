@@ -1,11 +1,15 @@
-import { BadRequestException, Injectable, Logger, Optional } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import type { ConsultationMinutes, TelecomsState, TicketStatus } from '@legal-platform/domain';
 import { BillingService } from '../billing/billing.service';
 import { InProcessAgentEventBus } from '../orchestrator/agent-event-bus';
 import { NotificationService } from '../notifications/notification.service';
+import { STORAGE_PROVIDER } from '../../providers/provider.tokens';
+import type { StorageProvider } from '../../providers/storage/storage.provider';
 
 const APP_URL = process.env.APP_URL ?? '';
+const QUEUE_KEY = 'runtime/consultation/queue.json';
+const TELECOMS_KEY = 'runtime/consultation/telecoms.json';
 
 export interface QueueTicket {
   ticketId: string;
@@ -37,57 +41,104 @@ export interface QueuePosition {
  * THE TELECOMS BOX (P2a): the lawyer is the station operator. Online/offline
  * is one thumb; the queue opens/closes the same way; دقیقه‌ی هر پلن از داشبورد
  * می‌آید. Every movement emits to the agent bus so the kitchen SEEs the line.
+ *
+ * FIX v3.2.0 — تاریکی روشن شد — صف قبلا فقط تو RAM بود — اگر سرور ریست می‌شد همه نوبت‌ها می‌پرید — وکیل ۱۰ تا مشتری رو از دست می‌داد — حالا با StorageProvider persist می‌شه — runtime/consultation/queue.json — ریست هم صف نمی‌پره
  */
 @Injectable()
 export class ConsultationQueueService {
   private readonly logger = new Logger(ConsultationQueueService.name);
-  private readonly tickets: QueueTicket[] = [];
+  private tickets: QueueTicket[] = [];
   private telecoms: TelecomsState = {
     online: false,
     queueOpen: true,
     updatedAt: new Date().toISOString(),
   };
+  private loaded = false;
 
   constructor(
     private readonly billing: BillingService,
     private readonly notifications: NotificationService,
+    @Inject(STORAGE_PROVIDER) private readonly storage: StorageProvider,
     @Optional() private readonly bus?: InProcessAgentEventBus,
   ) {}
 
+  private async ensureLoaded(): Promise<void> {
+    if (this.loaded) return;
+    try {
+      const rawQueue = await this.storage.get(QUEUE_KEY);
+      this.tickets = JSON.parse(rawQueue.toString('utf8')) as QueueTicket[];
+    } catch {
+      this.tickets = [];
+    }
+    try {
+      const rawTelecoms = await this.storage.get(TELECOMS_KEY);
+      this.telecoms = JSON.parse(rawTelecoms.toString('utf8')) as TelecomsState;
+    } catch {
+      // first boot — defaults
+    }
+    this.loaded = true;
+  }
+
+  private async persist(): Promise<void> {
+    await Promise.all([
+      this.storage.put({
+        key: QUEUE_KEY,
+        content: Buffer.from(JSON.stringify(this.tickets)),
+        contentType: 'application/json',
+        metadata: { kind: 'consultation-queue' },
+      }),
+      this.storage.put({
+        key: TELECOMS_KEY,
+        content: Buffer.from(JSON.stringify(this.telecoms)),
+        contentType: 'application/json',
+        metadata: { kind: 'consultation-telecoms' },
+      }),
+    ]);
+  }
+
   // ---- lawyer side --------------------------------------------------------
 
-  telecomsState(): TelecomsState {
+  async telecomsState(): Promise<TelecomsState> {
+    await this.ensureLoaded();
     return { ...this.telecoms };
   }
 
-  setOnline(online: boolean): TelecomsState {
+  async setOnline(online: boolean): Promise<TelecomsState> {
+    await this.ensureLoaded();
     this.telecoms = { ...this.telecoms, online, updatedAt: new Date().toISOString() };
+    await this.persist();
     this.emit('queue.updated', `وکیل ${online ? 'آنلاین' : 'آفلاین'} شد`);
-    return this.telecomsState();
+    return { ...this.telecoms };
   }
 
-  setQueueOpen(open: boolean, reason?: string): TelecomsState {
+  async setQueueOpen(open: boolean, reason?: string): Promise<TelecomsState> {
+    await this.ensureLoaded();
     this.telecoms = { ...this.telecoms, queueOpen: open, closeReason: open ? undefined : (reason ?? 'فعلاً ظرفیت تکمیل است'), updatedAt: new Date().toISOString() };
+    await this.persist();
     this.emit('queue.updated', open ? 'صف باز شد' : `صف بسته شد: ${this.telecoms.closeReason}`);
-    return this.telecomsState();
+    return { ...this.telecoms };
   }
 
-  list(statuses?: TicketStatus[]): QueueTicket[] {
+  async list(statuses?: TicketStatus[]): Promise<QueueTicket[]> {
+    await this.ensureLoaded();
     return this.tickets.filter((t) => !statuses || statuses.includes(t.status));
   }
 
-  waiting(): QueueTicket[] {
+  async waiting(): Promise<QueueTicket[]> {
+    await this.ensureLoaded();
     return this.tickets.filter((t) => t.status === 'waiting' || t.status === 'up_next');
   }
 
   /** "یک نفر بعدی بفرست" — the lawyer pulls the line. */
-  next(): QueueTicket | null {
+  async next(): Promise<QueueTicket | null> {
+    await this.ensureLoaded();
     const current = this.tickets.find((t) => t.status === 'in_call' || t.status === 'up_next');
-    if (current) this.endTicket(current.ticketId, 'done');
+    if (current) await this.endTicket(current.ticketId, 'done');
     const nextWaiting = this.tickets.find((t) => t.status === 'waiting');
     if (!nextWaiting) return null;
     nextWaiting.status = 'up_next';
     nextWaiting.upNextAt = new Date().toISOString();
+    await this.persist();
     this.emit('queue.updated', `بلیت ${nextWaiting.ticketId.slice(0, 8)} به نوبت رسید`);
     this.logger.log(`ticket ${nextWaiting.ticketId} is up_next`);
     void this.notifications.upNext(nextWaiting, `${APP_URL}/call/${nextWaiting.ticketId}`);
@@ -96,7 +147,8 @@ export class ConsultationQueueService {
     return nextWaiting;
   }
 
-  skip(ticketId: string): QueueTicket {
+  async skip(ticketId: string): Promise<QueueTicket> {
+    await this.ensureLoaded();
     const t = this.need(ticketId);
     if (t.status !== 'waiting' && t.status !== 'up_next') {
       throw this.wrongState('فقط نفرهای صف را می‌شود جابه‌جا کرد');
@@ -105,15 +157,18 @@ export class ConsultationQueueService {
     const idx = this.tickets.indexOf(t);
     this.tickets.splice(idx, 1);
     this.tickets.push({ ...t, status: 'waiting' });
+    await this.persist();
     this.emit('queue.updated', `بلیت ${ticketId.slice(0, 8)} به ته صف رفت`);
     return this.need(ticketId);
   }
 
-  endTicket(ticketId: string, endAs: 'done' | 'no_show'): void {
+  async endTicket(ticketId: string, endAs: 'done' | 'no_show'): Promise<void> {
+    await this.ensureLoaded();
     const t = this.need(ticketId, true);
-    if (t.status === 'in_call' || t.status === 'up_next') {
+    if (t && (t.status === 'in_call' || t.status === 'up_next')) {
       t.status = endAs;
       t.endedAt = new Date().toISOString();
+      await this.persist();
       this.emit('queue.updated', `بلیت ${ticketId.slice(0, 8)} → ${endAs}`);
     }
   }
@@ -121,7 +176,8 @@ export class ConsultationQueueService {
   // ---- client side --------------------------------------------------------
 
   /** Join with a paid consultation purchase. */
-  join(userId: string, phone: string, purchaseId: string): QueueTicket {
+  async join(userId: string, phone: string, purchaseId: string): Promise<QueueTicket> {
+    await this.ensureLoaded();
     if (!this.telecoms.queueOpen) {
       const err = new Error(this.telecoms.closeReason ?? 'صف بسته است');
       (err as Error & { code: string }).code = 'QUEUE_CLOSED';
@@ -153,16 +209,18 @@ export class ConsultationQueueService {
       joinedAt: new Date().toISOString(),
     };
     this.tickets.push(ticket);
+    await this.persist();
     this.billing.markConsumed(purchaseId);
     this.emit('queue.updated', `بلیت جدید ${ticket.ticketId.slice(0, 8)} (${ticket.minutes} دقیقه)`);
     this.logger.log(`ticket joined: ${ticket.ticketId} for ${userId}`);
     // "خرید زدی → بگو نفر چندمی" — the buyer IMMEDIATELY learns their place.
-    const pos = this.position(userId);
+    const pos = await this.position(userId);
     if (pos) void this.notifications.queuePosition(ticket, pos.position, pos.etaMinutes);
     return ticket;
   }
 
-  position(userId: string): QueuePosition | null {
+  async position(userId: string): Promise<QueuePosition | null> {
+    await this.ensureLoaded();
     const mine = this.tickets.find((t) => t.userId === userId && (t.status === 'waiting' || t.status === 'up_next' || t.status === 'in_call'));
     if (!mine) return null;
     const queue = this.tickets.filter((t) => t.status === 'waiting' || t.status === 'up_next');
@@ -179,12 +237,14 @@ export class ConsultationQueueService {
     };
   }
 
-  myTickets(userId: string): QueueTicket[] {
+  async myTickets(userId: string): Promise<QueueTicket[]> {
+    await this.ensureLoaded();
     return this.tickets.filter((t) => t.userId === userId);
   }
 
   /** Client cancels while still waiting → wallet refund, no questions asked. */
   async cancel(userId: string, ticketId: string): Promise<{ refunded: boolean }> {
+    await this.ensureLoaded();
     const t = this.need(ticketId);
     if (t.userId !== userId) {
       throw new BadRequestException({ code: 'TICKET_NOT_FOUND', message: 'بلیت مال تو نیست' });
@@ -199,18 +259,21 @@ export class ConsultationQueueService {
       t.refundIssued = true;
       await this.billing.refundPurchase(userId, t.purchaseId, `انصراف از نوبت ${t.ticketId.slice(0, 8)}`);
     }
+    await this.persist();
     this.emit('queue.updated', `بلیت ${ticketId.slice(0, 8)} کنسل و وجه برگشت`);
     return { refunded: Boolean(t.refundIssued) };
   }
 
   /** Call bridge: the lawyer (or the notification engine) starts the call. */
-  startCall(ticketId: string): QueueTicket {
+  async startCall(ticketId: string): Promise<QueueTicket> {
+    await this.ensureLoaded();
     const t = this.need(ticketId);
     if (t.status !== 'up_next') {
       throw this.wrongState('بلیت هنوز به نوبتش نرسیده');
     }
     t.status = 'in_call';
     t.inCallAt = new Date().toISOString();
+    await this.persist();
     this.emit('queue.updated', `تماس با بلیت ${ticketId.slice(0, 8)} آغاز شد`);
     return t;
   }
