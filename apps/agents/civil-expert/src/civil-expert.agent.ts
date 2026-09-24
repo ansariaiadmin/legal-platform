@@ -82,7 +82,7 @@ function analyzeContract(query: string): { clauses: ContractClause[]; missing: C
   return { clauses: foundClauses, missing: missingClauses, recommendations };
 }
 
-function analyzeCivilClaim(query: string): { type: string; info: any; steps: string[]; documents: string[] } | null {
+function analyzeCivilClaim(query: string): { type: string; info: Record<string, unknown> & { name?: string; court?: string }; steps: string[]; documents: string[] } | null {
   const lowerQuery = query.toLowerCase();
 
   for (const [keyword, info] of Object.entries(CIVIL_CLAIMS_TYPES)) {
@@ -119,7 +119,7 @@ async function civilExpertExecutor(task: AgentTask, routed: { skillId: string; s
 
   let output = '';
   const citations: Array<{ text: string; sourceId: string; url?: string }> = [];
-  let analysis: any = {};
+  let analysis: Record<string, unknown> = {};
 
   if (skillId === 'civil:contracts' || query.includes('قرارداد') || query.includes('اجاره') || query.includes('بیع')) {
     const contractAnalysis = analyzeContract(query);

@@ -162,7 +162,7 @@ async function criminalExpertExecutor(task: AgentTask, routed: { skillId: string
 
   let output = '';
   const citations: Array<{ text: string; sourceId: string; url?: string }> = [];
-  let analysis: any = {};
+  let analysis: Record<string, unknown> = {};
 
   const crimeAnalysis = analyzeCrime(query);
 
