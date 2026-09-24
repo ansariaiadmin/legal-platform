@@ -1,0 +1,477 @@
+:root {
+  /* P10 semantic surfaces (surface-0 = page, 1 = resting card, 2 = raised/
+     hovered) — elevation by lightness, never pure #000 (evolved dark mode) */
+  --surface-0: #0b0e14;
+  --surface-1: rgba(255, 255, 255, 0.04);
+  --surface-2: rgba(255, 255, 255, 0.08);
+  --elev-1: 0 1px 2px rgba(0, 0, 0, 0.25), 0 8px 28px rgba(0, 0, 0, 0.28);
+  --elev-2: 0 2px 6px rgba(0, 0, 0, 0.3), 0 16px 48px rgba(0, 0, 0, 0.38);
+  --focus-ring: 0 0 0 3px rgba(244, 200, 93, 0.45);
+  --bg: var(--surface-0);
+  --bg-soft: #12151f;
+  --bg-soft: #12151f;
+  --panel: rgba(255, 255, 255, 0.04);
+  --panel-strong: rgba(255, 255, 255, 0.08);
+  --line: rgba(255, 255, 255, 0.1);
+  --text: #f2f4f8;
+  --text-dim: #9aa3b2;
+  --gold: #f4c85d;
+  --teal: #45d8c2;
+  --violet: #9d8cff;
+  --rose: #ff7a9e;
+  --ok: #58e6a8;
+  --bad: #ff6b6b;
+  --radius: 16px;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background:
+    radial-gradient(1200px 600px at 85% -10%, rgba(157, 140, 255, 0.14), transparent 60%),
+    radial-gradient(900px 500px at 10% 110%, rgba(69, 216, 194, 0.1), transparent 60%),
+    var(--bg);
+  color: var(--text);
+  font-family: 'Vazirmatn', 'IRANSans', Tahoma, 'Segoe UI', sans-serif;
+  min-height: 100vh;
+}
+
+button { font-family: inherit; cursor: pointer; }
+input, select, textarea { font-family: inherit; color: inherit; }
+
+.shell {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 20px 16px 64px;
+}
+
+/* ---------- top bar & tabs ---------- */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 4px 18px;
+}
+.brand {
+  display: flex; align-items: center; gap: 12px;
+}
+.brand .logo {
+  width: 42px; height: 42px; border-radius: 14px;
+  background: linear-gradient(135deg, var(--gold), var(--rose));
+  display: grid; place-items: center; font-size: 22px;
+  box-shadow: 0 6px 24px rgba(244, 200, 93, 0.25);
+}
+.brand h1 { font-size: 18px; margin: 0; }
+.brand small { color: var(--text-dim); font-size: 12px; }
+
+.tabs {
+  display: flex; gap: 8px; flex-wrap: wrap;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 6px;
+  margin-bottom: 22px;
+  position: sticky; top: 10px; z-index: 20;
+  backdrop-filter: blur(14px);
+}
+.tab {
+  border: none; background: transparent; color: var(--text-dim);
+  padding: 10px 16px; border-radius: 12px; font-size: 14px;
+  display: flex; align-items: center; gap: 8px;
+  transition: all 0.2s ease;
+}
+.tab:hover { color: var(--text); background: var(--panel-strong); }
+.tab.active {
+  background: linear-gradient(135deg, rgba(244, 200, 93, 0.2), rgba(157, 140, 255, 0.2));
+  color: var(--text);
+  border: 1px solid rgba(244, 200, 93, 0.3);
+}
+
+/* ---------- generic cards ---------- */
+.grid { display: grid; gap: 14px; }
+.grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
+.grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+@media (max-width: 800px) { .grid.cols-2, .grid.cols-3 { grid-template-columns: 1fr; } }
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 20px;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+.card:hover { border-color: rgba(255,255,255,0.2); }
+.card h3 { margin: 0 0 6px; font-size: 16px; }
+.card p.hint { color: var(--text-dim); font-size: 12.5px; margin: 0 0 14px; line-height: 1.7; }
+
+.pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 11.5px; padding: 4px 10px; border-radius: 999px;
+  background: var(--panel-strong); color: var(--text-dim);
+}
+.pill.ok { background: rgba(88, 230, 168, 0.15); color: var(--ok); }
+.pill.bad { background: rgba(255, 107, 107, 0.15); color: var(--bad); }
+.pill.gold { background: rgba(244, 200, 93, 0.15); color: var(--gold); }
+.pill.teal { background: rgba(69, 216, 194, 0.15); color: var(--teal); }
+
+.btn {
+  border: 1px solid var(--line);
+  background: var(--panel-strong);
+  color: var(--text);
+  padding: 12px 20px;
+  border-radius: 12px;
+  font-size: 14px;
+  transition: all 0.15s ease;
+}
+.btn:hover { border-color: rgba(255,255,255,0.35); transform: translateY(-1px); }
+.btn.primary {
+  background: linear-gradient(135deg, var(--gold), #ff9a5d);
+  color: #1a1300; font-weight: 700; border: none;
+}
+.btn.primary:disabled { opacity: 0.5; cursor: wait; }
+.btn.ghost { background: transparent; }
+.btn.big { padding: 16px 24px; font-size: 15px; border-radius: 14px; width: 100%; }
+
+.field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.field label { font-size: 12.5px; color: var(--text-dim); }
+.field input {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 11px 12px;
+  font-size: 14px;
+  direction: ltr;
+  text-align: left;
+}
+.field input:focus { outline: 2px solid rgba(244, 200, 93, 0.4); border-color: transparent; }
+
+.kv { display: flex; justify-content: space-between; font-size: 13px; padding: 7px 0; border-bottom: 1px dashed var(--line); }
+.kv:last-child { border-bottom: none; }
+.kv b { color: var(--text-dim); font-weight: 500; }
+.kv span.ltr { direction: ltr; }
+
+/* ---------- chat ---------- */
+.chatlog {
+  display: flex; flex-direction: column; gap: 10px;
+  max-height: 460px; overflow-y: auto; padding: 4px 2px 12px;
+}
+.bubble {
+  max-width: 78%; padding: 12px 16px; border-radius: 16px;
+  font-size: 14.5px; line-height: 1.9; white-space: pre-wrap;
+  animation: pop 0.25s ease;
+}
+.bubble.you {
+  align-self: flex-start;
+  background: rgba(157, 140, 255, 0.16);
+  border: 1px solid rgba(157, 140, 255, 0.3);
+  border-radius: 16px 16px 16px 4px;
+}
+.bubble.leader {
+  align-self: flex-end;
+  background: linear-gradient(135deg, rgba(244, 200, 93, 0.14), rgba(255, 122, 158, 0.1));
+  border: 1px solid rgba(244, 200, 93, 0.3);
+  border-radius: 16px 16px 4px 16px;
+}
+.bubble .who {
+  display: block; font-size: 11px; color: var(--text-dim); margin-bottom: 4px;
+}
+.chatbar { display: flex; gap: 8px; margin-top: 8px; }
+.chatbar input {
+  flex: 1; background: rgba(0,0,0,0.25); border: 1px solid var(--line);
+  border-radius: 12px; padding: 13px 16px; font-size: 14.5px;
+}
+.chatbar input:focus { outline: 2px solid rgba(244,200,93,0.4); border-color: transparent; }
+@keyframes pop { from { opacity: 0; transform: translateY(8px) scale(0.97); } to { opacity: 1; transform: none; } }
+
+.proposal-card {
+  margin-top: 8px; padding: 12px; border-radius: 12px;
+  background: rgba(69, 216, 194, 0.1); border: 1px solid rgba(69, 216, 194, 0.35);
+}
+.placement-card {
+  margin-top: 8px; padding: 10px 12px; border-radius: 12px;
+  background: rgba(157, 140, 255, 0.12); border: 1px solid rgba(157, 140, 255, 0.3);
+  font-size: 12.5px; color: var(--text-dim); line-height: 1.8;
+}
+
+/* ---------- THE KITCHEN — live fleet floor ---------- */
+.floor {
+  position: relative; min-height: 420px;
+  background: radial-gradient(600px 300px at 50% 40%, rgba(157,140,255,0.08), transparent 70%);
+  border: 1px solid var(--line); border-radius: 22px; overflow: hidden;
+}
+.node {
+  position: absolute; transform: translate(-50%, -50%);
+  text-align: center; transition: all 0.4s ease;
+}
+.node .orb {
+  width: 74px; height: 74px; border-radius: 50%;
+  background: var(--panel-strong);
+  border: 2px solid var(--line);
+  display: grid; place-items: center; font-size: 26px;
+  margin: 0 auto 6px;
+  position: relative;
+  transition: all 0.3s ease;
+}
+.node.leader .orb {
+  width: 96px; height: 96px; font-size: 34px;
+  background: radial-gradient(circle at 35% 30%, rgba(244,200,93,0.35), rgba(244,200,93,0.08));
+  border-color: rgba(244,200,93,0.5);
+  box-shadow: 0 0 40px rgba(244,200,93,0.25);
+}
+.node .name { font-size: 12px; color: var(--text); }
+.node .sub { font-size: 10.5px; color: var(--text-dim); }
+.node.working .orb {
+  border-color: var(--teal);
+  box-shadow: 0 0 34px rgba(69,216,194,0.55);
+  animation: breathe 0.9s ease-in-out infinite;
+}
+@keyframes breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.09); }
+}
+.node .heat {
+  position: absolute; inset: -6px; border-radius: 50%;
+  border: 2px solid transparent; pointer-events: none;
+}
+.node.working .heat { animation: spin 1.6s linear infinite; border-top-color: var(--teal); }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.packet {
+  position: absolute; width: 14px; height: 14px; border-radius: 50%;
+  background: var(--gold);
+  box-shadow: 0 0 16px var(--gold);
+  transform: translate(-50%, -50%);
+  z-index: 5;
+  transition: left 0.8s cubic-bezier(0.3, 0, 0.2, 1), top 0.8s cubic-bezier(0.3, 0, 0.2, 1), opacity 0.3s;
+}
+.packet.inference { background: var(--violet); box-shadow: 0 0 16px var(--violet); }
+.packet.done { background: var(--ok); box-shadow: 0 0 16px var(--ok); }
+
+.ticker {
+  margin-top: 14px; max-height: 220px; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.ticker .ev {
+  display: flex; gap: 10px; align-items: center; font-size: 12.5px;
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: 10px; padding: 8px 12px;
+  animation: pop 0.3s ease;
+}
+.ticker .ev time { color: var(--text-dim); font-size: 11px; direction: ltr; }
+.ticker .ev .k { font-weight: 700; font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--panel-strong); }
+.badge {
+  font-size: 10.5px; padding: 3px 9px; border-radius: 999px;
+  background: rgba(157, 140, 255, 0.18); color: var(--violet);
+}
+
+/* ---------- files dropzone ---------- */
+.dropzone {
+  border: 2px dashed var(--line); border-radius: var(--radius);
+  padding: 42px 16px; text-align: center; color: var(--text-dim);
+  transition: all 0.2s ease; cursor: pointer;
+}
+.dropzone:hover { border-color: var(--gold); color: var(--text); background: rgba(244,200,93,0.04); }
+.progressbar { height: 6px; background: var(--panel-strong); border-radius: 999px; overflow: hidden; margin-top: 8px; }
+.progressbar > i { display: block; height: 100%; background: linear-gradient(90deg, var(--teal), var(--gold)); border-radius: 999px; transition: width 0.5s ease; }
+
+/* ---------- auth ---------- */
+.auth-wrap { max-width: 400px; margin: 8vh auto 0; }
+.dev-notice {
+  margin-top: 18px; font-size: 12px; color: var(--text-dim);
+  border: 1px dashed var(--line); padding: 12px; border-radius: 12px; line-height: 1.8;
+}
+
+/* P7 themes: dark is :root; light overrides the SAME tokens so every
+   component restyles itself — zero component forks. */
+body[data-theme='light'] {
+  --bg: #f7f3ec;
+  --bg-soft: #ffffff;
+  --panel: rgba(18, 22, 33, 0.045);
+  --panel-strong: rgba(18, 22, 33, 0.09);
+  --line: rgba(18, 22, 33, 0.14);
+  --text: #161a26;
+  --text-dim: #5a6474;
+  --gold: #b8860b;
+  --teal: #0d8a78;
+  --violet: #6a5ae0;
+  --rose: #d6336c;
+  --ok: #0e9f63;
+  --bad: #d64545;
+}
+body[data-theme='light'] {
+  background:
+    radial-gradient(1200px 600px at 85% -10%, rgba(106, 90, 224, 0.08), transparent 60%),
+    radial-gradient(900px 500px at 10% 110%, rgba(13, 138, 120, 0.07), transparent 60%),
+    var(--bg);
+  color: var(--text);
+}
+
+/* RTL/LTR: logical-properties-friendly spacing where it matters */
+[dir='rtl'] .shell { text-align: right; }
+[dir='ltr'] .shell { text-align: left; }
+
+/* P7 tour overlay */
+.tour-card {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 24px;
+  margin-inline: auto;
+  max-width: 560px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 18px;
+  z-index: 60;
+  box-shadow: 0 12px 44px rgba(0, 0, 0, 0.35);
+}
+.tour-card h4 { margin: 0 0 6px; color: var(--teal); }
+.tour-card p { margin: 0 0 12px; color: var(--text-dim); font-size: 14px; line-height: 1.8; }
+.tour-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.tour-stepper { font-size: 12px; color: var(--muted, var(--text-dim)); margin-inline-start: auto; }
+
+/* P8 responsive law — one shell, every device: phone OTP users and laptop
+   partners see the same powers without horizontal scroll gymnastics. */
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+@media (max-width: 640px) {
+  .shell { padding: 12px 10px 96px; }
+  .topbar h1 { font-size: 18px; }
+  .card { padding: 12px !important; }
+  .tour-card { inset-inline: 8px; bottom: 8px; max-width: none; }
+  table { font-size: 12px !important; }
+}
+@media (min-width: 641px) and (max-width: 1100px) {
+  .shell { max-width: 100%; padding: 16px 20px 80px; }
+}
+/* grids collapse gracefully */
+.card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+
+/* ══════════════════ P10 — UI/UX psychology + 2026 trend layer ═══════════ */
+
+/* A11y contract: ONE focus treatment everywhere (accent ring, not browser
+   default) — recognition, not recollection. */
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: 8px;
+}
+
+/* Persian typography law (2026 RTL guidance): connected script ⇒ tracking
+   forbidden; ascenders/diacritics need 1.7+ line-height; numbers use tabular
+   figures so KPIs don't jitter as values move. */
+body { font-variant-numeric: tabular-nums; }
+[dir='rtl'] * { letter-spacing: 0 !important; }
+[dir='rtl'] p, [dir='rtl'] .hint, [dir='rtl'] .bubble { line-height: 1.75; }
+.num { font-variant-numeric: tabular-nums; font-feature-settings: 'tnum'; }
+.bidi { unicode-bidi: isolate; direction: ltr; display: inline-block; }
+
+/* Skeleton screens — spinner is a dead wait; a shape that PREVIEWS the page
+   makes the same milliseconds feel shorter (perceived-performance research). */
+.sk {
+  position: relative; overflow: hidden;
+  background: var(--surface-1); border-radius: 12px; min-height: 14px;
+}
+.sk::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(100deg, transparent 20%, rgba(255,255,255,0.07) 50%, transparent 80%);
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+@keyframes shimmer { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+[dir='rtl'] .sk::after { animation-name: shimmer-rtl; }
+@keyframes shimmer-rtl { from { transform: translateX(100%); } to { transform: translateX(-100%); } }
+
+/* Bento grid — asymmetric modules; the BIG card speaks first, the small
+   ones answer "and what else". Grid-span utilities, collapse < 900px. */
+.bento { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+.bento > * { min-width: 0; }
+.bento .span-2 { grid-column: span 2; }
+.bento .span-3 { grid-column: span 3; }
+.bento .span-4 { grid-column: span 4; }
+@media (max-width: 900px) {
+  .bento { grid-template-columns: repeat(2, 1fr); }
+  .bento .span-2, .bento .span-3, .bento .span-4 { grid-column: span 2; }
+}
+@media (max-width: 560px) {
+  .bento { grid-template-columns: 1fr; }
+  .bento > * { grid-column: span 1 !important; }
+}
+
+/* KPI tile: label small & dim (signal = number), figure big, trend as pill. */
+.kpi { padding: 16px 18px; }
+.kpi .kpi-label { font-size: 12px; color: var(--text-dim); margin-bottom: 6px; }
+.kpi .kpi-figure { font-size: 30px; font-weight: 800; line-height: 1.2; letter-spacing: 0; }
+.kpi .kpi-sub { font-size: 11.5px; color: var(--text-dim); margin-top: 6px; }
+
+/* Progressive disclosure — details/summary styled as a quiet drawer so the
+   default view stays calm and depth is ONE tap away (never hidden behind an
+   icon nobody understands). */
+details.reveal { border: 1px dashed var(--line); border-radius: 12px; padding: 10px 14px; }
+details.reveal summary {
+  cursor: pointer; color: var(--text-dim); font-size: 13px; list-style: none;
+  display: flex; align-items: center; gap: 8px; user-select: none;
+}
+details.reveal summary::before {
+  content: '◂'; display: inline-block; transition: transform 0.2s ease; color: var(--gold);
+}
+details.reveal[open] summary::before { transform: rotate(-90deg); }
+details.reveal[open] summary { margin-bottom: 10px; color: var(--text); }
+
+/* Fitts for the thumb: on phones the nav becomes a bottom bar — primary
+   actions sit IN the thumb zone, not at the far top edge. */
+@media (max-width: 640px) {
+  .tabs {
+    position: fixed; inset-inline: 0; bottom: 0; top: auto;
+    margin: 0; border-radius: 18px 18px 0 0;
+    background: var(--bg-soft); border-inline: none;
+    padding: 8px 10px calc(10px + env(safe-area-inset-bottom));
+    justify-content: space-around; z-index: 50;
+    box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.4);
+  }
+  .tab { flex-direction: column; gap: 3px; padding: 8px 10px; font-size: 10.5px; }
+  .tab .tab-icon { font-size: 19px; }
+  .shell { padding-bottom: 120px !important; }
+}
+
+/* Motion serves meaning — and STOPS when the user asks. One rule guards
+   every animation in the file. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001s !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* nav overflow (Hick's Law: the eye meets ≤5 choices, the rest live one tap
+   away — decision time drops, nothing is lost). */
+.nav-more { position: relative; }
+.nav-more .nav-menu {
+  position: absolute; inset-inline-end: 0; top: calc(100% + 8px); min-width: 190px;
+  background: var(--bg-soft); border: 1px solid var(--line); border-radius: 14px;
+  padding: 6px; z-index: 60; box-shadow: var(--elev-2);
+  display: flex; flex-direction: column; gap: 2px;
+}
+.nav-menu .tab { justify-content: flex-start; width: 100%; text-align: start; }
+@media (max-width: 640px) {
+  .nav-more .nav-menu { bottom: calc(100% + 8px); top: auto; }
+}
+
+/* light theme gets the same semantic floors */
+body[data-theme='light'] {
+  --surface-0: #f7f3ec;
+  --surface-1: rgba(18, 22, 33, 0.045);
+  --surface-2: rgba(18, 22, 33, 0.09);
+  --focus-ring: 0 0 0 3px rgba(184, 134, 11, 0.4);
+}

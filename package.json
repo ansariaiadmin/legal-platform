@@ -1,0 +1,33 @@
+{
+  "name": "legal-platform",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "packages/domain",
+    "packages/contracts",
+    "packages/shared",
+    "apps/api",
+    "apps/client",
+    "apps/web",
+    "apps/agents/*"
+  ],
+  "scripts": {
+    "build:packages": "npm run build -w @legal-platform/domain -w @legal-platform/contracts -w @legal-platform/shared && npm run build -w @legal-platform/agent-civil-expert -w @legal-platform/agent-criminal-expert -w @legal-platform/agent-family-expert -w @legal-platform/agent-registration-expert -w @legal-platform/agent-international-expert -w @legal-platform/agent-legal-expert-base",
+    "build:agents": "npm run build -w @legal-platform/agent-legal-expert-base -w @legal-platform/agent-civil-expert -w @legal-platform/agent-criminal-expert -w @legal-platform/agent-family-expert -w @legal-platform/agent-registration-expert -w @legal-platform/agent-international-expert",
+    "build:apps": "npm run build -w @legal-platform/api -w @legal-platform/web",
+    "build": "npm run build:packages && npm run build:agents && npm run build:apps",
+    "agent:state": "node scripts/checkpoint.mjs status",
+    "agent:checkpoint": "node scripts/checkpoint.mjs complete",
+    "clean": "npm run clean --workspaces --if-present",
+    "typecheck": "npm run build:packages && npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "test:e2e": "npm run test:e2e -w @legal-platform/api",
+    "migrate:up": "npm run migrate:up -w @legal-platform/api",
+    "migrate:down": "npm run migrate:down -w @legal-platform/api",
+    "security:secrets": "node tools/security/secret-scan.mjs",
+    "test:py": "cd apps/workers/py && python3 -m pytest tests/ -q"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

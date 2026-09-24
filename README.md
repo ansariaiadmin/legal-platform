@@ -1,0 +1,135 @@
+# Legal Platform
+
+Self-hosted, single-tenant legal practice platform for Iranian lawyers.
+
+[![CI](https://github.com/ansariaiadmin/legal-platform/actions/workflows/ci.yml/badge.svg?branch=arena/01a070f0-legal-platform)](https://github.com/ansariaiadmin/legal-platform/actions/workflows/ci.yml)
+
+## Quickstart (production / field trial)
+
+```bash
+# One command — validates host, installs Docker if needed, generates all
+# secrets, builds & starts the stack, runs migrations, waits until healthy:
+sudo ./setup.sh
+
+# Preflight-only (no changes):
+sudo ./setup.sh --check
+```
+
+📘 **Step-by-step Persian guide (wizard, cron backup, troubleshooting): [`docs/RUNBOOK.md`](docs/RUNBOOK.md)**
+
+## Quickstart (development)
+
+```bash
+cp .env.example .env
+docker compose up --build
+open http://localhost:8080
+```
+
+## Operations
+
+| Task | Command |
+|---|---|
+| Backup (auto-rotated, 30d retention) | `./scripts/backup.sh` |
+| Restore (hard-confirmed) | `./scripts/restore.sh --confirm backups/backup-*.tar.gz` |
+| Update with auto rollback | `./scripts/update.sh` |
+| Health & stale-backup checks | `./scripts/diagnostics.sh` |
+
+## Services
+
+| Service | Port | Description |
+|---------|------|-------------|
+| proxy (nginx) | 8080 | Reverse proxy, TLS termination |
+| web (Next.js) | 3000 | Frontend application |
+| api (NestJS) | 3001 | REST API server |
+| worker | - | Background job processor |
+| postgres | 5432 | PostgreSQL 16 with pgvector |
+| redis | 6379 | Cache and message queue |
+
+## Workspace Layout
+
+```
+legal-platform/
+├── apps/
+│   ├── api/              # NestJS backend
+│   │   └── src/
+│   │       ├── main.ts
+│   │       ├── app.module.ts
+│   │       ├── config/
+│   │       ├── modules/
+│   │       ├── providers/
+│   │       └── worker.ts
+│   └── web/              # Next.js frontend
+│       └── src/
+│           ├── app/
+│           ├── components/
+│           ├── features/
+│           └── i18n/
+├── packages/
+│   ├── domain/           # Domain enums and types
+│   ├── contracts/        # API contracts and error codes
+│   └── shared/           # Shared utilities
+├── infra/
+│   ├── docker/           # Dockerfiles
+│   ├── nginx/            # Nginx configuration
+│   ├── postgres/
+│   └── redis/
+├── scripts/
+│   ├── install.sh        # One-command installer
+│   ├── start.sh
+│   ├── stop.sh
+│   ├── backup.sh
+│   ├── restore.sh
+│   ├── update.sh
+│   └── diagnostics.sh
+├── docs/
+│   └── SPEC.md           # Authoritative specification
+├── docker-compose.yml
+├── docker-compose.prod.yml
+└── .env.example
+```
+
+## Requirements
+
+- Ubuntu 22.04+ (for production deployment)
+- Docker + Docker Compose plugin
+- Minimum 4GB RAM (8GB with AI features)
+- 40GB free disk space
+
+## Development
+
+```bash
+npm ci                       # install every workspace
+npm run build:packages       # packages/domain, contracts, shared -> dist
+npm run typecheck            # all workspaces
+npm test                     # unit + contract suites
+npm run build                # packages, then apps/api and apps/web
+
+# Against a local PostgreSQL 16 with pgvector:
+npm run migrate:up -w @legal-platform/api
+npm run test:e2e -w @legal-platform/api      # full auth flow, real database
+npm run test:migrations -w @legal-platform/api  # up -> down -> up determinism
+```
+
+Shared packages are imported from `dist/`, so `build:packages` must run before
+the apps are typechecked. The test suites map `@legal-platform/*` to the
+packages' TypeScript sources, so a stale build can never make a test pass.
+
+## Continuous Integration
+
+See [.github/workflows/ci.yml](.github/workflows/ci.yml):
+
+| Job | Catches |
+|---|---|
+| `quality` | Type errors, failing unit tests, and a broken dependency graph (`test/app/bootstrap.spec.ts` builds the whole Nest graph) |
+| `migrations` | Schema drift - runs against a real `pgvector/pgvector:pg16`, applies up -> down -> up, then asserts the tables and uuid defaults exist |
+| `integration` | Behaviour - the full OTP login lifecycle against real PostgreSQL and Redis |
+| `docker` | Both images build and the API container boots and answers `/api/health` |
+
+CodeQL (`security-and-quality`) and Dependabot are configured under
+[.github/](.github). Branch protection has to be applied once by a repository
+admin - see [docs/GITHUB_SETUP.md](docs/GITHUB_SETUP.md).
+
+## Documentation
+
+See [docs/SPEC.md](docs/SPEC.md) for the complete authoritative specification
+and [docs/GITHUB_SETUP.md](docs/GITHUB_SETUP.md) for repository automation.

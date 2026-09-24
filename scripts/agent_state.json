@@ -1,0 +1,403 @@
+{
+  "project": "legal-platform",
+  "current_phase": "phase-1-expert-tree",
+  "phases": {
+    "phase-0-foundation": {
+      "name": "State engine, handoff protocol, agent interfaces, skeletons",
+      "status": "done",
+      "started_at": "2026-09-05T06:00:00.000Z"
+    },
+    "phase-1-expert-tree": {
+      "name": "Expert agents: civil, criminal, family, registration",
+      "status": "in_progress"
+    },
+    "phase-2-data-lifecycle": {
+      "name": "Collectors, validators, law versioning (RAG corpus)",
+      "status": "pending"
+    },
+    "phase-3-orchestrator": {
+      "name": "Intent classification + live routing through the expert tree",
+      "status": "pending"
+    },
+    "phase-4-rag-pipeline": {
+      "name": "pgvector retrieval, grounded drafting with citations and review",
+      "status": "pending"
+    },
+    "phase-5-api-surface": {
+      "name": "Platform-agnostic agent API (REST, contract-first)",
+      "status": "pending"
+    }
+  },
+  "completed_tasks": [
+    {
+      "task": "P0-T1: state engine (agent_state.json + checkpoint.mjs)",
+      "at": "2026-09-05T10:32:54.532Z"
+    },
+    {
+      "task": "P0-T2: handoff protocol (AGENTS.md + HANDOFF.md)",
+      "at": "2026-09-05T10:32:54.563Z"
+    },
+    {
+      "task": "P0-T3: roadmap (docs/ROADMAP.md) + ADR log",
+      "at": "2026-09-05T10:32:54.595Z"
+    },
+    {
+      "task": "P0-T4: core interfaces in packages/shared (IAgent, ISkill, IExpertAgent, ICollectorAgent, KnowledgeGraph)",
+      "at": "2026-09-05T10:32:54.627Z"
+    },
+    {
+      "task": "P0-T5: scaffold apps/agents/legal-expert-base with capabilities.ts + tests",
+      "at": "2026-09-05T10:32:59.934Z"
+    },
+    {
+      "task": "P0-T6: scaffold apps/api orchestrator module + tests",
+      "at": "2026-09-05T10:32:59.970Z"
+    },
+    {
+      "task": "P0-T7: root workspace wiring, build, typecheck, tests, commit",
+      "at": "2026-09-05T10:35:22.942Z"
+    },
+    {
+      "task": "P1-T7: domain taxonomy enums (LegalField, IntentKind, AgentTier)",
+      "at": "2026-09-05T10:49:20.857Z"
+    },
+    {
+      "task": "P1-T9: governance backbone — grants, revoke, disable, AI_AGENT_NOT_AUTHORIZED",
+      "at": "2026-09-05T10:49:20.903Z"
+    },
+    {
+      "task": "P1-T10: hybrid inference router (local/cloud, privilege pinning, budget demotion, tiers)",
+      "at": "2026-09-05T10:49:20.947Z"
+    },
+    {
+      "task": "P1-T11: live ops stream — typed AgentEvents, ring buffer, SSE",
+      "at": "2026-09-05T10:49:20.981Z"
+    },
+    {
+      "task": "P1b-T1: LeaderVoiceService + honest mock VoiceEngine + voice endpoints",
+      "at": "2026-09-05T10:49:21.020Z"
+    },
+    {
+      "task": "P1b-X: AGENT_FLEET.md — fleet map, grants matrix, 3-tier recommended configs",
+      "at": "2026-09-05T10:49:21.053Z"
+    },
+    {
+      "task": "P1-T12: agent-kit factory in packages/shared (society standard)",
+      "at": "2026-09-05T11:09:34.016Z"
+    },
+    {
+      "task": "P1-T1: civil-expert package (persona + capabilities)",
+      "at": "2026-09-05T11:09:34.048Z"
+    },
+    {
+      "task": "P1-T2: criminal-expert package",
+      "at": "2026-09-05T11:09:34.080Z"
+    },
+    {
+      "task": "P1-T3: family-expert package",
+      "at": "2026-09-05T11:09:34.114Z"
+    },
+    {
+      "task": "P1-T4: registration-expert package",
+      "at": "2026-09-05T11:09:34.145Z"
+    },
+    {
+      "task": "P1-T8: cross-field routing integration test",
+      "at": "2026-09-05T11:09:34.177Z"
+    },
+    {
+      "task": "P1-T13: /fleet endpoint — dashboard cards data",
+      "at": "2026-09-05T11:09:34.212Z"
+    },
+    {
+      "task": "P1c-T1: metrics-aggregator (live stats from event bus)",
+      "at": "2026-09-05T11:29:12.011Z"
+    },
+    {
+      "task": "P1c-T2: evaluator.service — ranked evolution suggestions",
+      "at": "2026-09-05T11:29:12.043Z"
+    },
+    {
+      "task": "P1c-T3: evolution.service — runtime agent spawn behind owner grant",
+      "at": "2026-09-05T11:29:12.075Z"
+    },
+    {
+      "task": "P1c-T4: spawn/governance invariants + audit + events",
+      "at": "2026-09-05T11:29:12.107Z"
+    },
+    {
+      "task": "P1c-T5: python workers package (stdlib, RESP client, persian_tools)",
+      "at": "2026-09-05T11:29:12.142Z"
+    },
+    {
+      "task": "P1c-T6: python worker tests + docs + ADR-008/009/010",
+      "at": "2026-09-05T11:29:12.173Z"
+    },
+    {
+      "task": "P1d-T1: model-assignment registry (per-agent local/cloud)",
+      "at": "2026-09-05T11:47:47.384Z"
+    },
+    {
+      "task": "P1d-T2: leader-lend fallback in hybrid router + tracing signal",
+      "at": "2026-09-05T11:47:47.419Z"
+    },
+    {
+      "task": "P1d-T3: dashboard model matrix endpoints + fleet join",
+      "at": "2026-09-05T11:47:47.449Z"
+    },
+    {
+      "task": "P1d-T4: pylegal model_client (stdlib urllib, OpenAI-compatible)",
+      "at": "2026-09-05T11:47:47.484Z"
+    },
+    {
+      "task": "P1d-T5: TS python-jobs bridge via socket RESP",
+      "at": "2026-09-05T11:47:47.519Z"
+    },
+    {
+      "task": "P1d-T6: tests + docs + ADR-011/012",
+      "at": "2026-09-05T11:47:47.551Z"
+    },
+    {
+      "task": "P1e-T1",
+      "at": "2026-09-05T12:08:13.542Z"
+    },
+    {
+      "task": "P1e-T2",
+      "at": "2026-09-05T12:08:13.578Z"
+    },
+    {
+      "task": "P1e-T3",
+      "at": "2026-09-05T12:08:13.610Z"
+    },
+    {
+      "task": "P1e-T4",
+      "at": "2026-09-05T12:08:13.642Z"
+    },
+    {
+      "task": "P1e-T5",
+      "at": "2026-09-05T12:08:13.680Z"
+    },
+    {
+      "task": "P1e-T6",
+      "at": "2026-09-05T12:08:13.711Z"
+    },
+    {
+      "task": "P1f-T1",
+      "at": "2026-09-05T12:36:44.228Z"
+    },
+    {
+      "task": "P1f-T2",
+      "at": "2026-09-05T12:36:44.259Z"
+    },
+    {
+      "task": "P1f-T3",
+      "at": "2026-09-05T12:36:44.291Z"
+    },
+    {
+      "task": "P1f-T4",
+      "at": "2026-09-05T12:36:44.323Z"
+    },
+    {
+      "task": "P1f-T5",
+      "at": "2026-09-05T12:36:44.354Z"
+    },
+    {
+      "task": "P1f-T6",
+      "at": "2026-09-05T12:36:44.388Z"
+    },
+    {
+      "task": "P2a-T1",
+      "at": "2026-09-05T13:12:30.213Z"
+    },
+    {
+      "task": "P2a-T2",
+      "at": "2026-09-05T13:12:30.246Z"
+    },
+    {
+      "task": "P2a-T3",
+      "at": "2026-09-05T13:12:30.280Z"
+    },
+    {
+      "task": "P2a-T4",
+      "at": "2026-09-05T13:12:30.316Z"
+    },
+    {
+      "task": "P2a-T5",
+      "at": "2026-09-05T13:12:30.349Z"
+    },
+    {
+      "task": "P2a-T6",
+      "at": "2026-09-05T13:12:30.383Z"
+    },
+    {
+      "task": "P2a-T7",
+      "at": "2026-09-05T13:12:30.416Z"
+    },
+    {
+      "task": "P2a-T8",
+      "at": "2026-09-05T13:12:30.449Z"
+    },
+    {
+      "task": "P2-T1",
+      "at": "2026-09-05T13:39:57.769Z"
+    },
+    {
+      "task": "P2-T2",
+      "at": "2026-09-05T13:39:57.807Z"
+    },
+    {
+      "task": "P2-T3",
+      "at": "2026-09-05T13:39:57.848Z"
+    },
+    {
+      "task": "P2-T4",
+      "at": "2026-09-05T13:39:57.879Z"
+    },
+    {
+      "task": "P2-T5",
+      "at": "2026-09-05T13:39:57.911Z"
+    },
+    {
+      "task": "P2-T6",
+      "at": "2026-09-05T13:39:57.942Z"
+    }
+  ],
+  "pending_tasks": [
+    "P1-T8: cross-field routing integration test (Nest module compile)",
+    "P1-T5: agent lifecycle queue",
+    "P1-T6: DB-backed registry swap",
+    "P1e-T1: pylegal file_extract (txt/docx/pdf/ddigest, honest unknown)",
+    "P1e-T2: files registry + upload endpoint (StorageProvider)",
+    "P1e-T3: placement.service — where does this file belong",
+    "P1e-T4: leader-conversation chat+voice sessions with file context",
+    "P1e-T5: inline TS fallback analysis when queue down (SPEC §2)",
+    "P1e-T6: tests + ADR-013 + docs + fleet/roadmap updates",
+    "P1f-T1 ConfigHubService: runtime brain config facade — GET merged view (masked cloud key, effective vs env), POST config/brain (persist via StorageProvider runtime/config.json), POST config/test-connection (honest probe), POST config/preset (SPARTAN/COUNSEL/SENATOR matrix apply), HybridInferenceRouter consults overrides first",
+    "P1f-T2 Conversational config in LeaderConversationService: deterministic Persian intent regexes (connect local X / set cloud key / activate tier) -> proposal card -> chat confirm 'بله' or POST proposals/:id/accept -> applies via ConfigHub + audit + SSE event",
+    "P1f-T3 JwtAccessGuard dev bypass: DEV_DASHBOARD_TOKEN env, NODE_ENV!==production only, fixed dev-owner identity lawyer_owner, documented in .env.example + ADR-014",
+    "P1f-T4 Next.js RTL fa dashboard: tabs خانه/اتصال مغز/ناوگان/چت با لیدر/فایل‌ها/آشپزخانه زنده, lib/api.ts token, next rewrites /api proxy, login tab OTP + dev token",
+    "P1f-T5 Creative live visualization tab: SSE EventSource -> agent node orbs, flying task packets leader->expert, inference badges, event ticker, pure CSS animations",
+    "P1f-T6 Tests (config-hub + conversational + bypass-off-in-prod) + ADR-014 + ROADMAP/AGENT_FLEET/.env.example + checkpoint sync + push",
+    "P2a-T1 domain+contracts: ConsultationPlan(10/20/30), Wallet txn kinds, SubscriptionFeatureScope enum, QueueTicket lifecycle, error codes WALLET_INSUFFICIENT_FUNDS/QUEUE_CLOSED/LAWYER_OFFLINE/TICKET_NOT_FOUND",
+    "P2a-T2 modules/billing: WalletService (balance, topup via PaymentProvider port with mock-honest redirect, debit idempotent, refund on cancel), SubscriptionService (per-feature scopes ai_chat/ai_filelab/ai_kitchen/ai_voice, monthly), PurchaseService (consultation plan via wallet or direct)",
+    "P2a-T3 modules/consultation: QueueService join (only paid purchase, lawyer must be online-ish accept), position + ETA from plan minutes of those ahead, lifecycle waiting->up_next->in_call->done|no_show|cancelled(refund), lawyer telecoms toggles: online/offline, queue open/close(reasonFa), next/skip, plan editor",
+    "P2a-T4 comms settings: SettingsService connects SMS panel (provider label, baseUrl, apiKey) + telephony panel (accountId, token, webhookUrl, fromNumber) persisted via StorageProvider runtime; /test endpoints do honest send/dial attempts",
+    "P2a-T5 NotificationService: in-app ring (client polls GET /client/notifications) + SMS via configured panel + telephony outbound call when ticket reaches up_next; events emitted to agent bus for kitchen visibility",
+    "P2a-T6 apps/client PWA (separate Next server, port 3100): manifest+sw+install, OTP sign-in (client role), home shop cards 10/20/30 + AI subscription grid, wallet topup+balance, queue status page (position, ETA, notify list), call join placeholder",
+    "P2a-T7 dashboard tab «مخابرات مشاوره»: online/offline switch, queue open/close, next/skip with live list, plan minutes editor, SMS/call panel forms with test buttons",
+    "P2a-T8 jest suites (billing/queue/comms/notifications), ADR-015, ROADMAP Phase2a, .env.example, checkpoint sync, commit+push",
+    "P2-T1 Migration 006: ai/corpus (knowledge_sources, ingestion_jobs, legal_documents w/ trust_tier+verified_at, document_chunks, corpus_versions temporal) + billing tables (wallets, wallet_txns, purchases, subscriptions, consultation_tickets, comms_panels, notifications)",
+    "P2-T2 modules/corpus: CorpusService (docs+chunks into StorageProvider-persisted store now, SQL-shaped for the P2-T1 swap; Persian-aware deterministic search with phrase boost + trust-tier weighting); ingest(fileId→legal_document pending_validation trust 2)",
+    "P2-T3 agents data-validator + law-updater under apps/agents (ICollectorAgent interface conformance: validator enforces sha256 uniqueness, min length, Persian ratio, tier rules; updater temporal-append versioning valid_from/valid_to)",
+    "P2-T4 corpus grounding layer: orchestrator dispatch attaches meta.citations (docTitle, chunkPreview, trustTier) + meta.grounded=true only when deterministic corpus hits exist — LLM untouched",
+    "P2-T5 dashboard tab «کتابخانه» (corpus): list docs + trust tier chip + verify button + ingest-from-file + search; bus events corpus.ingested/corpus.validated",
+    "P2-T6 tests (corpus search scoring, tier gates, workflow ingest→validate→cite, updater temporal) + ADR-016 + ROADMAP Phase2 + docs + checkpoint sync + push",
+    "P3[done] Tiebreaker(budget-gated,schema-validated,privileged-skipped)+SessionMemory(TTL)+BudgetGate+route trace/dry-run — ADR-018",
+    "P4[done] Embedding index + reranker (config weights) + drafting state machine with citation-fee + review console + usage metering — ADR-019"
+  ],
+  "architectural_decisions": [
+    {
+      "id": "ADR-000",
+      "reasoning": "The Agentic Layer is real and pinned in SPEC section 11a",
+      "at": "2026-09-05T10:33:00.009Z"
+    },
+    {
+      "id": "ADR-001",
+      "reasoning": "File-backed State Engine as cross-session memory (agent_state.json + checkpoint.mjs)",
+      "at": "2026-09-05T10:33:00.040Z"
+    },
+    {
+      "id": "ADR-002",
+      "reasoning": "Agents live in apps/agents/{branch}, not packages/",
+      "at": "2026-09-05T10:33:00.073Z"
+    },
+    {
+      "id": "ADR-003",
+      "reasoning": "Deterministic-first routing; LLM as bounded fallback",
+      "at": "2026-09-05T10:33:00.108Z"
+    },
+    {
+      "id": "ADR-004",
+      "reasoning": "Hybrid local/cloud inference; privilege never leaves the box",
+      "at": "2026-09-05T10:49:21.091Z"
+    },
+    {
+      "id": "ADR-005",
+      "reasoning": "Governed sub-agents — grants, never ambient authority",
+      "at": "2026-09-05T10:49:21.126Z"
+    },
+    {
+      "id": "ADR-006",
+      "reasoning": "Live ops stream — agents cook in the open (SSE)",
+      "at": "2026-09-05T10:49:21.164Z"
+    },
+    {
+      "id": "ADR-007",
+      "reasoning": "createExpertAgent kit is the society's genome: every expert descends from it, persona+vocab are the only per-member deltas",
+      "at": "2026-09-05T11:09:34.244Z"
+    },
+    {
+      "id": "ADR-008",
+      "reasoning": "Fleet self-evaluation loop: metrics-aggregator + read-only evaluator",
+      "at": "2026-09-05T11:29:12.204Z"
+    },
+    {
+      "id": "ADR-009",
+      "reasoning": "Runtime evolution: validated spawn, zero default grants, -spawned marker, core protected",
+      "at": "2026-09-05T11:29:12.235Z"
+    },
+    {
+      "id": "ADR-010",
+      "reasoning": "Python sidecar workers, stdlib-only, RESP2 socket client, toolbox not decision-maker",
+      "at": "2026-09-05T11:29:12.266Z"
+    },
+    {
+      "id": "ADR-011",
+      "reasoning": "Model matrix with Leader-lending; secrecy > pin > lend",
+      "at": "2026-09-05T11:47:47.584Z"
+    },
+    {
+      "id": "ADR-012",
+      "reasoning": "One RESP client per language; queue bridge honest degradation",
+      "at": "2026-09-05T11:47:47.618Z"
+    },
+    {
+      "id": "ADR-013",
+      "reasoning": "Uploaded files → Leader conversation sandboxes: FileIntelligenceService (sha256-first, py tools preferred, inline-TEXT fallback when queue down with honest status) PlacementService vocabularyScore ties into same fleet routing; LeaderConversationService owner-scoped chat+voice, turns cap=100, no grant bypass",
+      "at": "2026-09-05T12:08:18.249Z"
+    },
+    {
+      "id": "ADR-014",
+      "reasoning": "Owner configures platform by talking: ConfigHubService (runtime brain overrides via StorageProvider, masked secrets, presets) + conversational config (deterministic Persian intents → proposal → confirm) + DEV_DASHBOARD_TOKEN sandbox door (prod-impotent) + SSE dashboard kitchen via node:http raw proxy (Next patched-fetch buffers event streams) Dashboard Next.js fa/RTL six tabs zero new deps; router consults hub peek first; secrecy law has no UI switch",
+      "at": "2026-09-05T12:36:44.421Z"
+    },
+    {
+      "id": "ADR-015",
+      "reasoning": "Commerce+telecoms: WalletService (per-user lock, idempotent topup, WALLET_INSUFFICIENT_FUNDS 402), BillingService (plans 10/20/30 lawyer-edited + per-feature AI subscriptions 1/3/12m, duplicate-active 409), ConsultationQueueService (join⇒paid-and-online, honest ETA, lifecycle + refund on cancel, queue.updated bus events), CommsSettingsService (sms+call panels masked persisted, REAL test shots), NotificationService (in-app + SMS + outbound call at up_next) Client site = OWN Next server apps/client (PWA installable, 4 tabs, manifest+SW, 12s queue polling); dashboard gains telecoms tab; error codes prefix-mapped",
+      "at": "2026-09-05T13:12:30.482Z"
+    },
+    {
+      "id": "ADR-016",
+      "reasoning": "Corpus shelf: trust tiers, validator-only ticks, temporal truth, deterministic grounding StorageProvider-persisted now with SQL shapes in 006; validator owns verified_at; updater appends versions; dispatcher folds hits into context and only then claims grounded=true",
+      "at": "2026-09-05T13:39:57.975Z"
+    },
+    {
+      "id": "ADR-017",
+      "reasoning": "Collection loop — mock-first adapters, honest partial_success state machine, linked retries CollectorSourceAdapter port + rooznameh-mock fixtures; ingestion worker persisted via StorageProvider with (source,window)-keyed idempotency; diagnostics read model + retry; Redis = later transport swap",
+      "at": "2026-09-05T13:52:38.142Z"
+    },
+    {
+      "id": "ADR-018",
+      "reasoning": "LLM tiebreak bounded behind providers/ai: JSON-schema validated, budget-gated, privilege-skipped; session memory TTL; route trace SPEC §9 deterministic-first honored; low confidence alone buys an LLM opinion; spend is recorded; privileged bytes never leave for routing",
+      "at": "2026-09-05T14:09:04.798Z"
+    },
+    {
+      "id": "ADR-019",
+      "reasoning": "RAG: citation is the entry fee; lineage-visible drafts; metering records every paid token composable retrieval + config-driven rerank + state-machine drafting + lawyer review; failed drafts honestly re-runnable in created with DRAFT_NO_CITATIONS",
+      "at": "2026-09-05T14:26:27.935Z"
+    }
+  ],
+  "last_checkpoint": "2026-09-05T14:26:27.935Z",
+  "updated_at": "2026-09-05T14:26:27.935Z",
+  "update_count": 129
+}
