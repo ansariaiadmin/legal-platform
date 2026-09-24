@@ -264,14 +264,16 @@ fi
 DATABASE_URL="${DATABASE_URL:-postgresql://legal:postgres@localhost:5432/legal_platform}"
 
 extract_uri_component() {
+    # $1 = DATABASE_URL (URI form), $2 = role: user|pass|host|port|name
     echo "$1" | awk -v want="${2:-user}" '{
         if (match($0, /^[^:]+:\/\//)) {
             uri=$0
             sub(/^[^:]+:\/\//, "", uri)
+            # uri = user:pass@host:port/name?params
             auth=uri; sub(/@.*/, "", auth)
             rest=uri; sub(/^[^@]*@/, "", rest)
             hostport=rest; sub(/\/.*$/, "", hostport); sub(/\?.*$/, "", hostport)
-            name=rest; sub(/^[^\/]*\//, "", name); sub(/\?.*$/, "", name)
+            name=rest; sub(/^[^/]*\//, "", name); sub(/\?.*$/, "", name)
             user=auth; sub(/:.*/, "", user)
             pass=auth; sub(/^[^:]+:/, "", pass)
             host=hostport; sub(/:.*/, "", host)

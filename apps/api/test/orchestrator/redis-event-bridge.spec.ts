@@ -61,19 +61,35 @@ describe('P10-T-bus RedisEventBridge (real pubsub wire)', () => {
   let server: net.Server;
   let port: number;
   let published: Array<{ channel: string; payload: string }>;
+  let subscribers: net.Socket[];
+  const bridges: RedisEventBridge[] = [];
 
   beforeAll(async () => {
-    ({ server, published } = fakePubSubRedis());
+    const fake = fakePubSubRedis();
+    server = fake.server;
+    published = fake.published;
+    subscribers = fake.subscribers;
     await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
     port = (server.address() as net.AddressInfo).port;
   });
-  afterAll(() => server.close());
+  afterAll(async () => {
+    // Close all bridges to clean up sockets (fix open handles)
+    for (const b of bridges) {
+      try { b.onModuleDestroy(); } catch {}
+    }
+    // Close all subscriber sockets from fake server
+    for (const sock of subscribers) {
+      try { sock.destroy(); } catch {}
+    }
+    await new Promise<void>((r) => server.close(() => r()));
+  });
 
   function makeBridge(): { bus: InProcessAgentEventBus; bridge: RedisEventBridge } {
     const bus = new InProcessAgentEventBus();
     const cfg = new ConfigService({ REDIS_URL: `redis://127.0.0.1:${port}`, DEPLOYMENT_MODE: 'multi' });
     const bridge = new RedisEventBridge(cfg, bus);
     bridge.onModuleInit();
+    bridges.push(bridge);
     return { bus, bridge };
   }
 

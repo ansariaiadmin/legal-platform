@@ -29,23 +29,25 @@ export class MockTelephonyAdapter implements TelephonyProvider {
 
     this.calls.set(callId, session);
 
-    // Simulate call progression
-    setTimeout(() => {
+    // Simulate call progression — unref timers so they don't keep Jest alive
+    const t1 = setTimeout(() => {
       const s = this.calls.get(callId);
       if (s) {
         s.status = 'ringing';
       }
     }, 1000);
+    (t1 as any).unref?.();
 
-    setTimeout(() => {
+    const t2 = setTimeout(() => {
       const s = this.calls.get(callId);
       if (s) {
         s.status = 'answered';
         s.answeredAt = new Date();
       }
     }, 3000);
+    (t2 as any).unref?.();
 
-    setTimeout(() => {
+    const t3 = setTimeout(() => {
       const s = this.calls.get(callId);
       if (s) {
         s.status = 'completed';
@@ -53,6 +55,7 @@ export class MockTelephonyAdapter implements TelephonyProvider {
         s.durationSeconds = 10;
       }
     }, 13000);
+    (t3 as any).unref?.();
 
     return session;
   }
