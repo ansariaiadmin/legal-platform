@@ -29,10 +29,8 @@ export class MockSmsAdapter implements SmsProvider {
     if (process.env.NODE_ENV !== 'production') {
       const otpMatch = input.message.match(/\b(\d{6})\b/);
       if (otpMatch) {
-        // eslint-disable-next-line no-console
         console.log(`[MOCK SMS] OTP code for ${input.phone}: ${otpMatch[1]}`);
       } else {
-        // eslint-disable-next-line no-console
         console.log(`[MOCK SMS] Message to ${input.phone}: ${input.message}`);
       }
     }
