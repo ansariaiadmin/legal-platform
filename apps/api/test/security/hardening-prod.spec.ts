@@ -18,7 +18,7 @@ const SCAN_RULES = [
   { id: 'bearer-literal', re: /Bearer\s+[A-Za-z0-9\-_.+/=]{32,}/, severity: 'high' },
 ];
 
-function runSecretScan(): { findings: any[] } {
+function runSecretScan(): { findings: Array<Record<string, unknown>> } {
   try {
     const { execSync } = require('child_process');
     const path = require('path');
@@ -49,7 +49,7 @@ function runSecretScan(): { findings: any[] } {
       return { findings: [] };
     }
     return { findings: [] };
-  } catch (e: any) {
+  } catch (e: unknown) {
     const out = e.stdout?.toString() || e.stderr?.toString() || e.message || '';
     if (out.includes('0 finding')) {
       return { findings: [] };
@@ -208,8 +208,8 @@ describe('Security Hardening — Production', () => {
 
       // Test that our rules are defined
       expect(SCAN_RULES.length).toBeGreaterThan(0);
-      expect(SCAN_RULES.map((r: any) => r.id)).toContain('private-key-block');
-      expect(SCAN_RULES.map((r: any) => r.id)).toContain('aws-access-key');
+      expect(SCAN_RULES.map((r: { id: string }) => r.id)).toContain('private-key-block');
+      expect(SCAN_RULES.map((r: { id: string }) => r.id)).toContain('aws-access-key');
     });
 
     it('no real secrets in env example', () => {
@@ -316,8 +316,8 @@ describe('Security Hardening — Production', () => {
       prodMiddleware(mockReq, prodRes, jest.fn());
       devMiddleware(mockReq, devRes, jest.fn());
 
-      const prodCalls = prodRes.setHeader.mock.calls.map((c: any) => c[0]);
-      const devCalls = devRes.setHeader.mock.calls.map((c: any) => c[0]);
+      const prodCalls = prodRes.setHeader.mock.calls.map((c: unknown[]) => c[0]);
+      const devCalls = devRes.setHeader.mock.calls.map((c: unknown[]) => c[0]);
 
       expect(prodCalls).toContain('Strict-Transport-Security');
       expect(devCalls).not.toContain('Strict-Transport-Security');

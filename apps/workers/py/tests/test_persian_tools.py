@@ -141,7 +141,7 @@ class TestChunking(unittest.TestCase):
         self.assertEqual(len(t.chunk_legal_text("سلام دنیا.")), 1)
 
     def test_long_text_multiple_chunks_overlap(self):
-        sents = ["جملهٔ بلند شمارهٔ %d برای تست است." % i for i in range(60)]
+        sents = [f"جملهٔ بلند شمارهٔ {i} برای تست است." for i in range(60)]
         text = ". ".join(sents)
         chunks = t.chunk_legal_text(text, max_chars=200, overlap=50)
         self.assertGreater(len(chunks), 2)

@@ -11,18 +11,22 @@ from __future__ import annotations
 import base64
 import json
 import os
-import time
-import uuid
-import traceback
-
-from . import QUEUE_KEY, RESULT_PREFIX, __version__
-from . import persian_tools as tools
-from . import file_extract
-from . import model_client
-from . import security_tools
-from . import local_answer
 import os as _os
-import sys as _sys
+import time
+import traceback
+import uuid
+
+from . import (
+    QUEUE_KEY,
+    RESULT_PREFIX,
+    __version__,
+    file_extract,
+    local_answer,
+    model_client,
+    security_tools,
+)
+from . import persian_tools as tools
+
 _STARTED_AT = time.time()
 from .resp_client import RespClient, RespError
 
@@ -108,7 +112,7 @@ def handle(payload: dict) -> dict:
         out = fn(**input_args)
         return {"jobId": job_id, "ok": True, "tool": tool_name,
                 "workerVersion": __version__, "output": out}
-    except Exception as exc:  # isolated failure domain (SPEC §2)
+    except Exception as exc:  # noqa: BLE001 - isolated failure domain (SPEC §2)
         return {"jobId": job_id, "ok": False, "tool": tool_name,
                 "workerVersion": __version__,
                 "error": f"{type(exc).__name__}: {exc}",

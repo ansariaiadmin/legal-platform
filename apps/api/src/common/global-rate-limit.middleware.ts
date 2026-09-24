@@ -2,7 +2,7 @@ import type { Request, Response, NextFunction } from 'express';
 import { ERROR_CODES, errorResponse } from '@legal-platform/contracts';
 import type { RateLimitDecision, RateLimitRule } from './rate-limit.service';
 
-/** What the floor needs: any limiter — in-process OR shared Redis (P10). */
+/** What the floor needs - any limiter — in-process OR shared Redis (P10). */
 export interface FloorLimiter {
   consume(key: string, rule: RateLimitRule): RateLimitDecision | Promise<RateLimitDecision>;
 }

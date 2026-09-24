@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from typing import List, Dict, Set, Tuple, Optional
 
 # ---------------------------------------------------------------------------
 # Normalization — Arabic to Persian + diacritics + digits
@@ -63,28 +62,26 @@ _PERSIAN_CHARS = r"\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\u
 # Stopwords — complete Persian list for legal domain
 # ---------------------------------------------------------------------------
 
-PERSIAN_STOPWORDS: Set[str] = {
+PERSIAN_STOPWORDS: set[str] = {
     # Common Persian stopwords
     "و", "در", "به", "از", "که", "این", "را", "با", "است", "برای",
     "آن", "یک", "شده", "خود", "تا", "کند", "بر", "بود", "شد", "شود",
     "هم", "نیز", "هر", "او", "ما", "شما", "آنها", "اینها", "یا",
     "اما", "اگر", "همه", "همین", "چنین", "چنان", "همان", "باید",
-    "خواهد", "تواند", "دارد", "دارند", "داشت", "داشته", "خواهد",
-    "کنند", "کند", "کرد", "کرده", "کنیم", "کنید", "شود", "شوند",
-    "شدن", "شدن", "بودن", "هست", "هستند", "نیست", "نیستند",
+    "خواهد", "تواند", "دارد", "دارند", "داشت", "داشته", "کنند", "کرد", "کرده", "کنیم", "کنید", "شوند",
+    "شدن", "بودن", "هست", "هستند", "نیست", "نیستند",
     "بعد", "قبل", "زیر", "روی", "بین", "درباره", "برابر", "مقابل",
     "طبق", "براساس", "بر اساس", "جهت", "علیه", "نسبت", "طی",
     "حین", "ضمن", "عند", "نزد", "پیش", "پس", "سپس", "آن‌گاه",
     # Legal-specific stopwords (low information in legal context)
     "مورد", "موارد", "خصوص", "راجع", "مربوط", "مذکور", "فوق", "ذکر",
-    "فوق‌الذکر", "مزبور", "نامبرده", "یاد", "شده", "فوق‌الاشاره",
+    "فوق‌الذکر", "مزبور", "نامبرده", "یاد", "فوق‌الاشاره",
     # Auxiliary verbs
-    "است", "هست", "بود", "شد", "شدن", "کردن", "داشتن", "بودن",
-    "شده", "کرده", "داشته", "خواهد", "باید", "توانستن",
+    "کردن", "داشتن", "توانستن",
 }
 
 # Extended stopwords for legal filtering
-LEGAL_STOPWORDS: Set[str] = PERSIAN_STOPWORDS | {
+LEGAL_STOPWORDS: set[str] = PERSIAN_STOPWORDS | {
     "قانون", "ماده", "تبصره", "بند", "اصل", "قوانین", "مقررات",
     "آیین", "نامه", "دستورالعمل",
 }
@@ -179,7 +176,7 @@ def remove_diacritics(text: str) -> str:
     return _DIACRITICS_RE.sub("", text)
 
 
-def tokenize_persian(text: str, *, remove_stopwords: bool = False) -> List[str]:
+def tokenize_persian(text: str, *, remove_stopwords: bool = False) -> list[str]:
     """
     Tokenize Persian text.
     Tries hazm/parsivar if available, otherwise regex-based fallback.
@@ -227,7 +224,7 @@ def tokenize_persian(text: str, *, remove_stopwords: bool = False) -> List[str]:
     tokens = token_pattern.findall(text)
 
     # Clean tokens: split any token that still has attached punctuation
-    refined: List[str] = []
+    refined: list[str] = []
     for token in tokens:
         if not token.strip():
             continue
@@ -252,12 +249,12 @@ def tokenize_persian(text: str, *, remove_stopwords: bool = False) -> List[str]:
     return refined
 
 
-def get_stopwords(*, legal: bool = False) -> Set[str]:
+def get_stopwords(*, legal: bool = False) -> set[str]:
     """Return Persian stopwords set. If legal=True, includes legal-specific stopwords."""
     return LEGAL_STOPWORDS if legal else PERSIAN_STOPWORDS.copy()
 
 
-def remove_stopwords(tokens: List[str], *, legal: bool = False) -> List[str]:
+def remove_stopwords(tokens: list[str], *, legal: bool = False) -> list[str]:
     """Remove stopwords from token list."""
     stopwords = get_stopwords(legal=legal)
     return [t for t in tokens if t not in stopwords]
@@ -298,10 +295,8 @@ def stem_persian(word: str) -> str:
     # Remove plural suffixes
     if word.endswith("گان") and len(word) > 4:
         word = word[:-3]
-    elif word.endswith("ان") and len(word) > 3:
-        # Avoid removing from words like "ایران"
-        if word not in {"ایران", "تهران", "اصفهان", "شیراز", "تبریز", "مشهد", "قران", "قرآن"}:
-            word = word[:-2]
+    elif word.endswith("ان") and len(word) > 3 and word not in {"ایران", "تهران", "اصفهان", "شیراز", "تبریز", "مشهد", "قران", "قرآن"}:
+        word = word[:-2]
 
     return word if word else original
 
@@ -347,8 +342,7 @@ _IRANIAN_FIRST_NAMES = {
     "اصغر", "عباس", "مصطفی", "ابراهیم", "اسماعیل", "یوسف", "عبدالله", "عبدالرحمن",
     "سید", "میر", "حاج", "کریم", "رحیم", "ناصر", "منصور", "بهروز", "فرهاد", "فرزاد",
     "امیر", "سعید", "مجید", "وحید", "حمید", "سجاد", "صادق", "باقر", "کاظم", "تقی",
-    "نقی", "جواد", "رضا", "هادی", "مهدی", "قاسم", "جعفر", "محسن", "مرتضی", "مصطفی",
-    "فاطمه", "زهرا", "مریم", "زینب", "خدیجه", "سارا", "نرگس", "لیلا", "مینا", "سمیه",
+    "نقی", "هادی", "قاسم", "جعفر", "محسن", "مرتضی", "فاطمه", "زهرا", "مریم", "زینب", "خدیجه", "سارا", "نرگس", "لیلا", "مینا", "سمیه",
     "زهره", "نسرین", "پروین", "شیرین", "فرشته", "الهام", "مژگان", "مرجان", "شقایق",
     "آزاده", "نازنین", "نگار", "سحر", "سپیده", "رویا", "پریسا", "مهسا", "مهناز", "فرناز",
 }
@@ -356,8 +350,7 @@ _IRANIAN_FIRST_NAMES = {
 _IRANIAN_LAST_NAMES = {
     "محمدی", "حسینی", "احمدی", "کریمی", "موسوی", "جعفری", "صادقی", "رضایی", "حسنی", "قاسمی",
     "اکبری", "عباسی", "نوری", "مهدوی", "هاشمی", "علوی", "حیدری", "رحیمی", "امینی", "مرادی",
-    "نظری", "کاظمی", "ابراهیمی", "مقدم", "پور", "زاده", "نژاد", "فر", "یان", "یان",
-    "قلی", "خانی", "بیگی", "لو", "آبادی", "نیا", "تبار", "دوست", "خواه", "پناه",
+    "نظری", "کاظمی", "ابراهیمی", "مقدم", "پور", "زاده", "نژاد", "فر", "یان", "قلی", "خانی", "بیگی", "لو", "آبادی", "نیا", "تبار", "دوست", "خواه", "پناه",
 }
 
 _IRANIAN_CITIES = {
@@ -394,24 +387,24 @@ _PERSON_PATTERN = re.compile(
 )
 
 
-def extract_cities(text: str) -> List[str]:
+def extract_cities(text: str) -> list[str]:
     """Extract Iranian city names from text."""
     if not isinstance(text, str):
         raise TypeError("text must be str")
     text = normalize_persian(text)
-    found: List[str] = []
+    found: list[str] = []
     for city in _IRANIAN_CITIES:
         if city in text:
             found.append(city)
-    return sorted(list(set(found)))
+    return sorted(set(found))
 
 
-def extract_courts(text: str) -> List[Dict[str, str]]:
+def extract_courts(text: str) -> list[dict[str, str]]:
     """Extract court mentions from text."""
     if not isinstance(text, str):
         raise TypeError("text must be str")
     text = normalize_persian(text)
-    courts: List[Dict[str, str]] = []
+    courts: list[dict[str, str]] = []
     for m in _COURT_PATTERN.finditer(text):
         courts.append({
             "text": m.group(0),
@@ -422,14 +415,14 @@ def extract_courts(text: str) -> List[Dict[str, str]]:
     return courts
 
 
-def extract_persons(text: str) -> List[Dict[str, str]]:
+def extract_persons(text: str) -> list[dict[str, str]]:
     """Extract person names (heuristic — Iranian names)."""
     if not isinstance(text, str):
         raise TypeError("text must be str")
     text = normalize_persian(text)
 
     # Simple heuristic: look for known first names followed by last name patterns
-    persons: List[Dict[str, str]] = []
+    persons: list[dict[str, str]] = []
     tokens = tokenize_persian(text)
 
     i = 0
@@ -438,9 +431,7 @@ def extract_persons(text: str) -> List[Dict[str, str]]:
         next_token = tokens[i + 1] if i + 1 < len(tokens) else ""
 
         # Check if current token is a known first name
-        if token in _IRANIAN_FIRST_NAMES:
-            # Next token might be last name
-            if next_token and (next_token in _IRANIAN_LAST_NAMES or next_token.endswith(("ی", "پور", "زاده", "نژاد", "فر", "لو"))):
+        if token in _IRANIAN_FIRST_NAMES and next_token and (next_token in _IRANIAN_LAST_NAMES or next_token.endswith(("ی", "پور", "زاده", "نژاد", "فر", "لو"))):
                 persons.append({
                     "text": f"{token} {next_token}",
                     "type": "PERSON",
@@ -472,7 +463,7 @@ def extract_persons(text: str) -> List[Dict[str, str]]:
     return persons
 
 
-def ner_persian(text: str) -> Dict[str, List[Dict[str, str]]]:
+def ner_persian(text: str) -> dict[str, list[dict[str, str]]]:
     """
     Full NER for Persian legal text.
     Returns dict with keys: persons, cities, courts, dates, numbers
@@ -517,7 +508,7 @@ def ner_persian(text: str) -> Dict[str, List[Dict[str, str]]]:
 # Existing functions — preserved + enhanced
 # ---------------------------------------------------------------------------
 
-def split_sentences(text: str) -> List[str]:
+def split_sentences(text: str) -> list[str]:
     """Sentence splitter that respects Persian punctuation."""
     text = normalize_persian(text)
     if not text:
@@ -530,20 +521,20 @@ def word_count(text: str) -> int:
     return len(re.findall(r"\S+", normalize_persian(text)))
 
 
-def chunk_legal_text(text: str, *, max_chars: int = 1800, overlap: int = 120) -> List[str]:
+def chunk_legal_text(text: str, *, max_chars: int = 1800, overlap: int = 120) -> list[str]:
     """Chunk by sentences with a sliding overlap — chunks must never split a
     ماده mid-way if avoidable, because retrieval quotes them."""
     if max_chars <= 0 or overlap < 0 or overlap >= max_chars:
         raise ValueError("bad chunking parameters")
     sentences = split_sentences(text)
-    chunks: List[str] = []
-    buf: List[str] = []
+    chunks: list[str] = []
+    buf: list[str] = []
     size = 0
     for s in sentences:
         if size + len(s) > max_chars and buf:
             chunks.append(" ".join(buf))
             # carry the tail sentence(s) that fit into the overlap budget
-            keep: List[str] = []
+            keep: list[str] = []
             keep_size = 0
             for back in reversed(buf):
                 if keep_size + len(back) > overlap:
@@ -559,7 +550,7 @@ def chunk_legal_text(text: str, *, max_chars: int = 1800, overlap: int = 120) ->
     return chunks
 
 
-def article_refs(text: str) -> List[Dict[str, str]]:
+def article_refs(text: str) -> list[dict[str, str]]:
     """Extract references like «ماده ۱۰ قانون مدنی» / «تبصره ۲» for
     citation indexing (Phase 2+ wiring into citation_links)."""
     pattern = re.compile(r"(ماده|تبصره|بند|اصل)\s+([۰-۹0-9]+)(?:\s+(قانون\s+[^\s.،؛]+))?")

@@ -8,8 +8,9 @@ LPUSH / BLPOP / SET(with EX) / GET / PING / AUTH.
 from __future__ import annotations
 
 import socket
-from typing import Optional
 from urllib.parse import urlparse
+
+RESP = str | int | None | list
 
 
 class RespError(Exception):
@@ -30,7 +31,7 @@ class RespClient:
 
     # ---------- wire ----------
 
-    def _cmd(self, *args: str) -> "RESP":
+    def _cmd(self, *args: str) -> RESP:
         data = b""
         data += f"*{len(args)}\r\n".encode()
         for a in args:
@@ -41,7 +42,7 @@ class RespClient:
             f = s.makefile("rb")
             return self._parse(f)
 
-    def _parse(self, f) -> "RESP":  # noqa: ANN001 - file-like binary reader
+    def _parse(self, f) -> RESP:
         line = f.readline()
         if not line:
             raise RespError("connection closed")
@@ -82,12 +83,12 @@ class RespClient:
     def lpush(self, key: str, *values: str) -> int:
         return int(self.call("LPUSH", key, *values))
 
-    def blpop(self, key: str, timeout_s: int = 5) -> Optional[list]:
+    def blpop(self, key: str, timeout_s: int = 5) -> list | None:
         return self.call("BLPOP", key, str(timeout_s))
 
-    def set(self, key: str, value: str, ex: Optional[int] = None) -> bool:
+    def set(self, key: str, value: str, ex: int | None = None) -> bool:
         args = ("SET", key, value) + (("EX", str(ex)) if ex else ())
         return self.call(*args) == "OK"
 
-    def get(self, key: str) -> Optional[str]:
+    def get(self, key: str) -> str | None:
         return self.call("GET", key)

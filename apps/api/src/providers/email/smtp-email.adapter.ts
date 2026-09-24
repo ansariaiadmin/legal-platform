@@ -99,7 +99,7 @@ export class SmtpEmailAdapter implements EmailProvider {
       'Content-Type: text/plain; charset="utf-8"',
       'Content-Transfer-Encoding: base64',
       '',
-      // dot-stuffing: any line starting with '.' doubles it (RFC 5321 §4.5.2)
+      // dot-stuffing - any line starting with '.' doubles it (RFC 5321 §4.5.2)
       Buffer.from(
         Buffer.from(input.text.replace(/\r?\n/g, '\r\n'), 'utf8')
           .toString('utf8'),
