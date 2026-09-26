@@ -78,7 +78,7 @@
 
 ## نرمال‌سازی
 
-### تبدیل ي/ي و ك/ك
+### تبدیل ي به ی و ك به ک
 
 یکی از شایع‌ترین باگ‌های ورودی فارسی، استفاده از حروف عربی به جای فارسی است.
 
@@ -580,7 +580,7 @@ PYTHONPATH=. python -m pytest tests/test_persian_tools.py -v
 
 | دسته | تعداد | توضیح |
 |------|-------|-------|
-| نرمال‌سازی | ۹ | ي/ي ك/ك، اعراب، اعداد، whitespace |
+| نرمال‌سازی | ۹ | ي→ی، ك→ک، اعراب، اعداد، whitespace |
 | توکن‌سازی | ۷ | دقت، punctuation، stopwords، stemming، lemmatization |
 | NER | ۶ | شهرها، دادگاه‌ها، اشخاص، دقت، ارجاعات |
 | Chunking | ۴ | single, multi, params, deterministic |

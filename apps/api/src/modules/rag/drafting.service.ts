@@ -322,10 +322,10 @@ export class DraftingService {
       if (!out?.answered || !out.spans || out.spans.length === 0) return null;
 
       const lines = out.spans
-        .map((sp, i) => `${i + 1}. ${sp.sentence} [${sp.passageIndex + 1}] (امتیاز بازیابی: ${sp.score})`)
+        .map((sp, i) => `${i + 1}. ${sp.sentence} [${sp.passageIndex + 1}]`)
         .join('\n');
       d.output =
-        '⚠️ حالت پایدار بدون مدل: کلاد/مدل محلی در دسترس نبود؛ متن زیر عیناً از منابع بازیابی‌شده استخراج شده و «پاسخ دانش‌آموخته» نیست.\n\n' +
+        'مدل هوش مصنوعی در دسترس نبود؛ جمله‌های زیر عیناً از منابع کتابخانه استخراج شده‌اند و تحلیل مدل نیستند.\n\n' +
         lines +
         '\n\nمنابع: ' + citations.map((_, i) => `[${i + 1}]`).join(' ');
       d.error = null;

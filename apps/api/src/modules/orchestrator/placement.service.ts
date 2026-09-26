@@ -51,7 +51,7 @@ export class PlacementService {
       collection,
       rationaleFa: picked
         ? `${record.filename} بیشترین هم‌پوشانی را با مهارت «${picked.skillId}» دارد — پیشنهاد می‌شود در مجموعه «${collection}» نزد ${picked.agentId} قرار گیرد.`
-        : `محتوای ${record.filename} به هیچ‌یک از مهارت‌های فعلی نزدیکی کافی ندارد؛ در «needs-review» بماند تا وکیل دسته‌بندی کند.`,
+        : `محتوای ${record.filename} به هیچ‌یک از مهارت‌های فعلی نزدیکی کافی ندارد؛ در فهرست «نیازمند بررسی» می‌ماند تا وکیل آن را دسته‌بندی کند.`,
       signals: {
         previewLength: preview.length,
         kindGuess: record.analysis?.kindGuess ?? 'unknown',

@@ -50,10 +50,12 @@ describe('EvolutionService — the Leader grows the society (ADR-009)', () => {
     expect(agent.version).toMatch(/-spawned$/);
   });
 
-  it('spawned member answers honestly ungrounded', async () => {
+  it('spawned member classifies but never fabricates an answer', async () => {
     const { registry, service } = build();
     service.spawn(VALID);
     const r = await registry.get('tax-expert')!.executeExpert({ taskId: 'x', query: 'اظهارنامه مالیات بر ارزش افزوده' });
+    expect(r.ok).toBe(false);
+    expect(r.errorCode).toBe('AI_AGENT_NO_ANALYSIS');
     expect(r.meta?.grounded).toBe(false);
     expect(r.meta?.routedSkillId).toBe('tax:audit-review');
   });

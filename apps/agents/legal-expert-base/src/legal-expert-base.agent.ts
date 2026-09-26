@@ -10,10 +10,10 @@ import { AGENT_ID, AGENT_VERSION, skills } from '../capabilities';
 const DEFAULT_MIN_SCORE = 0.4;
 
 /**
- * Reference IExpertAgent implementation (SPEC §11a). Phase 1 agents copy this
- * skeleton. Deliberately answerless for now — execute() is an explicit
- * not-grounded stub, because a phase-0 skeleton that fabricates legal text
- * would violate SPEC §9. Real drafting arrives with the RAG pipeline (P4).
+ * Reference IExpertAgent implementation (SPEC §11a): the template new experts
+ * are built from. It is deliberately answerless and is NOT registered in the
+ * production fleet (see apps/api/src/modules/orchestrator/agents.bootstrap.ts),
+ * because a template that fabricated legal text would violate SPEC §9.
  */
 export class LegalExpertBaseAgent implements IExpertAgent {
   readonly kind = 'expert' as const;
@@ -51,7 +51,7 @@ export class LegalExpertBaseAgent implements IExpertAgent {
     return {
       ok: true,
       output:
-        'این پاسخ توسط اسکلت پایه تولید شده و هنوز به موتور RAG متصل نیست. ' +
+        'این قالب مرجع برای ساخت دستیار تخصصی جدید است و پاسخ حقوقی تولید نمی‌کند. ' +
         `مهارت تشخیص‌داده‌شده: ${route?.skillId ?? 'هیچ‌کدام'}.`,
       meta: {
         routedSkillId: route?.skillId ?? null,

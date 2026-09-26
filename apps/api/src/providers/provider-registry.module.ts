@@ -10,6 +10,10 @@ import {
   TELEPHONY_PROVIDER,
 } from './provider.tokens';
 import { adapterKeyFromEnv, createAdapterFor } from './provider.factory';
+import type { SmsProvider } from './sms/sms.provider';
+import { RoutingSmsProvider } from './sms/routing-sms.provider';
+import { EncryptionService } from '../security/encryption.service';
+import { CommsSettingsService } from '../modules/notifications/comms-settings.service';
 
 /**
  * Binds every provider category token to the adapter selected by the
@@ -22,10 +26,17 @@ import { adapterKeyFromEnv, createAdapterFor } from './provider.factory';
 @Global()
 @Module({
   providers: [
+    EncryptionService,
+    CommsSettingsService,
     {
+      // The office's dashboard SMS panel when connected, otherwise the env adapter.
       provide: SMS_PROVIDER,
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => createAdapterFor('sms', adapterKeyFromEnv('sms', config), config),
+      inject: [ConfigService, CommsSettingsService],
+      useFactory: (config: ConfigService, comms: CommsSettingsService) =>
+        new RoutingSmsProvider(
+          createAdapterFor('sms', adapterKeyFromEnv('sms', config), config) as SmsProvider,
+          () => comms.panelSmsProvider(),
+        ),
     },
     {
       provide: PAYMENT_PROVIDER,
@@ -62,6 +73,16 @@ import { adapterKeyFromEnv, createAdapterFor } from './provider.factory';
         createAdapterFor('email', adapterKeyFromEnv('email', config), config),
     },
   ],
-  exports: [SMS_PROVIDER, PAYMENT_PROVIDER, PUSH_PROVIDER, TELEPHONY_PROVIDER, AI_PROVIDER, STORAGE_PROVIDER, EMAIL_PROVIDER],
+  exports: [
+    SMS_PROVIDER,
+    PAYMENT_PROVIDER,
+    PUSH_PROVIDER,
+    TELEPHONY_PROVIDER,
+    AI_PROVIDER,
+    STORAGE_PROVIDER,
+    EMAIL_PROVIDER,
+    CommsSettingsService,
+    EncryptionService,
+  ],
 })
 export class ProviderRegistryModule {}

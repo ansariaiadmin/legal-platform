@@ -1,8 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { api, type FileRecordView } from '@/lib/api';
-import { t } from '@/i18n';
+import { BadgeCheck, Building2, Clock, FileText, Landmark, Library, RefreshCw, Search, Upload } from 'lucide-react';
+import { api, ApiError, type FileRecordView } from '@/lib/api';
+import { getPrefs, num, t, tx } from '@/i18n';
 
 interface IngestionJob {
   jobId: string;
@@ -47,329 +48,380 @@ interface Hit {
   preview: string;
 }
 
-// Tier chips ride the existing pill palette — gold for official, teal for
-// office-vetted, plain for general. The tier is metadata, and it shows.
-const TIER: Record<1 | 2 | 3, { cls: string; label: string }> = {
-  1: { cls: 'pill gold', label: '🏛 رسمی' },
-  2: { cls: 'pill teal', label: '🗂 دفتر' },
-  3: { cls: 'pill ok', label: '📚 عمومی' },
-};
+type Tier = 1 | 2 | 3;
 
-const inputStyle: React.CSSProperties = {
-  background: 'rgba(0,0,0,0.25)',
-  border: '1px solid var(--line)',
-  borderRadius: 10,
-  padding: '11px 12px',
-  fontSize: 14,
-  width: '100%',
-};
+function tierBadge(tier: Tier) {
+  if (tier === 1) return { cls: 'pill gold', icon: <Landmark size={12} aria-hidden="true" />, label: tx('رسمی', 'Official') };
+  if (tier === 2) return { cls: 'pill teal', icon: <Building2 size={12} aria-hidden="true" />, label: tx('تأییدشدهٔ دفتر', 'Office-vetted') };
+  return { cls: 'pill', icon: <Library size={12} aria-hidden="true" />, label: tx('عمومی', 'General') };
+}
+
+function TierPill({ tier }: { tier: Tier }) {
+  const b = tierBadge(tier);
+  return (
+    <span className={b.cls}>
+      {b.icon}
+      {b.label}
+    </span>
+  );
+}
+
+const dateFmt = (iso: string, withTime = false) =>
+  new Date(iso)[withTime ? 'toLocaleString' : 'toLocaleDateString'](getPrefs().locale === 'fa' ? 'fa-IR' : 'en-GB');
+
+function errorText(e: unknown): string {
+  return e instanceof ApiError || e instanceof Error ? e.message : tx('خطای ناشناخته', 'Unknown error');
+}
 
 export function LibraryTab() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [docs, setDocs] = useState<Doc[]>([]);
   const [files, setFiles] = useState<FileRecordView[]>([]);
   const [jobs, setJobs] = useState<IngestionJob[]>([]);
+  const [sources, setSources] = useState<string[]>([]);
   const [query, setQuery] = useState('');
   const [hits, setHits] = useState<Hit[] | null>(null);
-  const [msg, setMsg] = useState<string | null>(null);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [title, setTitle] = useState('');
   const [text, setText] = useState('');
-  // P7 tour: "Paste the sample article" politely asks via CustomEvent —
-  // the tour engine never pokes tab internals.
+  const [tier, setTier] = useState<Tier>(3);
+
+  // Guided tour: "paste the sample article" arrives as an event.
   useEffect(() => {
     const fill = () => setText(t('sample.law'));
     window.addEventListener('tour:try:library', fill);
     return () => window.removeEventListener('tour:try:library', fill);
   }, []);
-  const [tier, setTier] = useState<1 | 2 | 3>(3);
 
   const refresh = useCallback(async () => {
-    try {
-      const f = await api
-        .get<{ files: FileRecordView[] }>('/dashboard/orchestrator/files')
-        .catch(() => ({ files: [] as FileRecordView[] }));
-      setFiles(f.files);
-      const s = await api.get<Stats>('/api/dashboard/corpus/stats');
-      setStats(s);
-      const d = await api.get<Doc[]>('/api/dashboard/corpus/documents');
-      setDocs(d);
-      const j = await api.get<IngestionJob[]>('/api/dashboard/corpus/jobs').catch(() => []);
-      setJobs(j);
-    } catch {
-      /* the shelf may not be reachable yet; heartbeat keeps retrying per click */
-    }
+    const [f, s, d, j, diag] = await Promise.all([
+      api.get<{ files: FileRecordView[] }>('/dashboard/orchestrator/files').catch(() => ({ files: [] as FileRecordView[] })),
+      api.get<Stats>('/dashboard/corpus/stats').catch(() => null),
+      api.get<Doc[]>('/dashboard/corpus/documents').catch(() => [] as Doc[]),
+      api.get<IngestionJob[]>('/dashboard/corpus/jobs').catch(() => [] as IngestionJob[]),
+      api.get<{ collectorSources?: string[] }>('/dashboard/corpus/diagnostics').catch(() => ({ collectorSources: [] })),
+    ]);
+    setFiles(f.files);
+    setStats(s);
+    setDocs(d);
+    setJobs(j);
+    setSources(diag.collectorSources ?? []);
   }, []);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
 
-  async function verify(id: string) {
+  async function run(fn: () => Promise<{ ok: boolean; text: string } | null>) {
     setBusy(true);
     setMsg(null);
     try {
-      const r = await api.post<{ verified: boolean; reasons?: string[] }>(
-        `/api/dashboard/corpus/documents/${id}/verify`,
-      );
-      if (!r.verified) setMsg(`تأیید نشد: ${(r.reasons ?? []).join('؛ ')}`);
+      const result = await fn();
+      if (result) setMsg(result);
       await refresh();
     } catch (e) {
-      setMsg((e as Error).message);
+      setMsg({ ok: false, text: errorText(e) });
     } finally {
       setBusy(false);
     }
   }
 
-  async function ingestText() {
-    if (!title.trim() || text.trim().length < 50) {
-      setMsg('عنوان و متن (دست‌کم ۵۰ نویسه) لازم است.');
-      return;
-    }
-    setBusy(true);
-    setMsg(null);
-    try {
-      await api.post('/api/dashboard/corpus/documents/ingest', {
-        canonicalTitle: title.trim(),
-        bodyRaw: text,
-        trustTier: tier,
-      });
+  const verify = (id: string) =>
+    run(async () => {
+      const r = await api.post<{ verified: boolean; reasons?: string[] }>(`/dashboard/corpus/documents/${id}/verify`);
+      return r.verified
+        ? { ok: true, text: tx('سند تأیید شد و از این پس در پاسخ‌ها قابل استناد است.', 'Document verified; answers can now cite it.') }
+        : { ok: false, text: tx(`تأیید نشد: ${(r.reasons ?? []).join('؛ ')}`, `Not verified: ${(r.reasons ?? []).join('; ')}`) };
+    });
+
+  const ingestText = () =>
+    run(async () => {
+      if (!title.trim() || text.trim().length < 50) {
+        return { ok: false, text: tx('عنوان و متن (دست‌کم ۵۰ نویسه) لازم است.', 'A title and at least 50 characters of text are required.') };
+      }
+      await api.post('/dashboard/corpus/documents/ingest', { canonicalTitle: title.trim(), bodyRaw: text, trustTier: tier });
       setTitle('');
       setText('');
-      setMsg('سند به کتابخانه اضافه شد. برای استفاده در پاسخ‌ها باید آن را تأیید کنید.');
-      await refresh();
-    } catch (e) {
-      setMsg((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
+      return {
+        ok: true,
+        text: tx('سند به کتابخانه اضافه شد. برای استفاده در پاسخ‌ها، آن را در فهرست اسناد تأیید کنید.', 'Document added. Verify it in the document list so answers can cite it.'),
+      };
+    });
 
-  async function ingestFile(fileId: string) {
-    setBusy(true);
-    setMsg(null);
-    try {
-      const r = await api.post<{ ingested: boolean; reason?: string }>(
-        '/api/dashboard/corpus/documents/ingest-from-file',
-        { fileId },
-      );
-      setMsg(r.ingested ? 'فایل به کتابخانه اضافه شد و منتظر تأیید است.' : `اضافه نشد: ${r.reason}`);
-      await refresh();
-    } catch (e) {
-      setMsg((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
+  const ingestFile = (fileId: string) =>
+    run(async () => {
+      const r = await api.post<{ ingested: boolean; reason?: string }>('/dashboard/corpus/documents/ingest-from-file', { fileId });
+      return r.ingested
+        ? { ok: true, text: tx('فایل به کتابخانه اضافه شد و منتظر تأیید است.', 'File added to the library and awaiting verification.') }
+        : { ok: false, text: tx(`اضافه نشد: ${r.reason ?? ''}`, `Not added: ${r.reason ?? ''}`) };
+    });
+
+  const syncNow = () =>
+    run(async () => {
+      const j = await api.post<IngestionJob>('/dashboard/corpus/sync', {});
+      if (j.status === 'succeeded') {
+        return { ok: true, text: tx(`همگام‌سازی کامل شد: ${num(j.succeeded)} از ${num(j.attempted)} سند اضافه شد.`, `Sync complete: ${num(j.succeeded)} of ${num(j.attempted)} documents added.`) };
+      }
+      if (j.status === 'partial_success') {
+        return {
+          ok: false,
+          text: tx(
+            `همگام‌سازی ناقص: ${num(j.succeeded)} از ${num(j.attempted)} سند اضافه شد و ${num(j.failed)} مورد ناموفق بود.`,
+            `Partial sync: ${num(j.succeeded)} of ${num(j.attempted)} added, ${num(j.failed)} failed.`,
+          ),
+        };
+      }
+      return { ok: false, text: tx(`همگام‌سازی ناموفق: ${j.errorSummary ?? 'علت نامشخص'}`, `Sync failed: ${j.errorSummary ?? 'unknown reason'}`) };
+    });
+
+  const retryJob = (id: string) =>
+    run(async () => {
+      const r = await api.post<{ retried: boolean; job?: IngestionJob }>(`/dashboard/corpus/jobs/${id}/retry`);
+      return r.retried && r.job
+        ? { ok: true, text: tx(`دوباره اجرا شد: ${num(r.job.succeeded)} از ${num(r.job.attempted)}`, `Retried: ${num(r.job.succeeded)} of ${num(r.job.attempted)}`) }
+        : { ok: false, text: tx('این اجرا پیدا نشد.', 'That run was not found.') };
+    });
 
   async function search() {
     if (!query.trim()) {
       setHits(null);
       return;
     }
-    setHits(await api.get<Hit[]>(`/api/dashboard/corpus/search?q=${encodeURIComponent(query)}`));
-  }
-
-  async function syncNow() {
-    setBusy(true);
-    setMsg(null);
     try {
-      const j = await api.post<IngestionJob>('/api/dashboard/corpus/sync', {});
-      setMsg(
-        j.status === 'succeeded'
-          ? `همگام‌سازی کامل شد: ${j.succeeded} از ${j.attempted} سند اضافه شد.`
-          : j.status === 'partial_success'
-            ? `همگام‌سازی ناقص: ${j.succeeded} از ${j.attempted} سند اضافه شد و ${j.failed} مورد ناموفق بود.`
-            : `همگام‌سازی ناموفق: ${j.errorSummary ?? 'علت نامشخص'}`,
-      );
-      await refresh();
+      setHits(await api.get<Hit[]>(`/dashboard/corpus/search?q=${encodeURIComponent(query.trim())}`));
     } catch (e) {
-      setMsg((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function retryJob(id: string) {
-    setBusy(true);
-    setMsg(null);
-    try {
-      const r = await api.post<{ retried: boolean; job?: IngestionJob }>(`/api/dashboard/corpus/jobs/${id}/retry`);
-      setMsg(r.retried && r.job ? `دوباره اجرا شد: ${r.job.succeeded} از ${r.job.attempted}` : 'این کار پیدا نشد.');
-      await refresh();
-    } catch (e) {
-      setMsg((e as Error).message);
-    } finally {
-      setBusy(false);
+      setMsg({ ok: false, text: errorText(e) });
     }
   }
 
   return (
     <div className="grid" style={{ gap: 18 }}>
-
-      {/* — shelf vitals — */}
       <div className="grid cols-3">
-        <Tile stat={stats?.documents ?? '…'} sub="سند فعال" />
-        <Tile stat={stats ? `${stats.verified}` : '…'} sub="✅ تأییدشده" />
-        <Tile stat={stats?.chunks ?? '…'} sub="بخش نمایه‌شده" />
+        <Tile stat={stats ? num(stats.documents) : '…'} sub={tx('سند فعال', 'Active documents')} />
+        <Tile stat={stats ? num(stats.verified) : '…'} sub={tx('تأییدشده', 'Verified')} />
+        <Tile stat={stats ? num(stats.chunks) : '…'} sub={tx('بخش نمایه‌شده برای جست‌وجو', 'Indexed passages')} />
       </div>
+
+      {msg && (
+        <p className={msg.ok ? 'form-ok' : 'form-error'} role={msg.ok ? 'status' : 'alert'}>
+          {msg.text}
+        </p>
+      )}
 
       {stats && (
         <div className="card">
-          <h3 style={{ margin: '0 0 10px' }}>سطح اعتبار منابع</h3>
-          <div className="grid cols-3">
-            <span className="pill gold" style={{ textAlign: 'center', padding: 10 }}>🏛 رسمی: {stats.byTier.official}</span>
-            <span className="pill teal" style={{ textAlign: 'center', padding: 10 }}>🗂 تأییدشدهٔ دفتر: {stats.byTier.vetted}</span>
-            <span className="pill ok" style={{ textAlign: 'center', padding: 10 }}>📚 عمومی: {stats.byTier.general}</span>
+          <h3>{tx('سطح اعتبار منابع', 'Source trust levels')}</h3>
+          <div className="tier-row">
+            <span className="pill gold"><Landmark size={13} aria-hidden="true" /> {tx('رسمی', 'Official')}: {num(stats.byTier.official)}</span>
+            <span className="pill teal"><Building2 size={13} aria-hidden="true" /> {tx('تأییدشدهٔ دفتر', 'Office-vetted')}: {num(stats.byTier.vetted)}</span>
+            <span className="pill"><Library size={13} aria-hidden="true" /> {tx('عمومی', 'General')}: {num(stats.byTier.general)}</span>
           </div>
-          <p className="hint" style={{ marginTop: 10 }}>
-            {stats.retired} نسخهٔ قدیمی در تاریخچه نگهداری می‌شود تا متن قانون در هر تاریخ قابل بازیابی باشد.
+          <p className="hint" style={{ margin: '10px 0 0' }}>
+            {tx(
+              `${num(stats.retired)} نسخهٔ قدیمی در تاریخچه نگهداری می‌شود تا متن قانون در هر تاریخ قابل بازیابی باشد.`,
+              `${num(stats.retired)} earlier versions are kept so the text in force on any date can be retrieved.`,
+            )}
           </p>
         </div>
       )}
 
-      {/* — collection & diagnostics (P2-T2/T5/T6) — */}
       <div className="card">
-        <h3 style={{ margin: '0 0 6px' }}>همگام‌سازی با منابع</h3>
+        <h3 className="title-row"><Search size={18} aria-hidden="true" />{tx('جست‌وجو در کتابخانه', 'Search the library')}</h3>
         <p className="hint">
-          این دکمه فعلاً یک منبع نمونه را همگام می‌کند؛ اتصال به منابع رسمی در نسخه‌های بعد اضافه می‌شود.
-          نتیجهٔ هر اجرا، حتی اگر ناقص باشد، دقیق گزارش می‌شود.
+          {tx(
+            'جست‌وجو فقط در منابع تأییدشده انجام می‌شود و برای پرسش یکسان نتیجهٔ یکسان می‌دهد. دستیار هر منبعی را که به کار ببرد نام می‌برد.',
+            'Search covers verified sources only and returns the same result for the same query. The assistant names every source it uses.',
+          )}
         </p>
-        <button className="btn primary" disabled={busy} onClick={() => void syncNow()}>
-          همگام‌سازی با منبع نمونه
-        </button>
-        {jobs.length > 0 && (
-          <div style={{ marginTop: 12 }}>
-            {jobs.slice(0, 6).map((j) => (
-              <div key={j.jobId} style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '8px 0', borderBottom: '1px dashed var(--line)' }}>
-                <span className={`pill ${j.status === 'succeeded' ? 'ok' : j.status === 'partial_success' ? 'gold' : 'bad'}`}>
-                  {j.status === 'succeeded' ? '✅ کامل'
-                    : j.status === 'partial_success' ? '⚠️ ناقص'
-                    : j.status === 'failed' ? '❌ ناموفق'
-                    : '⏳'}
-                </span>
-                <div style={{ flex: 1, fontSize: 13 }}>
-                  <b>{j.sourceId}</b> · بازهٔ {j.windowLabel} · {j.succeeded} از {j.attempted} اضافه شد
-                  {j.failed > 0 && <span style={{ color: 'var(--rose)' }}> · {j.failed} ناموفق</span>}
-                  {j.rejectedIds.length > 0 && <span style={{ color: 'var(--gold)' }}> · {j.rejectedIds.length} ردشده در بررسی</span>}
-                  <div className="hint" style={{ marginTop: 2 }}>
-                    {new Date(j.startedAt).toLocaleString('fa-IR')}{j.retryOf ? ' · اجرای دوباره' : ''}
-                    {j.errorSummary ? ` · ${j.errorSummary}` : ''}
-                  </div>
-                </div>
-                {(j.status === 'failed' || j.status === 'partial_success') && (
-                  <button className="btn" style={{ padding: '6px 12px' }} disabled={busy} onClick={() => void retryJob(j.jobId)}>
-                    تلاش دوباره
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* — deterministic search — */}
-      <div className="card">
-        <h3 style={{ margin: '0 0 6px' }}>جست‌وجو در کتابخانه</h3>
-        <p className="hint">جست‌وجو فقط در منابع تأییدشده انجام می‌شود و برای هر پرسش یکسان، نتیجهٔ یکسان می‌دهد. دستیار هر منبعی را که به کار ببرد نام می‌برد.</p>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <form
+          className="inline-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void search();
+          }}
+        >
+          <label className="sr-only" htmlFor="lib-q">{tx('عبارت جست‌وجو', 'Search terms')}</label>
           <input
-            style={{ ...inputStyle, flex: 1 }}
-            placeholder="مثلاً: شرایط صحت معامله"
+            id="lib-q"
+            className="text-input"
+            placeholder={tx('مثلاً: شرایط صحت معامله', 'e.g. conditions for a valid contract')}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && void search()}
           />
-          <button className="btn primary" onClick={() => void search()}>جست‌وجو</button>
-        </div>
+          <button type="submit" className="btn primary">{tx('جست‌وجو', 'Search')}</button>
+        </form>
         {hits && (
-          <div style={{ marginTop: 12 }}>
-            {hits.length === 0 && <p className="hint">نتیجه‌ای در منابع تأییدشده پیدا نشد.</p>}
+          <div className="list">
+            {hits.length === 0 && <p className="empty-line">{tx('نتیجه‌ای در منابع تأییدشده پیدا نشد.', 'No match in verified sources.')}</p>}
             {hits.map((h) => (
-              <div key={h.documentId} style={{ padding: '10px 0', borderBottom: '1px dashed var(--line)' }}>
-                <span className={TIER[h.trustTier].cls}>{TIER[h.trustTier].label}</span>{' '}
-                <b>{h.canonicalTitle}</b>
-                <small style={{ color: 'var(--text-dim)' }}> · امتیاز {h.score}</small>
-                <div className="hint" style={{ marginTop: 6 }}>{h.preview}…</div>
+              <div key={h.documentId} className="list-item">
+                <div className="list-title">
+                  <TierPill tier={h.trustTier} />
+                  <b>{h.canonicalTitle}</b>
+                  <small className="dim">{tx(`امتیاز ${num(h.score)}`, `score ${num(h.score)}`)}</small>
+                </div>
+                <p className="hint" style={{ margin: '6px 0 0' }}>{h.preview}…</p>
               </div>
             ))}
           </div>
         )}
       </div>
 
-      {/* — shelf documents — */}
       <div className="card">
-        <h3 style={{ margin: '0 0 10px' }}>اسناد کتابخانه</h3>
-        {docs.length === 0 && <p className="hint">هنوز سندی اضافه نشده است. از بخش پایین متنی را بچسبانید یا از یک فایل شروع کنید.</p>}
-        {docs.map((d) => (
-          <div key={d.documentId} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: '1px dashed var(--line)' }}>
-            <span className={TIER[d.trustTier].cls}>{TIER[d.trustTier].label}</span>
-            <div style={{ flex: 1 }}>
-              <b>{d.canonicalTitle}</b>
-              <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4 }}>
-                {d.verifiedAt
-                  ? `✅ تأییدشده · ${new Date(d.verifiedAt).toLocaleDateString('fa-IR')}`
-                  : '⏳ در انتظار تأیید'}
-                {' '}· <code style={{ fontSize: 11 }}>{d.sha256.slice(0, 12)}</code>
+        <h3>{tx('اسناد کتابخانه', 'Library documents')}</h3>
+        {docs.length === 0 && (
+          <p className="empty-line">
+            {tx('هنوز سندی اضافه نشده است. از بخش پایین متن قانون را بچسبانید یا از یک فایل شروع کنید.', 'No documents yet. Paste a law text below or start from an uploaded file.')}
+          </p>
+        )}
+        <div className="list">
+          {docs.map((d) => (
+            <div key={d.documentId} className="list-item row">
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="list-title">
+                  <TierPill tier={d.trustTier} />
+                  <b>{d.canonicalTitle}</b>
+                </div>
+                <div className="list-meta">
+                  {d.verifiedAt ? (
+                    <span className="ok-text"><BadgeCheck size={13} aria-hidden="true" /> {tx('تأییدشده', 'Verified')} · {dateFmt(d.verifiedAt)}</span>
+                  ) : (
+                    <span className="warn-text"><Clock size={13} aria-hidden="true" /> {tx('در انتظار تأیید', 'Awaiting verification')}</span>
+                  )}
+                  <code dir="ltr" title="SHA-256">{d.sha256.slice(0, 12)}</code>
+                </div>
               </div>
+              {!d.verifiedAt && (
+                <button className="btn primary small" disabled={busy} onClick={() => void verify(d.documentId)}>
+                  <BadgeCheck size={15} aria-hidden="true" />
+                  {tx('تأیید', 'Verify')}
+                </button>
+              )}
             </div>
-            {!d.verifiedAt && (
-              <button className="btn primary" disabled={busy} onClick={() => void verify(d.documentId)}>
-                تأیید
-              </button>
-            )}
-          </div>
-        ))}
-      </div>
-
-      {/* — paste ingest — */}
-      <div className="card">
-        <h3 style={{ margin: '0 0 6px' }}>{t('library.ingest.paste')}</h3>
-        <p className="hint">متن تکراری دوباره اضافه نمی‌شود. نسخهٔ جدید یک قانون جای نسخهٔ قبلی را می‌گیرد و نسخهٔ قبلی در تاریخچه می‌ماند.</p>
-        <input style={inputStyle} placeholder="عنوان رسمی؛ مثلاً «قانون مدنی»" value={title} onChange={(e) => setTitle(e.target.value)} />
-        <textarea
-          style={{ ...inputStyle, marginTop: 8, minHeight: 140, lineHeight: 1.9 }}
-          placeholder="متن قانون…"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-        />
-        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-          <select style={{ ...inputStyle, flex: 1 }} value={tier} onChange={(e) => setTier(Number(e.target.value) as 1 | 2 | 3)}>
-            <option value={3}>سطح ۳: عمومی</option>
-            <option value={2}>سطح ۲: تأییدشدهٔ دفتر</option>
-            <option value={1}>سطح ۱: رسمی</option>
-          </select>
-          <button className="btn primary" disabled={busy} onClick={() => void ingestText()}>افزودن</button>
+          ))}
         </div>
       </div>
 
-      {/* — ingest-from-file — */}
       <div className="card">
-        <h3 style={{ margin: '0 0 6px' }}>{t('library.ingest.file')}</h3>
-        <p className="hint">فایل‌هایی که بارگذاری کرده‌اید می‌توانند مستقیم به منابع کتابخانه اضافه شوند؛ متن از خود فایل خوانده می‌شود، نه از هوش مصنوعی.</p>
-        {files.length === 0 && <p className="hint">ابتدا در بخش «فایل‌ها» فایلی بارگذاری کنید.</p>}
-        {files.map((f) => (
-          <div key={f.fileId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px dashed var(--line)' }}>
-            <span style={{ fontSize: 13 }}>📄 {f.filename} <small style={{ color: 'var(--text-dim)' }}>({f.analysis?.chars ?? '?'} نویسه)</small></span>
-            <button className="btn" style={{ padding: '8px 14px' }} disabled={busy} onClick={() => void ingestFile(f.fileId)}>افزودن به کتابخانه</button>
+        <h3 className="title-row"><FileText size={18} aria-hidden="true" />{t('library.ingest.paste')}</h3>
+        <p className="hint">
+          {tx(
+            'متن تکراری دوباره اضافه نمی‌شود. نسخهٔ جدید یک قانون جای نسخهٔ قبلی را می‌گیرد و نسخهٔ قبلی در تاریخچه می‌ماند.',
+            'Duplicate text is not added twice. A new version of a law replaces the previous one, which stays in the history.',
+          )}
+        </p>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!busy) void ingestText();
+          }}
+        >
+          <div className="field">
+            <label htmlFor="lib-title">{tx('عنوان رسمی', 'Official title')}</label>
+            <input id="lib-title" className="text-input" placeholder={tx('مثلاً: قانون مدنی', 'e.g. Civil Code')} value={title} onChange={(e) => setTitle(e.target.value)} />
           </div>
-        ))}
+          <div className="field">
+            <label htmlFor="lib-text">{tx('متن', 'Text')}</label>
+            <textarea id="lib-text" className="text-input" rows={7} value={text} onChange={(e) => setText(e.target.value)} />
+          </div>
+          <div className="inline-form">
+            <label className="sr-only" htmlFor="lib-tier">{tx('سطح اعتبار', 'Trust level')}</label>
+            <select id="lib-tier" className="text-input" value={tier} onChange={(e) => setTier(Number(e.target.value) as Tier)}>
+              <option value={3}>{tx('سطح ۳: عمومی', 'Level 3: general')}</option>
+              <option value={2}>{tx('سطح ۲: تأییدشدهٔ دفتر', 'Level 2: office-vetted')}</option>
+              <option value={1}>{tx('سطح ۱: رسمی', 'Level 1: official')}</option>
+            </select>
+            <button type="submit" className="btn primary" disabled={busy}>{tx('افزودن', 'Add')}</button>
+          </div>
+        </form>
       </div>
 
-      {msg && (
-        <div className="card" style={{ borderColor: 'var(--gold)', background: 'rgba(244,200,93,0.06)' }}>
-          <span>{msg}</span>
+      <div className="card">
+        <h3 className="title-row"><Upload size={18} aria-hidden="true" />{t('library.ingest.file')}</h3>
+        <p className="hint">
+          {tx(
+            'فایل‌هایی که بارگذاری کرده‌اید می‌توانند مستقیم به کتابخانه اضافه شوند؛ متن از خود فایل خوانده می‌شود، نه از هوش مصنوعی.',
+            'Uploaded files can be added to the library directly; the text is read from the file itself, not generated by AI.',
+          )}
+        </p>
+        {files.length === 0 && <p className="empty-line">{tx('ابتدا در بخش «فایل‌ها» فایلی بارگذاری کنید.', 'Upload a file in the Files section first.')}</p>}
+        <div className="list">
+          {files.map((f) => (
+            <div key={f.fileId} className="list-item row">
+              <span className="list-title">
+                <FileText size={15} aria-hidden="true" />
+                <span>{f.filename}</span>
+                <small className="dim">{tx(`${num(f.analysis?.chars ?? 0)} نویسه`, `${num(f.analysis?.chars ?? 0)} characters`)}</small>
+              </span>
+              <button className="btn small" disabled={busy} onClick={() => void ingestFile(f.fileId)}>
+                {tx('افزودن به کتابخانه', 'Add to library')}
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {sources.length > 0 && (
+        <div className="card">
+          <h3 className="title-row"><RefreshCw size={18} aria-hidden="true" />{tx('گردآوری خودکار', 'Automatic collection')}</h3>
+          <p className="hint">
+            {tx(
+              'منابع گردآوری متصل: ',
+              'Connected collection sources: ',
+            )}
+            <span dir="ltr">{sources.join(', ')}</span>
+            {tx('. نتیجهٔ هر اجرا، حتی اگر ناقص باشد، دقیق گزارش می‌شود.', '. Every run is reported as it happened, including partial results.')}
+          </p>
+          <button className="btn primary" disabled={busy} onClick={() => void syncNow()}>
+            {tx('همگام‌سازی اکنون', 'Sync now')}
+          </button>
+          {jobs.length > 0 && (
+            <div className="list">
+              {jobs.slice(0, 6).map((j) => (
+                <div key={j.jobId} className="list-item row">
+                  <span className={`pill ${j.status === 'succeeded' ? 'ok' : j.status === 'partial_success' ? 'gold' : j.status === 'failed' ? 'bad' : ''}`}>
+                    {j.status === 'succeeded'
+                      ? tx('کامل', 'Complete')
+                      : j.status === 'partial_success'
+                        ? tx('ناقص', 'Partial')
+                        : j.status === 'failed'
+                          ? tx('ناموفق', 'Failed')
+                          : tx('در حال اجرا', 'Running')}
+                  </span>
+                  <div style={{ flex: 1, fontSize: 13 }}>
+                    <b dir="ltr">{j.sourceId}</b> · {j.windowLabel} ·{' '}
+                    {tx(`${num(j.succeeded)} از ${num(j.attempted)} اضافه شد`, `${num(j.succeeded)} of ${num(j.attempted)} added`)}
+                    {j.failed > 0 && <span className="bad-text"> · {tx(`${num(j.failed)} ناموفق`, `${num(j.failed)} failed`)}</span>}
+                    {j.rejectedIds.length > 0 && (
+                      <span className="warn-text"> · {tx(`${num(j.rejectedIds.length)} رد در بررسی`, `${num(j.rejectedIds.length)} rejected by checks`)}</span>
+                    )}
+                    <div className="list-meta">
+                      {dateFmt(j.startedAt, true)}
+                      {j.retryOf ? tx(' · اجرای دوباره', ' · retry') : ''}
+                      {j.errorSummary ? ` · ${j.errorSummary}` : ''}
+                    </div>
+                  </div>
+                  {(j.status === 'failed' || j.status === 'partial_success') && (
+                    <button className="btn small" disabled={busy} onClick={() => void retryJob(j.jobId)}>
+                      {tx('تلاش دوباره', 'Retry')}
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
   );
 }
 
-function Tile({ stat, sub }: { stat: string | number; sub: string }) {
+function Tile({ stat, sub }: { stat: string; sub: string }) {
   return (
-    <div className="card" style={{ textAlign: 'center' }}>
-      <div style={{ fontSize: 30, fontWeight: 700 }}>{stat}</div>
-      <div className="hint" style={{ marginTop: 6 }}>{sub}</div>
+    <div className="card stat-tile">
+      <div className="stat-figure">{stat}</div>
+      <div className="hint">{sub}</div>
     </div>
   );
 }

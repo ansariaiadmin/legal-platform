@@ -232,7 +232,7 @@ describe('P6-S4 — cloud loss ≠ intelligence loss (degraded local_rules draft
     expect(run.error).toBeNull();
     expect(run.provenance?.degraded).toBe(true);
     expect(run.provenance?.model).toBe('local_rules_extractive');
-    expect(run.output).toContain('بدون مدل'); // honest header
+    expect(run.output).toContain('مدل هوش مصنوعی در دسترس نبود'); // honest header
     expect(run.output).toContain('عقد قرارداد ملک'); // verbatim from source
   });
 

@@ -1,6 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  Activity, ArrowRight, Cpu, FileText, FolderOpen, Fingerprint, LayoutDashboard, Library,
+  LogOut, Mail, MessagesSquare, MoreHorizontal, Phone, ShieldCheck, Smartphone, Users,
+  type LucideIcon,
+} from 'lucide-react';
 import { t } from '@/i18n';
 import { api, ApiError, getToken, passkeyLogin, setToken, signOut, SIGNED_OUT_EVENT, type BrainView } from '@/lib/api';
 import { HomeTab } from '@/features/home-tab';
@@ -22,20 +27,27 @@ type TabId = 'home' | 'brain' | 'fleet' | 'chat' | 'files' | 'kitchen' | 'teleco
 
 // P10 (Hick's Law): the bar shows the five DAILY desks; everything else sits
   // Less frequent sections live under «بیشتر» (More).
-const PRIMARY_TABS: Array<{ id: TabId; icon: string }> = [
-  { id: 'home', icon: '🏠' },
-  { id: 'chat', icon: '💬' },
-  { id: 'drafts', icon: '✍️' },
-  { id: 'files', icon: '📁' },
+const PRIMARY_TABS: Array<{ id: TabId; icon: LucideIcon }> = [
+  { id: 'home', icon: LayoutDashboard },
+  { id: 'chat', icon: MessagesSquare },
+  { id: 'drafts', icon: FileText },
+  { id: 'files', icon: FolderOpen },
 ];
-const MORE_TABS: Array<{ id: TabId; icon: string }> = [
-  { id: 'kitchen', icon: '🍳' },
-  { id: 'fleet', icon: '👥' },
-  { id: 'brain', icon: '🧠' },
-  { id: 'library', icon: '📚' },
-  { id: 'telecoms', icon: '📞' },
-  { id: 'security', icon: '🛡️' },
+const MORE_TABS: Array<{ id: TabId; icon: LucideIcon }> = [
+  { id: 'kitchen', icon: Activity },
+  { id: 'fleet', icon: Users },
+  { id: 'brain', icon: Cpu },
+  { id: 'library', icon: Library },
+  { id: 'telecoms', icon: Phone },
+  { id: 'security', icon: ShieldCheck },
 ];
+
+/** Persian/Arabic-Indic digits → ASCII (phone keyboards in Iran type Persian digits). */
+function latinDigits(value: string): string {
+  return value.replace(/[\u06F0-\u06F9\u0660-\u0669]/g, (ch) =>
+    String(ch.charCodeAt(0) - (ch.charCodeAt(0) >= 0x06f0 ? 0x06f0 : 0x0660)),
+  );
+}
 
 export default function Dashboard() {
   // Tail of file's logic follows; hooks for ui prefs live in UiPrefsBar —
@@ -75,26 +87,29 @@ export default function Dashboard() {
     setTokenState(existing);
     const onSignedOut = () => setTokenState(null);
     window.addEventListener(SIGNED_OUT_EVENT, onSignedOut);
-    if (existing) {
-      void refreshBrain();
-      // P8: first login ever → step into the wizard (server marks it idempotent)
-      api
-        .get<{ started: boolean }>('/dashboard/setup')
-        .then(async (s) => {
-          if (!s.started) await api.post('/dashboard/setup/start', {});
-        })
-        .catch(() => undefined);
-    }
+    // The setup wizard starts itself on the office's first sign-in.
+    if (existing) void refreshBrain();
     setBooting(false);
     return () => window.removeEventListener(SIGNED_OUT_EVENT, onSignedOut);
   }, [refreshBrain]);
 
   const signedOut = !booting && !token;
 
+  // Server render and the first client render are both this neutral splash:
+  // language, theme and session all live in the browser, so nothing that
+  // depends on them is rendered until after mount (no hydration mismatch,
+  // no flash of the signed-in shell before the session check).
+  if (booting) {
+    return (
+      <div className="boot" aria-busy="true">
+        <img src="/icon.svg" alt="" width={56} height={56} />
+      </div>
+    );
+  }
+
   return (
     <div className="shell">
       <header className="topbar">
-        <UiPrefsBar />
         <div className="brand">
           <img className="logo" src="/icon.svg" alt="" width={40} height={40} />
           <div>
@@ -102,17 +117,21 @@ export default function Dashboard() {
             <small>{t('app.tagline')}</small>
           </div>
         </div>
-        {token && (
-          <button
-            className="btn ghost"
-            onClick={() => {
-              void signOut();
-              setTokenState(null);
-            }}
-          >
-            {t('chrome.logout')}
-          </button>
-        )}
+        <div className="topbar-actions">
+          <UiPrefsBar />
+          {token && (
+            <button
+              className="btn ghost small"
+              onClick={() => {
+                void signOut();
+                setTokenState(null);
+              }}
+            >
+              <LogOut size={16} aria-hidden="true" />
+              {t('chrome.logout')}
+            </button>
+          )}
+        </div>
       </header>
 
       {signedOut ? (
@@ -120,13 +139,14 @@ export default function Dashboard() {
       ) : (
         <>
           <nav className="tabs" aria-label="desks">
-            {PRIMARY_TABS.map(({ id, icon }) => (
+            {PRIMARY_TABS.map(({ id, icon: Icon }) => (
               <button
                 key={id}
                 className={`tab ${tab === id ? 'active' : ''}`}
+                aria-current={tab === id ? 'page' : undefined}
                 onClick={() => setTab(id)}
               >
-                <span className="tab-icon">{icon}</span>
+                <Icon size={17} aria-hidden="true" />
                 <span>{t(`tab.${id}` as never)}</span>
               </button>
             ))}
@@ -137,19 +157,22 @@ export default function Dashboard() {
                 aria-expanded={moreOpen}
                 aria-haspopup="menu"
               >
-                <span className="tab-icon">{MORE_TABS.find((x) => x.id === tab)?.icon ?? '⋯'}</span>
+                {(() => {
+                  const Icon = MORE_TABS.find((x) => x.id === tab)?.icon ?? MoreHorizontal;
+                  return <Icon size={17} aria-hidden="true" />;
+                })()}
                 <span>{MORE_TABS.find((x) => x.id === tab) ? t(`tab.${tab}` as never) : t('nav.more' as never)}</span>
               </button>
               {moreOpen && (
                 <div className="nav-menu" role="menu">
-                  {MORE_TABS.map(({ id, icon }) => (
+                  {MORE_TABS.map(({ id, icon: Icon }) => (
                     <button
                       key={id}
                       role="menuitem"
                       className={`tab ${tab === id ? 'active' : ''}`}
                       onClick={() => { setTab(id); setMoreOpen(false); }}
                     >
-                      <span className="tab-icon">{icon}</span>
+                      <Icon size={17} aria-hidden="true" />
                       <span>{t(`tab.${id}` as never)}</span>
                     </button>
                   ))}
@@ -196,7 +219,7 @@ function LoginCard({ onDone }: { onDone: (token: string) => void }) {
     try {
       const r = await api.post<{ challengeId: string; devCode?: string }>(
         channel === 'email' ? '/auth/email-otp/request' : '/auth/otp/request',
-        channel === 'email' ? { email } : { phone },
+        channel === 'email' ? { email: email.trim() } : { phone: latinDigits(phone) },
       );
       setDevCode(r.devCode ?? null);
       setChallengeSent(true);
@@ -210,7 +233,7 @@ function LoginCard({ onDone }: { onDone: (token: string) => void }) {
   async function verify() {
     setBusy(true); setErr(null);
     try {
-      const body = channel === 'email' ? { email, code } : { phone, code };
+      const body = channel === 'email' ? { email: email.trim(), code: latinDigits(code).trim() } : { phone: latinDigits(phone), code: latinDigits(code).trim() };
       const r = await api.post<{ accessToken: string; refreshToken?: string; user?: { roles?: string[] } }>(channel === 'email' ? '/auth/email-otp/verify' : '/auth/otp/verify', body);
       // The dashboard is for the office; client accounts use the client portal.
       const roles = r.user?.roles ?? [];
@@ -233,51 +256,80 @@ function LoginCard({ onDone }: { onDone: (token: string) => void }) {
     onDone(devToken.trim());
   }
 
+  const identifierMissing = channel === 'email' ? !email.trim() : !phone.trim();
+
   return (
     <div className="auth-wrap">
-      <div className="card">
+      <form
+        className="card auth-card"
+        onSubmit={(ev) => {
+          ev.preventDefault();
+          if (busy) return;
+          if (!challengeSent) {
+            if (!identifierMissing) void requestOtp();
+          } else if (code.trim()) {
+            void verify();
+          }
+        }}
+      >
         <h3>{t('auth.title')}</h3>
         <p className="hint">{t('auth.hint')}</p>
-        <div style={{ display: 'flex', gap: 6, marginBottom: 14 }} role="tablist" aria-label="login channel">
+        <div className="segmented" role="tablist" aria-label={t('auth.hint')}>
           {(['phone', 'email'] as const).map((c) => (
             <button
               key={c}
+              type="button"
               role="tab"
               aria-selected={channel === c}
               className={`tab ${channel === c ? 'active' : ''}`}
-              style={{ flex: 1, justifyContent: 'center' }}
-              onClick={() => { setChannel(c); setChallengeSent(false); setCode(''); }}
+              onClick={() => { setChannel(c); setChallengeSent(false); setCode(''); setErr(null); setDevCode(null); }}
             >
-              {c === 'phone' ? '📱' : '✉️'} {t(`auth.channel.${c}` as never)}
+              {c === 'phone' ? <Smartphone size={16} aria-hidden="true" /> : <Mail size={16} aria-hidden="true" />}
+              {t(`auth.channel.${c}` as never)}
             </button>
           ))}
         </div>
         <div className="field">
-          <label>{channel === 'email' ? t('auth.email' as never) : t('auth.phone')}</label>
+          <label htmlFor="login-id">{channel === 'email' ? t('auth.email' as never) : t('auth.phone')}</label>
           {channel === 'email' ? (
             <input
+              id="login-id"
+              type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="vakil@example.com"
               dir="ltr"
               inputMode="email"
               autoComplete="email"
+              readOnly={challengeSent}
             />
           ) : (
             <input
+              id="login-id"
+              type="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              placeholder="0912..."
+              placeholder="09XXXXXXXXX"
               dir="ltr"
               inputMode="tel"
               autoComplete="tel"
+              readOnly={challengeSent}
             />
           )}
         </div>
         {challengeSent && (
           <div className="field">
-            <label>{t('auth.otp')}</label>
-            <input value={code} onChange={(e) => setCode(e.target.value)} dir="ltr" inputMode="numeric" autoComplete="one-time-code" />
+            <label htmlFor="login-code">{t('auth.otp')}</label>
+            <input
+              id="login-code"
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              dir="ltr"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={6}
+              autoFocus
+            />
             {devCode && (
               <p className="hint">
                 {t('auth.devCode')} <b dir="ltr">{devCode}</b>
@@ -285,28 +337,32 @@ function LoginCard({ onDone }: { onDone: (token: string) => void }) {
             )}
           </div>
         )}
-        {err && <p className="hint" style={{ color: 'var(--bad)' }}>{err}</p>}
-        <div style={{ display: 'flex', gap: 8 }}>
-          {!challengeSent ? (
-            <button className="btn primary big" disabled={busy || (channel === 'email' ? !email : !phone)} onClick={requestOtp}>
-              {channel === 'email' ? t('auth.sendEmailOtp' as never) : t('auth.sendOtp')}
-            </button>
-          ) : (
-            <button className="btn primary big" disabled={busy || !code} onClick={verify}>
-              {t('auth.verify')}
-            </button>
-          )}
-        </div>
+        {err && <p className="form-error" role="alert">{err}</p>}
+        <button type="submit" className="btn primary big" disabled={busy || (challengeSent ? !code.trim() : identifierMissing)}>
+          {!challengeSent
+            ? channel === 'email' ? t('auth.sendEmailOtp' as never) : t('auth.sendOtp')
+            : t('auth.verify')}
+        </button>
+        {challengeSent && (
+          <button
+            type="button"
+            className="btn ghost link-btn"
+            onClick={() => { setChallengeSent(false); setCode(''); setErr(null); setDevCode(null); }}
+          >
+            <ArrowRight size={15} aria-hidden="true" className="flip-ltr" />
+            {channel === 'email' ? t('auth.changeEmail' as never) : t('auth.changePhone' as never)}
+          </button>
+        )}
 
         {/* Passkey sign-in (fingerprint or face instead of a text message) */}
         <button
-          className="btn big"
-          style={{ width: '100%', marginTop: 10, borderColor: 'var(--brand)' }}
-          disabled={busy || (channel === 'email' ? !email : !phone)}
+          type="button"
+          className="btn ghost big auth-passkey"
+          disabled={busy || identifierMissing}
           onClick={async () => {
             setBusy(true); setErr(null);
             try {
-              await passkeyLogin(channel === 'email' ? email : phone);
+              await passkeyLogin(channel === 'email' ? email.trim() : latinDigits(phone));
               const tok = getToken() ?? '';
               if (tok) onDone(tok);
             } catch (e) {
@@ -316,7 +372,8 @@ function LoginCard({ onDone }: { onDone: (token: string) => void }) {
             }
           }}
         >
-          🔑 {t('auth.passkey')}
+          <Fingerprint size={18} aria-hidden="true" />
+          {t('auth.passkey')}
         </button>
         {process.env.NODE_ENV !== 'production' && (
         <div className="dev-notice">
@@ -328,11 +385,11 @@ function LoginCard({ onDone }: { onDone: (token: string) => void }) {
               onChange={(e) => setDevToken(e.target.value)}
               placeholder="DEV_DASHBOARD_TOKEN"
             />
-            <button className="btn" onClick={devLogin}>{t('auth.devLogin')}</button>
+            <button type="button" className="btn" onClick={devLogin}>{t('auth.devLogin')}</button>
           </div>
         </div>
         )}
-      </div>
+      </form>
     </div>
   );
 }

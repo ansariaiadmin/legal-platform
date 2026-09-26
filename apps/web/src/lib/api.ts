@@ -4,7 +4,7 @@
  * outside the sandbox); the rewrite map in next.config.js does the plumbing.
  */
 
-import { hasKey, t } from '@/i18n';
+import { hasKey, t, tx } from '@/i18n';
 
 export const TOKEN_KEY = 'lp_token';
 
@@ -136,6 +136,10 @@ async function request<T>(method: string, path: string, body?: unknown, isForm =
       payload = JSON.stringify(body);
     }
   }
+  if (path.startsWith('/api/')) {
+    // Paths are relative to /api; '/api/…' would request /api/api/… and 404.
+    throw new Error(`api paths must not start with /api: ${path}`);
+  }
   const res = await fetch(`/api${path}`, { method, headers, body: payload });
   const text = await res.text();
   let parsed: unknown = undefined;
@@ -185,7 +189,7 @@ function bufferToB64(buf: ArrayBuffer): string {
  */
 export async function passkeyLogin(identifier: string): Promise<void> {
   if (typeof window === 'undefined' || !window.PublicKeyCredential) {
-    throw new Error('این دستگاه پاپس‌کی ندارد — با کد پیامکی وارد شو.');
+    throw new Error(tx('این مرورگر از کلید عبور پشتیبانی نمی‌کند؛ با کد پیامکی وارد شوید.', 'This browser does not support passkeys; sign in with an SMS code.'));
   }
   const begin = await api.post<{
     challengeId: string; challengeB64u: string; rpId: string; allowCredentials: string[];
@@ -203,7 +207,7 @@ export async function passkeyLogin(identifier: string): Promise<void> {
     },
   })) as PublicKeyCredential | null;
 
-  if (!credential) throw new Error('ورود با کلید عبور لغو شد.');
+  if (!credential) throw new Error(tx('ورود با کلید عبور لغو شد.', 'Passkey sign-in was cancelled.'));
   const assertion = credential.response as AuthenticatorAssertionResponse;
 
   const out = await api.post<{ accessToken: string; refreshToken: string }>('/auth/passkey/login/finish', {

@@ -13,7 +13,7 @@ const INHERITANCE = ['ارث', 'میراث', 'وصیت', 'ترکه', 'ورثه',
 
 export const skills: readonly ISkill[] = [
   { id: 'civil:contracts', description: 'قراردادها: تنظیم، فسخ، ابطال، تعهدات', match: ({ query }) => vocabularyScore(CONTRACT, query) },
-  { id: 'civil:property', description: 'املاك و اسناد مالكیت، رهن و سرقفلی', match: ({ query }) => vocabularyScore(PROPERTY, query) },
+  { id: 'civil:property', description: 'املاک و اسناد مالکیت، رهن و سرقفلی', match: ({ query }) => vocabularyScore(PROPERTY, query) },
   { id: 'civil:tort', description: 'مسئولیت مدنی و جبران خسارت', match: ({ query }) => vocabularyScore(TORT, query) },
   { id: 'civil:inheritance', description: 'ارث، وصیت و انحصار وراثت', match: ({ query }) => vocabularyScore(INHERITANCE, query) },
 ] as const;

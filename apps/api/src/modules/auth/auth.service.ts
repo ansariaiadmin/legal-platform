@@ -153,7 +153,7 @@ export class AuthService {
     ));
 
     const message = `کد تأیید شما: ${code}`;
-    let smsResult: { success: boolean };
+    let smsResult: { success: boolean; simulated?: boolean };
     try {
       smsResult = await this.smsProvider.sendSms({ phone: normalizedPhone, message });
     } catch (error) {
@@ -191,7 +191,7 @@ export class AuthService {
       throw new ServiceUnavailableException(ERROR_CODES.PROVIDER_UNAVAILABLE);
     }
 
-    return { challengeId, ...this.devCodeFor(this.smsProvider, code) };
+    return { challengeId, ...this.devCodeFor(this.smsProvider, code, smsResult.simulated === true) };
   }
 
   async verifyOtp(phone: string, code: string, ip?: string): Promise<AuthTokens & { user: PublicUser }> {
@@ -673,9 +673,10 @@ export class AuthService {
    * delivered, so the code is returned to the caller for local testing.
    * Never in production, and never with a real gateway.
    */
-  private devCodeFor(provider: object, code: string): { devCode?: string } {
+  private devCodeFor(provider: object, code: string, simulated = false): { devCode?: string } {
     const isProd = (this.configService.get<string>('NODE_ENV') ?? process.env.NODE_ENV) === 'production';
-    const isMock = provider instanceof MockSmsAdapter || provider instanceof MockEmailAdapter;
+    // SMS goes through RoutingSmsProvider, so the send result says whether a mock handled it.
+    const isMock = simulated || provider instanceof MockSmsAdapter || provider instanceof MockEmailAdapter;
     return !isProd && isMock ? { devCode: code } : {};
   }
 

@@ -20,7 +20,7 @@ from dataclasses import dataclass
 
 @dataclass
 class ModelConfig:
-    base_url: str          # e.g. http://gpu-box:11434/v1 or https://gw.example/v1
+    base_url: str          # e.g. http://192.168.1.20:11434/v1 (Ollama) or https://api.openai.com/v1
     api_key: str           # may be "" for unauthenticated local boxes
     model: str             # concrete model id
     timeout_s: float = 30.0

@@ -1,5 +1,6 @@
 import { ConfigService } from '@nestjs/config';
 import { ConfigHubService, BRAIN_CONFIG_KEY } from '../../src/modules/orchestrator/config-hub.service';
+import { EncryptionService } from '../../src/security/encryption.service';
 import type { StorageProvider } from '../../src/providers/storage/storage.provider';
 
 function memStorage(): { provider: StorageProvider; store: Map<string, Buffer> } {
@@ -80,5 +81,22 @@ describe('config hub — owner connects a brain, no engineer (P1f)', () => {
     store.set(BRAIN_CONFIG_KEY, Buffer.from('{not json'));
     const hub = new ConfigHubService(env({ AI_LOCAL_BASE_URL: 'http://gpu:8080' }), provider);
     expect((await hub.view()).local.source).toBe('env');
+  });
+});
+
+describe('config hub — AI key at rest', () => {
+  it('encrypts the cloud API key in storage and decrypts it after a restart', async () => {
+    const enc = new EncryptionService(new ConfigService({ ENCRYPTION_MASTER_KEY: 'b'.repeat(64) }));
+    const { provider, store } = memStorage();
+    await new ConfigHubService(env({}), provider, enc).setBrain(
+      { target: 'cloud', apiKey: 'sk-live-SECRET-9876', model: 'gpt-5-mini' },
+      'owner',
+    );
+    const raw = store.get(BRAIN_CONFIG_KEY)!.toString('utf8');
+    expect(raw).not.toContain('sk-live-SECRET-9876');
+    expect(raw).toContain('enc:v1:');
+
+    const rebooted = new ConfigHubService(env({}), provider, enc);
+    expect((await rebooted.effectiveCloud())?.apiKey).toBe('sk-live-SECRET-9876');
   });
 });

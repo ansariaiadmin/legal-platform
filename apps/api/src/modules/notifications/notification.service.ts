@@ -117,8 +117,8 @@ export class NotificationService {
    * panel (their own call server) — when none is configured we say so.
    */
   async upNext(ticket: QueueTicket, consultUrl: string): Promise<void> {
-    const smsCfg = this.comms.getSms();
-    const callCfg = this.comms.getCall();
+    const smsCfg = await this.comms.getSms();
+    const callCfg = await this.comms.getCall();
     let callPlaced = false;
 
     if (callCfg) {
@@ -141,7 +141,7 @@ export class NotificationService {
 
     await this.push(ticket.userId, {
       kind: 'queue_up_next',
-      titleFa: '🔔 نوبت شما رسید',
+      titleFa: 'نوبت شما رسید',
       bodyFa: callPlaced
         ? `وکیل آمادهٔ مشاوره با شماست و به‌زودی تماس می‌گیرد. وضعیت نوبت: ${consultUrl}`
         : `نوبت شما رسید. وکیل به‌زودی با شمارهٔ ثبت‌شده تماس می‌گیرد. وضعیت نوبت: ${consultUrl}`,

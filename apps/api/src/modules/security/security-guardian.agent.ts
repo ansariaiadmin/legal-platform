@@ -112,7 +112,7 @@ export class SecurityGuardianAgent implements IExpertAgent {
         `گزارش نگهبان امنیت (${report.at.slice(0, 10)}): امتیاز وضعیت ${report.postureScore}/۱۰ — ` +
         `${report.passed} قبول، ${report.warned} هشدار، ${report.failed} رد. ` +
         (report.deltas.regressed.length > 0
-          ? `⚠️ رگرسیون نسبت به گزارش قبلی: ${report.deltas.regressed.join('، ')}.`
+          ? `موارد بدتر از گزارش قبلی: ${report.deltas.regressed.join('، ')}.`
           : 'بدون رگرسیون نسبت به گزارش قبلی.'),
       meta: {
         reportId: report.reportId,

@@ -125,17 +125,15 @@ async function civilExpertExecutor(task: AgentTask, routed: { skillId: string; s
     const contractAnalysis = analyzeContract(query);
     analysis = contractAnalysis;
 
-    output = `🏛️ **تحلیل قرارداد — کارشناس ارشد امور مدنی**
+    output = `**تحلیل قرارداد — کارشناس ارشد امور مدنی**
 
 **پرسش:** ${query}
 
-**مهارت انتخاب‌شده:** قراردادها (${skillId}) — امتیاز ${routed?.score?.toFixed(2) || 'N/A'}
-
 ### بندهای شناسایی‌شده:
-${contractAnalysis.clauses.map(c => `- ✅ ${c.persianName}: ${c.description} (${c.articleRef})`).join('\n') || '- هیچ بند مشخصی شناسایی نشد'}
+${contractAnalysis.clauses.map(c => `- ${c.persianName}: ${c.description} (${c.articleRef})`).join('\n') || '- هیچ بند مشخصی شناسایی نشد'}
 
 ### بندهای الزامی مفقود:
-${contractAnalysis.missing.map(c => `- ❌ ${c.persianName}: ${c.description} — ${c.articleRef}`).join('\n') || '- همه بندهای الزامی موجود است'}
+${contractAnalysis.missing.map(c => `- ${c.persianName}: ${c.description} — ${c.articleRef}`).join('\n') || '- همه بندهای الزامی موجود است'}
 
 ### توصیه‌های حقوقی:
 ${contractAnalysis.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
@@ -146,7 +144,7 @@ ${contractAnalysis.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
 - ماده ۲۲۱ قانون مدنی: مسئولیت متخلف از اجرای تعهد
 - ماده ۲۳۰ قانون مدنی: وجه التزام
 
-⚠️ **تذکر:** این تحلیل اولیه است و نیاز به بررسی وکیل دارد. قرارداد نهایی باید توسط وکیل تنظیم شود.
+**تذکر:** این تحلیل اولیه است و نیاز به بررسی وکیل دارد. قرارداد نهایی باید توسط وکیل تنظیم شود.
 `;
 
     citations.push(
@@ -155,11 +153,9 @@ ${contractAnalysis.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
       { text: 'ماده ۲۳۰ قانون مدنی — وجه التزام', sourceId: 'civil-code-230' },
     );
   } else if (skillId.includes('property') || query.includes('ملک') || query.includes('سند')) {
-    output = `🏠 **تحلیل امور ملکی — کارشناس ارشد امور مدنی**
+    output = `**تحلیل امور ملکی — کارشناس ارشد امور مدنی**
 
 **پرسش:** ${query}
-
-**مهارت:** املاک و اسناد مالکیت — امتیاز ${routed?.score?.toFixed(2) || 'N/A'}
 
 ### نکات حقوقی ملکی:
 ۱. **بررسی سند:** اطمینان از رسمی بودن سند و عدم وجود معارض (ماده ۲۲ قانون ثبت)
@@ -176,7 +172,7 @@ ${contractAnalysis.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
 ### مدارک لازم:
 - سند مالکیت، بنچاق، استعلامات، پایان کار، مفاصا حساب
 
-⚠️ نیاز به بررسی حضوری و کارشناسی رسمی دادگستری دارد.
+نیاز به بررسی حضوری و کارشناسی رسمی دادگستری دارد.
 `;
     citations.push(
       { text: 'ماده ۲۲ قانون ثبت — اعتبار اسناد رسمی', sourceId: 'registration-law-22' },
@@ -185,11 +181,9 @@ ${contractAnalysis.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
   } else if (skillId.includes('tort') || query.includes('خسارت') || query.includes('مسئولیت')) {
     const claimAnalysis = analyzeCivilClaim(query);
 
-    output = `⚖️ **تحلیل مسئولیت مدنی و خسارت**
+    output = `**تحلیل مسئولیت مدنی و خسارت**
 
 **پرسش:** ${query}
-
-**مهارت:** مسئولیت مدنی — امتیاز ${routed?.score?.toFixed(2) || 'N/A'}
 
 ### ارکان مسئولیت مدنی (ماده ۱ قانون مسئولیت مدنی):
 ۱. **وجود ضرر:** خسارت مادی یا معنوی وارد شده
@@ -218,18 +212,16 @@ ${claimAnalysis.documents.map(d => `- ${d}`).join('\n')}
 - ماده ۳۲۸ قانون مدنی: هر کس مال غیر را تلف کند ضامن است
 - ماده ۳۳۱ قانون مدنی: هر کس سبب تلف مال غیر شود ضامن است
 
-⚠️ اثبات تقصیر و رابطه سببیت بر عهده خواهان است.
+اثبات تقصیر و رابطه سببیت بر عهده خواهان است.
 `;
     citations.push(
       { text: 'ماده ۱ قانون مسئولیت مدنی', sourceId: 'liability-law-1' },
       { text: 'ماده ۳۲۸ قانون مدنی — اتلاف', sourceId: 'civil-code-328' },
     );
   } else if (skillId.includes('inheritance') || query.includes('ارث') || query.includes('میراث')) {
-    output = `📜 **تحلیل امور ارث و وصیت**
+    output = `**تحلیل امور ارث و وصیت**
 
 **پرسش:** ${query}
-
-**مهارت:** ارث و وصیت — امتیاز ${routed?.score?.toFixed(2) || 'N/A'}
 
 ### طبقات ارث (ماده ۸۶۲ قانون مدنی):
 - **طبقه اول:** پدر، مادر، اولاد و اولاد اولاد
@@ -252,18 +244,16 @@ ${claimAnalysis.documents.map(d => `- ${d}`).join('\n')}
 ۳. صدور گواهی
 ۴. تقسیم ترکه یا فروش و تقسیم ثمن
 
-⚠️ محاسبه دقیق سهم الارث نیاز به اطلاعات کامل وراث دارد.
+محاسبه دقیق سهم الارث نیاز به اطلاعات کامل وراث دارد.
 `;
     citations.push(
       { text: 'ماده ۸۶۲ قانون مدنی — طبقات ارث', sourceId: 'civil-code-862' },
       { text: 'ماده ۸۴۳ قانون مدنی — وصیت تا ثلث', sourceId: 'civil-code-843' },
     );
   } else {
-    output = `🏛️ **کارشناس ارشد امور مدنی — پاسخ عمومی**
+    output = `**کارشناس ارشد امور مدنی — پاسخ عمومی**
 
 **پرسش:** ${query}
-
-**مهارت انتخاب‌شده:** ${skillId} — امتیاز ${routed?.score?.toFixed(2) || 'N/A'}
 
 این پرسش در حوزه حقوق مدنی قرار دارد. برای ارائه تحلیل دقیق‌تر، لطفا جزئیات بیشتری ارائه دهید:
 
@@ -278,7 +268,7 @@ ${claimAnalysis.documents.map(d => `- ${d}`).join('\n')}
 - مسئولیت مدنی: خسارت، تقصیر، جبران
 - ارث و وصیت: انحصار وراثت، تقسیم ترکه
 
-⚠️ این پاسخ جنبه اطلاع‌رسانی دارد و مشاوره حقوقی نهایی محسوب نمی‌شود.
+این پاسخ جنبه اطلاع‌رسانی دارد و مشاوره حقوقی نهایی محسوب نمی‌شود.
 
 ---
 *${personaName} — ${skillId}*

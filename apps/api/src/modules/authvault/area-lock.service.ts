@@ -90,8 +90,21 @@ export class AreaLockService {
     }));
   }
 
-  async setPassword(area: LockedArea, password: string, byUserId: string): Promise<{ area: LockedArea; locked: true }> {
+  /**
+   * Set or change an area password. When the area is already locked the
+   * current password is required; otherwise anyone holding an open session
+   * could replace the lock and walk straight past it.
+   */
+  async setPassword(
+    area: LockedArea,
+    password: string,
+    byUserId: string,
+    currentPassword?: string,
+    clientIp = 'unknown',
+  ): Promise<{ area: LockedArea; locked: true }> {
     await this.ensure();
+    const existing = this.locks.get(area);
+    if (existing?.enabled) await this.assertPassword(existing, currentPassword ?? '', clientIp);
     if (typeof password !== 'string' || password.length < MIN_PASSWORD_LEN) {
       const err = new Error(`area password must be ≥${MIN_PASSWORD_LEN} chars`);
       (err as Error & { code?: string }).code = ERROR_CODES.VALIDATION_INVALID_INPUT;
@@ -113,9 +126,16 @@ export class AreaLockService {
     return { area, locked: true };
   }
 
-  async disable(area: LockedArea, byUserId: string): Promise<{ area: LockedArea; locked: false }> {
+  /** Remove an area lock; requires the current password of a locked area. */
+  async disable(
+    area: LockedArea,
+    byUserId: string,
+    currentPassword?: string,
+    clientIp = 'unknown',
+  ): Promise<{ area: LockedArea; locked: false }> {
     await this.ensure();
     const rec = this.locks.get(area);
+    if (rec?.enabled) await this.assertPassword(rec, currentPassword ?? '', clientIp);
     if (rec) {
       rec.enabled = false;
       rec.epoch += 1;
@@ -134,7 +154,14 @@ export class AreaLockService {
       const exp = Date.now() + TICKET_TTL_MS;
       return { ticket: this.signTicket(area, exp), expiresAt: new Date(exp).toISOString() };
     }
-    const decision = this.rateLimiter.consume(`arealock:${area}:${clientIp}`, {
+    await this.assertPassword(rec, password, clientIp);
+    const exp = Date.now() + TICKET_TTL_MS;
+    return { ticket: this.signTicket(area, exp), expiresAt: new Date(exp).toISOString() };
+  }
+
+  /** Rate-limited password check shared by unlock, change and disable. */
+  private async assertPassword(rec: AreaLockRecord, password: string, clientIp: string): Promise<void> {
+    const decision = this.rateLimiter.consume(`arealock:${rec.area}:${clientIp}`, {
       limit: 5, windowMs: 60_000, lockMs: 5 * 60_000,
     });
     if (!decision.allowed) {
@@ -142,15 +169,13 @@ export class AreaLockService {
         code: ERROR_CODES.AUTH_INVALID_CREDENTIALS,
       });
     }
-    const hash = await scryptAsync(password, Buffer.from(rec.saltHex, 'hex'), 32, SCRYPT_OPTS);
+    const hash = await scryptAsync(typeof password === 'string' ? password : '', Buffer.from(rec.saltHex, 'hex'), 32, SCRYPT_OPTS);
     const ok = timingSafeEqual(hash, Buffer.from(rec.hashHex, 'hex'));
     if (!ok) {
       const err = new Error('wrong area password');
       (err as Error & { code?: string }).code = ERROR_CODES.AUTH_INVALID_CREDENTIALS;
       throw err;
     }
-    const exp = Date.now() + TICKET_TTL_MS;
-    return { ticket: this.signTicket(area, exp), expiresAt: new Date(exp).toISOString() };
   }
 
   /** Stateless verify: signature + expiry + epoch must match current lock. */

@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import '@fontsource-variable/vazirmatn';
 import '../styles/globals.css';
 
 export const metadata: Metadata = {

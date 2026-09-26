@@ -4,6 +4,8 @@ export interface SendSmsResult {
   success: boolean;
   messageId?: string;
   error?: string;
+  /** True when a mock adapter handled the message and nothing was delivered. */
+  simulated?: boolean;
 }
 
 export interface SmsProvider {

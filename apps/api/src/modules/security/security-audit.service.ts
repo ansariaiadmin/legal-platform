@@ -18,8 +18,9 @@ export interface CheckResult {
   status: CheckStatus;
   /** one machine line, english,”: what the probe actually observed */
   evidence: string;
-  /** what to do to turn warn/fail into pass; null when pass */
+  /** what to do to turn warn/fail into pass, in plain language; null when there is nothing to do */
   remediationFa: string | null;
+  remediationEn: string | null;
 }
 
 export interface SecurityReport {
@@ -107,7 +108,7 @@ export class SecurityAuditService {
         if (!this.isProduction) {
           return { checkId: def.id, status: 'not_applicable',
             evidence: 'non-production runtime; HSTS withheld by design (ADR-021)',
-            remediationFa: 'در محیط عملیاتی HSTS به‌صورت خودکار فعال می‌شود' };
+            ...fix('transport.hsts.dev') };
         }
         const enabled = (this.config.get<string>('SECURITY_HEADERS') || 'on') !== 'off';
         return this.verdict(def, enabled, enabled
@@ -121,16 +122,16 @@ export class SecurityAuditService {
         if (effective.some((o) => o === '*')) {
           return { checkId: def.id, status: 'fail',
             evidence: 'wildcard origin in CORS_ORIGINS with credentials=true',
-            remediationFa: 'حذف * از CORS_ORIGINS و تعریف دامنه‌های دقیق' };
+            ...fix('cors.wildcard') };
         }
         if (this.isProduction && effective.length === 0) {
           return { checkId: def.id, status: 'warn',
             evidence: 'production with empty CORS allow-list (browsers blocked; non-browser clients unaffected)',
-            remediationFa: 'مقداردهی APP_URL/CORS_ORIGINS در پروداکشن' };
+            ...fix('cors.allowlist') };
         }
         return { checkId: def.id, status: 'pass',
           evidence: `allow-list mode; ${effective.length} origin(s) resolved; wildcard absent`,
-          remediationFa: null };
+          ...NO_FIX };
       }
       case 'auth.otp-throttle': {
         // The probe asks the very limiter instance the AuthModule consumes,
@@ -159,7 +160,7 @@ export class SecurityAuditService {
         if (this.isProduction) {
           return { checkId: def.id, status: 'pass',
             evidence: 'EnvService boot-guard passed in production mode',
-            remediationFa: null };
+            ...NO_FIX };
         }
         const hasPlaceholder = ['JWT_ACCESS_SECRET', 'JWT_REFRESH_SECRET', 'ENCRYPTION_MASTER_KEY']
           .map((k) => this.config.get<string>(k) || '')
@@ -170,7 +171,7 @@ export class SecurityAuditService {
           evidence: hasPlaceholder
             ? 'placeholder/missing secrets tolerated in development runtime'
             : 'all three secret keys populated and non-placeholder in development',
-          remediationFa: hasPlaceholder ? 'پرکردن سه کلید محرمانه حتی برای دولوپمنت' : null,
+          ...(hasPlaceholder ? fix('secrets.env-hygiene') : NO_FIX),
         };
       }
       case 'machine-tokens.hygiene': {
@@ -188,35 +189,35 @@ export class SecurityAuditService {
         if (!scopesSubset) bad.push('token with out-of-vocabulary scope detected in registry');
         if (bad.length > 0) {
           return { checkId: def.id, status: 'warn', evidence: bad.join('; '),
-            remediationFa: 'انقضا برای همه توکن‌ها الزامی شود؛ توکن‌های منقضی بازبینی/لغو شدند' };
+            ...fix('machine-tokens.hygiene') };
         }
         return { checkId: def.id, status: 'pass',
           evidence: `${tokens.length} token(s); all expiry-bound, vocabulary-closed`,
-          remediationFa: null };
+          ...NO_FIX };
       }
       case 'payload.bounds': {
         // Behavioral proof is the jest spec posting bad/large bodies; here we
         // assert the static configuration knobs are chosen and finite.
         return { checkId: def.id, status: 'pass',
           evidence: 'body-parser mapped to envelope: malformed→400 VALIDATION_MALFORMED_JSON, oversize→413 VALIDATION_BODY_TOO_LARGE',
-          remediationFa: null };
+          ...NO_FIX };
       }
       case 'workers.liveness': {
         const health = await this.workers.probe(2_500).catch(() => ({ alive: false as const, detail: 'probe threw' }));
         if (health.alive) {
           return { checkId: def.id, status: 'pass',
             evidence: `worker answered ping (detail=${JSON.stringify(health).slice(0, 120)})`,
-            remediationFa: null };
+            ...NO_FIX };
         }
         return { checkId: def.id, status: 'warn',
           evidence: `python workers not answering: ${health.detail ?? 'unreachable'} — local intelligence degraded (env is source of truth, SPEC §2)`,
-          remediationFa: 'راه‌اندازی ورکر پایتونی: python -m pylegal.worker با REDIS_URL صحیح' };
+          ...fix('workers.liveness') };
       }
       case 'standards.freshness': {
         const intervalMs = this.scanIntervalMs > 0 ? this.scanIntervalMs : 86_400_000;
         if (this.lastRunAt === null) {
           return { checkId: def.id, status: 'warn',
-            evidence: 'first scan — no previous run to age', remediationFa: null };
+            evidence: 'first scan — no previous run to age', ...fix('standards.freshness') };
         }
         const ageMs = Date.now() - Date.parse(this.lastRunAt);
         return this.verdict(def, ageMs <= intervalMs * 2,
@@ -225,7 +226,7 @@ export class SecurityAuditService {
             : `stale: ${(ageMs / 3_600_000).toFixed(1)}h since previous scan`);
       }
       default:
-        return { checkId: def.id, status: 'warn', evidence: `no probe registered for ${def.id}`, remediationFa: null };
+        return { checkId: def.id, status: 'warn', evidence: `no probe registered for ${def.id}`, ...NO_FIX };
     }
   }
 
@@ -234,7 +235,7 @@ export class SecurityAuditService {
       checkId: def.id,
       status: ok ? 'pass' : def.severity === 'critical' ? 'fail' : 'warn',
       evidence,
-      remediationFa: ok ? null : remediationFor(def.id),
+      ...(ok ? NO_FIX : fix(def.id)),
     };
   }
 
@@ -292,18 +293,64 @@ export class SecurityAuditService {
   }
 }
 
-function remediationFor(id: string): string {
-  const map: Record<string, string> = {
-    'transport.headers': 'SECURITY_HEADERS را on کنید (پیش‌فرض on است)',
-    'transport.hsts': 'در پروداکشن پشت HTTPS + هدرمیدل‌ویر فعال',
-    'cors.allowlist': 'CORS_ORIGINS/APP_URL دقیق و بدون wildcard',
-    'auth.otp-throttle': 'RateLimitService باید در AuthModule مصرف شود',
-    'rate-limit.global': 'GLOBAL_RATE_LIMIT_PER_MIN بین ۱ تا ۱۰هزار',
-    'secrets.env-hygiene': 'SECRETها را مقداردهی و rotate کنید',
-    'machine-tokens.hygiene': 'انقضای توکن‌ها و لغو موقت/منقضی',
-    'payload.bounds': 'نگاشت ۴۰۰/۴۱۳ در AllExceptionsFilter',
-    'workers.liveness': 'ورکر پایتونی را بالا بیاورید (pylegal.worker)',
-    'standards.freshness': 'SECURITY_SCAN_INTERVAL_MS و اسکن دوره‌ای',
-  };
-  return map[id] ?? 'به runbook مراجعه کنید';
+/** Plain-language fixes shown to the office owner, keyed by check id (or a check-specific variant). */
+const REMEDIATION: Record<string, [fa: string, en: string]> = {
+  'transport.headers': [
+    'در فایل ‎.env‎ مقدار SECURITY_HEADERS را روی on بگذارید (پیش‌فرض همین است) و سرویس را دوباره راه‌اندازی کنید.',
+    'Set SECURITY_HEADERS to on in .env (the default) and restart the service.',
+  ],
+  'transport.hsts': [
+    'سرور را پشت HTTPS اجرا کنید و SECURITY_HEADERS را روشن نگه دارید.',
+    'Serve the site over HTTPS and keep SECURITY_HEADERS on.',
+  ],
+  'transport.hsts.dev': [
+    'این مورد فقط در نصب عملیاتی با HTTPS بررسی می‌شود و آنجا خودکار فعال است.',
+    'Only checked on a production HTTPS install, where it is enabled automatically.',
+  ],
+  'cors.wildcard': [
+    'در فایل ‎.env‎ مقدار CORS_ORIGINS را از * به نشانی دقیق سایت خود تغییر دهید.',
+    'In .env, change CORS_ORIGINS from * to the exact address of your site.',
+  ],
+  'cors.allowlist': [
+    'نشانی سایت را در فایل ‎.env‎ در APP_URL وارد کنید.',
+    'Set your site address in APP_URL in .env.',
+  ],
+  'auth.otp-throttle': [
+    'محدودیت تلاش‌های ورود کار نمی‌کند. سرویس API را دوباره راه‌اندازی کنید و اگر مشکل ماند، گزارش خطا ثبت کنید.',
+    'Sign-in attempt limiting is not working. Restart the API service and report a bug if it persists.',
+  ],
+  'rate-limit.global': [
+    'مقدار GLOBAL_RATE_LIMIT_PER_MIN در فایل ‎.env‎ باید بین ۱ و ۱۰٬۰۰۰ باشد.',
+    'GLOBAL_RATE_LIMIT_PER_MIN in .env must be between 1 and 10,000.',
+  ],
+  'secrets.env-hygiene': [
+    'کلیدهای محرمانه (JWT_ACCESS_SECRET، JWT_REFRESH_SECRET و ENCRYPTION_MASTER_KEY) را در ‎.env‎ مقداردهی کنید؛ setup.sh این کار را خودکار انجام می‌دهد.',
+    'Set the secret keys (JWT_ACCESS_SECRET, JWT_REFRESH_SECRET and ENCRYPTION_MASTER_KEY) in .env; setup.sh does this automatically.',
+  ],
+  'machine-tokens.hygiene': [
+    'برای همهٔ توکن‌های دسترسی ماشینی تاریخ انقضا تعیین کنید. توکن‌های منقضی همین حالا خودکار لغو شدند.',
+    'Give every machine access token an expiry date. Expired tokens were revoked automatically just now.',
+  ],
+  'payload.bounds': [
+    'سرویس API را به آخرین نسخه به‌روز کنید.',
+    'Update the API service to the latest release.',
+  ],
+  'workers.liveness': [
+    'سرویس پردازش فایل (workers-py) پاسخ نمی‌دهد. وضعیت آن را با docker compose ps بررسی و در صورت نیاز دوباره راه‌اندازی کنید.',
+    'The file-processing service (workers-py) is not answering. Check it with docker compose ps and restart it if needed.',
+  ],
+  'standards.freshness': [
+    'اسکن امنیتی را اجرا کنید. فاصلهٔ اسکن خودکار با SECURITY_SCAN_INTERVAL_MS تنظیم می‌شود.',
+    'Run a security scan. The automatic scan interval is set with SECURITY_SCAN_INTERVAL_MS.',
+  ],
+};
+
+const NO_FIX = { remediationFa: null, remediationEn: null } as const;
+
+function fix(key: string): { remediationFa: string; remediationEn: string } {
+  const [fa, en] = REMEDIATION[key] ?? [
+    'راهنمای عملیات (docs/RUNBOOK.md) را ببینید.',
+    'See the operations runbook (docs/RUNBOOK.md).',
+  ];
+  return { remediationFa: fa, remediationEn: en };
 }

@@ -1,7 +1,8 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { STORAGE_PROVIDER } from '../../providers/provider.tokens';
 import type { StorageProvider } from '../../providers/storage/storage.provider';
 import { MachineTokensService, type MachineToken } from '../machine-tokens/machine-tokens.service';
+import { AreaLockService } from './area-lock.service';
 
 const EPOCHS_KEY = 'runtime/authvault/secret-epochs.json';
 
@@ -16,8 +17,13 @@ export interface RotationAdvice {
   lastRotatedAt: string | null;
   ageDays: number | null;    // null when never
   maxAgeDays: number;
-  status: 'fresh' | 'aging' | 'overdue' | 'never';
+  /**
+   * `not_applicable`: nothing of this kind exists (no machine tokens, no locked area).
+   * `manual`: owned by the server's .env; the platform cannot see or rotate it.
+   */
+  status: 'fresh' | 'aging' | 'overdue' | 'never' | 'not_applicable' | 'manual';
   hintFa: string;
+  hintEn: string;
 }
 
 export interface RotateAllResult {
@@ -30,11 +36,25 @@ export interface RotateAllResult {
   notesFa: string[];
 }
 
-const ROTATION_POLICY: Array<{ key: string; maxAgeDays: number; hintFa: string }> = [
-  { key: 'machine-tokens', maxAgeDays: 180, hintFa: 'توکن‌های ماشین هر ۱۸۰ روز بچرخند' },
-  { key: 'area-passwords', maxAgeDays: 90, hintFa: 'رمز قفل‌های حیاتی هر ۹۰ روز عوض شود' },
-  { key: 'jwt-secrets', maxAgeDays: 365, hintFa: 'کلیدهای JWT سالانه از env چرخانده شوند (خارج از API — خودتان)' },
-  { key: 'webhook-signing', maxAgeDays: 180, hintFa: 'امضای وب‌هوک‌ها را نیز شامل چرخه کنید' },
+const ROTATION_POLICY: Array<{ key: string; maxAgeDays: number; hintFa: string; hintEn: string }> = [
+  {
+    key: 'machine-tokens',
+    maxAgeDays: 180,
+    hintFa: 'توکن‌های دسترسی ماشینی هر ۱۸۰ روز با دکمهٔ «چرخش» نو شوند.',
+    hintEn: 'Renew machine access tokens every 180 days with the rotate button.',
+  },
+  {
+    key: 'area-passwords',
+    maxAgeDays: 90,
+    hintFa: 'رمز بخش‌های قفل‌شده هر ۹۰ روز در همین صفحه عوض شود.',
+    hintEn: 'Change the passwords of locked sections every 90 days on this page.',
+  },
+  {
+    key: 'jwt-secrets',
+    maxAgeDays: 365,
+    hintFa: 'کلیدهای JWT در فایل ‎.env‎ سرور هستند و سالی یک بار باید دستی عوض شوند؛ سامانه به آن‌ها دسترسی ندارد.',
+    hintEn: 'The JWT keys live in the server .env file and should be changed by hand once a year; the platform cannot touch them.',
+  },
 ];
 
 /**
@@ -54,6 +74,7 @@ export class RotationService {
   constructor(
     private readonly machineTokens: MachineTokensService,
     @Inject(STORAGE_PROVIDER) private readonly storage: StorageProvider,
+    @Optional() private readonly areaLocks?: AreaLockService,
   ) {}
 
   private async ensure(): Promise<void> {
@@ -81,16 +102,27 @@ export class RotationService {
     const oldestTokenAt = live.length
       ? live.map((t) => Date.parse(t.createdAt)).reduce((a, b) => Math.min(a, b))
       : null;
+    const locked = this.areaLocks ? (await this.areaLocks.status()).filter((a) => a.locked && a.updatedAt) : [];
+    const oldestLockAt = locked.length ? locked.map((a) => a.updatedAt!).sort()[0]! : null;
 
     return ROTATION_POLICY.map((policy) => {
+      const base = { key: policy.key, maxAgeDays: policy.maxAgeDays, hintFa: policy.hintFa, hintEn: policy.hintEn };
+      if (policy.key === 'jwt-secrets') return { ...base, lastRotatedAt: null, ageDays: null, status: 'manual' as const };
+      if (policy.key === 'machine-tokens' && live.length === 0) {
+        return { ...base, lastRotatedAt: null, ageDays: null, status: 'not_applicable' as const };
+      }
+      if (policy.key === 'area-passwords' && this.areaLocks && locked.length === 0) {
+        return { ...base, lastRotatedAt: null, ageDays: null, status: 'not_applicable' as const };
+      }
       const epoch = this.epochs.get(policy.key);
       let lastRotatedAt = epoch?.lastRotatedAt ?? null;
-      // inference from reality: machine-token age from actual token records,
-      // not just our epoch log
+      // Age is read from reality, not only from our own log: the oldest live
+      // machine token, and the oldest password change among locked areas.
       if (policy.key === 'machine-tokens' && oldestTokenAt !== null) {
         const inferred = new Date(oldestTokenAt).toISOString();
         if (!lastRotatedAt || inferred < lastRotatedAt) lastRotatedAt = inferred;
       }
+      if (policy.key === 'area-passwords' && oldestLockAt !== null) lastRotatedAt = oldestLockAt;
       const ageDays = lastRotatedAt === null
         ? null
         : Math.floor((Date.now() - Date.parse(lastRotatedAt)) / 86_400_000);
@@ -99,7 +131,7 @@ export class RotationService {
           : ageDays <= policy.maxAgeDays * 2 / 3 ? 'fresh'
             : ageDays <= policy.maxAgeDays ? 'aging'
               : 'overdue';
-      return { key: policy.key, lastRotatedAt, ageDays, maxAgeDays: policy.maxAgeDays, status, hintFa: policy.hintFa };
+      return { ...base, lastRotatedAt, ageDays, status };
     });
   }
 
@@ -122,16 +154,20 @@ export class RotationService {
     }
 
     const now = new Date().toISOString();
-    for (const key of ['machine-tokens', 'area-passwords', 'webhook-signing']) {
-      this.epochs.set(key, { key, lastRotatedAt: now, actor: actorId });
-    }
+    // Only machine tokens are rotated here. Area passwords must be changed by
+    // their owner (knowing the old one is the point) and JWT keys live in .env.
+    this.epochs.set('machine-tokens', { key: 'machine-tokens', lastRotatedAt: now, actor: actorId });
     await this.persist();
     this.logger.log(`rotate-all: ${live.length} machine token(s) re-issued by ${actorId}`);
 
     const notesFa = [
-      'رمزهای env (JWT_ACCESS_SECRET/JWT_REFRESH_SECRET/ENCRYPTION_MASTER_KEY) را از فایل env سرور تغییر دهید — API هرگز به آنها دست نمی‌زند.',
-      'رمز قفل‌های ناحیه‌ای (config/vault/ops) را دستی عوض کنید — امنیت آن در دانستن رمز قدیمی است.',
-      'این فایل را یک‌بار دانلود و در جای امن بگذارید؛ پلتفرم از آن نگهداری نمی‌کند.',
+      'کلیدهای JWT_ACCESS_SECRET و JWT_REFRESH_SECRET در فایل ‎.env‎ سرور هستند و باید دستی عوض شوند؛ سامانه به آن‌ها دسترسی ندارد. ENCRYPTION_MASTER_KEY را عوض نکنید، وگرنه کلیدهای ذخیره‌شده دیگر خوانده نمی‌شوند.',
+      'رمز بخش‌های قفل‌شده (تنظیمات، کلیدها، عملیات) را خودتان در صفحهٔ امنیت عوض کنید.',
+      'این فایل فقط یک بار ساخته می‌شود و سامانه نسخه‌ای از آن نگه نمی‌دارد؛ آن را در جای امن بگذارید.',
+      '',
+      'JWT_ACCESS_SECRET and JWT_REFRESH_SECRET live in the server .env file and must be changed by hand. Do not change ENCRYPTION_MASTER_KEY, or stored keys can no longer be read.',
+      'Change the passwords of locked sections (settings, keys, operations) yourself on the security page.',
+      'This file is produced once and the platform keeps no copy; store it somewhere safe.',
     ];
 
     const credentialsFile = [

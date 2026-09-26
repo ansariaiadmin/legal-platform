@@ -1,5 +1,12 @@
 import {
-  Body, Controller, Get, Param, Post, Query, UseGuards,
+  Body,
+  ConflictException,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Query,
+  UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAccessGuard } from '../../security/jwt-access.guard';
@@ -183,13 +190,21 @@ export class CorpusController {
     };
   }
 
-  /** Kick a sync NOW for a source (mock adapter in dev). Idempotent per
-   *  (source, window): re-asking the same day replays as a no-op. */
-  
+  /** Sync one source window now. Idempotent per (source, window): asking
+   *  again for the same day replays as a no-op. Production has no sample
+   *  source, so without a registered collector this answers 409. */
   @Post('sync')
-  @ApiOperation({ summary: 'Sync one source window now (idempotent)' })
+  @ApiOperation({ summary: 'Sync one source window now (idempotent; 409 when no collector source is registered)' })
   async sync(@Body() body: { sourceId?: string; date?: string }) {
-    return this.worker.sync(body.sourceId ?? 'rooznameh-mock', body.date);
+    const sources = this.collector.listSources();
+    const sourceId = body.sourceId ?? sources[0];
+    if (!sourceId || !sources.includes(sourceId)) {
+      throw new ConflictException({
+        code: 'SYSTEM_FEATURE_NOT_AVAILABLE',
+        message: 'هنوز هیچ منبع خودکاری برای گردآوری قوانین متصل نشده است. متن قانون را دستی یا از فایل اضافه کنید.',
+      });
+    }
+    return this.worker.sync(sourceId, body.date);
   }
 
   /** Manual retry for a seen failure — linked to the old run, counted fresh. */

@@ -10,6 +10,7 @@ import { RateLimitService } from '../../src/common/rate-limit.service';
 import { UserRole } from '@legal-platform/domain';
 import { normalizeIranPhone } from '@legal-platform/shared';
 import { MockSmsAdapter } from '../../src/providers/sms/mock-sms.adapter';
+import { RoutingSmsProvider } from '../../src/providers/sms/routing-sms.provider';
 
 // The sign-in flow always hands the normalized number to findOrCreateUser.
 const phone = (raw: string) => normalizeIranPhone(raw) as string;
@@ -157,6 +158,19 @@ describe('Development sign-in code', () => {
 
   it('is never returned with a real gateway', async () => {
     const res = await service('development', { sendSms: async () => ({ success: true }) }).requestOtp('09121234567');
+    expect(res.devCode).toBeUndefined();
+  });
+
+  it('is returned when the SMS router falls back to the mock adapter (the production wiring)', async () => {
+    const router = new RoutingSmsProvider(new MockSmsAdapter(), async () => null);
+    const res = await service('development', router).requestOtp('09121234567');
+    expect(res.devCode).toMatch(/^\d{6}$/);
+  });
+
+  it('is not returned when the router sends through a connected SMS panel', async () => {
+    const panel = { sendSms: async () => ({ success: true }), verifyConfig: async () => ({ valid: true }) };
+    const router = new RoutingSmsProvider(new MockSmsAdapter(), async () => panel);
+    const res = await service('development', router).requestOtp('09121234567');
     expect(res.devCode).toBeUndefined();
   });
 });

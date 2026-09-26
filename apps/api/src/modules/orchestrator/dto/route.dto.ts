@@ -37,7 +37,7 @@ export class RouteQueryDto {
 }
 
 export class GrantAgentDto {
-  @ApiProperty({ example: 'legal-expert-base' })
+  @ApiProperty({ example: 'civil-expert' })
   @IsString()
   @IsNotEmpty()
   agentId!: string;

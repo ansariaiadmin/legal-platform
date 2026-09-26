@@ -1,14 +1,21 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { api } from '@/lib/api';
-import { t } from '@/i18n';
+import { Check, ChevronDown, ChevronUp, ExternalLink, Rocket } from 'lucide-react';
+import { api, ApiError } from '@/lib/api';
+import { getPrefs, setPrefs, t, type TranslationKey } from '@/i18n';
 
 /**
- * P8 setup wizard — first-run overlay. State machine lives SERVER-SIDE
- * (resumable across devices, honest persistence); this component just walks
- * the current step card and posts payloads. Steps that belong to a tab
- * navigate you there; steps with config need a minimal form, never a guess.
+ * First-run setup wizard.
+ *
+ * The step list and progress live on the server (GET/POST /dashboard/setup),
+ * so the wizard resumes where it stopped, on any device. The panel is docked
+ * rather than modal: most steps ask the owner to do something in another
+ * section, and that section has to stay usable while the panel is open.
+ *
+ * Steps with settings apply them for real before advancing:
+ *   profile → POST /dashboard/config/profile (and switches the UI language)
+ *   brain   → POST /dashboard/config/preset
  */
 
 interface WizardStep {
@@ -25,144 +32,194 @@ interface WizardStatus {
   completed: string[];
 }
 
-const OPTS: Record<string, Array<{ key: string; label: string }>> = {
-  profile: [],
-  brain: [],
-};
+type Preset = 'spartan' | 'counsel' | 'senator';
+const PRESETS: Preset[] = ['spartan', 'counsel', 'senator'];
+
+/** Fired when the wizard is finished, so the guided tour can start. */
+export const WIZARD_FINISHED_EVENT = 'legal-platform:wizard-finished';
 
 export function SetupWizardOverlay({ onNavigate }: { onNavigate: (tab: string) => void }) {
   const [status, setStatus] = useState<WizardStatus | null>(null);
-  const [open, setOpen] = useState(false);
+  const [hidden, setHidden] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [form, setForm] = useState<Record<string, string>>({});
+  const [err, setErr] = useState<string | null>(null);
+  const [locale, setLocale] = useState<'fa' | 'en'>('fa');
+  const [country, setCountry] = useState('Iran');
+  const [preset, setPreset] = useState<Preset>('counsel');
 
   const refresh = useCallback(async () => {
     try {
-      const s = await api.get<WizardStatus>('/dashboard/setup');
+      let s = await api.get<WizardStatus>('/dashboard/setup');
+      if (!s.started) {
+        // First sign-in of the office: start the wizard (idempotent server-side).
+        await api.post('/dashboard/setup/start', {});
+        s = await api.get<WizardStatus>('/dashboard/setup');
+      }
       setStatus(s);
-      setOpen(s.started && !s.finished);
-    } catch { /* API down → hide */ }
+      if (s.finished) window.dispatchEvent(new Event(WIZARD_FINISHED_EVENT));
+    } catch {
+      setStatus(null); // no permission or API unavailable: stay out of the way
+    }
   }, []);
 
   useEffect(() => {
+    setLocale(getPrefs().locale);
+    // On phones the panel starts collapsed so it does not cover the page.
+    if (window.matchMedia('(max-width: 640px)').matches) setCollapsed(true);
     void refresh();
   }, [refresh]);
 
-  if (!open || !status?.current) return null;
-
-  const current = status.steps.find((s) => s.id === status.current);
-  if (!current) return null;
+  if (hidden || !status || status.finished || !status.current) return null;
   const idx = status.steps.findIndex((s) => s.id === status.current);
-
-  const advance = async (payload: Record<string, unknown> | null) => {
-    setBusy(true);
-    try {
-      await api.post('/dashboard/setup/advance', { stepId: current.id, payload: payload ?? {} });
-      if (current.tab) onNavigate(current.tab);
-      await refresh();
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const finish = async () => {
-    setBusy(true);
-    try {
-      await api.post('/dashboard/setup/finish', {});
-      setOpen(false);
-      await refresh();
-    } finally {
-      setBusy(false);
-    }
-  };
-
+  const current = status.steps[idx];
+  if (!current) return null;
   const isLast = current.id === 'done';
 
+  const run = async (fn: () => Promise<void>) => {
+    setBusy(true);
+    setErr(null);
+    try {
+      await fn();
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : t('wizard.error'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const advance = () =>
+    run(async () => {
+      let payload: Record<string, unknown> = {};
+      if (current.id === 'profile') {
+        await api.post('/dashboard/config/profile', { defaultLocale: locale, country: country.trim() || 'Iran' });
+        setPrefs({ locale });
+        payload = { defaultLocale: locale, country: country.trim() || 'Iran' };
+      } else if (current.id === 'brain') {
+        await api.post('/dashboard/config/preset', { preset });
+        payload = { preset };
+      } else if (current.requiresPayload) {
+        payload = { ...current.defaultPayload };
+      }
+      await api.post('/dashboard/setup/advance', { stepId: current.id, payload });
+      const next = status.steps[idx + 1];
+      if (next?.tab) onNavigate(next.tab);
+      await refresh();
+    });
+
+  const finish = () =>
+    run(async () => {
+      await api.post('/dashboard/setup/advance', { stepId: 'done', payload: {} }).catch(() => undefined);
+      await api.post('/dashboard/setup/finish', {});
+      onNavigate('home');
+      await refresh();
+    });
+
+  const stepKey = (suffix: 'title' | 'body') => `wizard.step.${current.id}.${suffix}` as TranslationKey;
+
   return (
-    <div
-      role="dialog"
-      aria-modal
-      style={{
-        position: 'fixed', inset: 0, background: 'rgba(5,8,14,0.86)', backdropFilter: 'blur(6px)',
-        zIndex: 90, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
-      }}
-    >
-      <div style={{
-        background: 'var(--bg-soft)', border: '1px solid var(--line)', borderRadius: 'var(--radius)',
-        maxWidth: 520, width: '100%', padding: 24,
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-          <b>{t('wizard.title')}</b>
-          <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>{idx + 1} / {status.steps.length}</span>
-        </div>
-        {/* progress beads */}
-        <div style={{ display: 'flex', gap: 4, margin: '8px 0 16px' }}>
-          {status.steps.map((s) => (
-            <span
-              key={s.id}
-              style={{
-                height: 6, flex: 1, borderRadius: 3,
-                background: status.completed.includes(s.id)
-                  ? 'var(--ok)'
-                  : s.id === status.current
-                    ? 'var(--teal)'
-                    : 'var(--line)',
-              }}
-            />
-          ))}
-        </div>
+    <aside className={`wizard-dock ${collapsed ? 'collapsed' : ''}`} aria-labelledby="wizard-title">
+      <header className="wizard-head">
+        <Rocket size={18} aria-hidden="true" />
+        <b id="wizard-title">{t('wizard.title')}</b>
+        <span className="wizard-count">
+          {t('wizard.stepOf')
+            .replace('{n}', (idx + 1).toLocaleString(locale === 'fa' ? 'fa-IR' : 'en-US'))
+            .replace('{total}', status.steps.length.toLocaleString(locale === 'fa' ? 'fa-IR' : 'en-US'))}
+        </span>
+        <button
+          type="button"
+          className="icon-btn"
+          onClick={() => setCollapsed((v) => !v)}
+          aria-expanded={!collapsed}
+          aria-label={collapsed ? t('wizard.expand') : t('wizard.collapse')}
+        >
+          {collapsed ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+        </button>
+      </header>
 
-        <h4 style={{ marginTop: 0 }}>{t(`wizard.step.${current.id}.title` as never)}</h4>
-        <p style={{ color: 'var(--text-dim)', fontSize: 14, lineHeight: 1.9 }}>
-          {t(`wizard.step.${current.id}.body` as never)}
-        </p>
+      <div className="wizard-progress" aria-hidden="true">
+        {status.steps.map((s) => (
+          <span
+            key={s.id}
+            className={status.completed.includes(s.id) ? 'done' : s.id === status.current ? 'current' : ''}
+          />
+        ))}
+      </div>
 
-        {current.id === 'profile' && (
-          <div style={{ display: 'grid', gap: 8 }}>
-            <input placeholder={t('wizard.profile.country')} value={form.country ?? ''}
-              onChange={(e) => setForm((f) => ({ ...f, country: e.target.value }))}
-              style={{ padding: 10, borderRadius: 10, border: '1px solid var(--line)', background: 'transparent' }} />
-            <div style={{ display: 'flex', gap: 8 }}>
-              {(['fa', 'en'] as const).map((loc) => (
-                <button key={loc} className={`pill ${(form.defaultLocale ?? 'fa') === loc ? 'teal' : ''}`}
-                  onClick={() => setForm((f) => ({ ...f, defaultLocale: loc }))} style={{ cursor: 'pointer' }}>
-                  {loc === 'fa' ? 'فارسی' : 'English'}
+      {!collapsed && (
+        <div className="wizard-body">
+          <h4>{t(stepKey('title'))}</h4>
+          <p>{t(stepKey('body'))}</p>
+
+          {current.id === 'profile' && (
+            <div className="wizard-form">
+              <div className="segmented" role="radiogroup" aria-label={t('wizard.profile.language')}>
+                {(['fa', 'en'] as const).map((loc) => (
+                  <button
+                    key={loc}
+                    type="button"
+                    role="radio"
+                    aria-checked={locale === loc}
+                    className={`tab ${locale === loc ? 'active' : ''}`}
+                    onClick={() => setLocale(loc)}
+                  >
+                    {loc === 'fa' ? 'فارسی' : 'English'}
+                  </button>
+                ))}
+              </div>
+              <div className="field">
+                <label htmlFor="wizard-country">{t('wizard.profile.country')}</label>
+                <input id="wizard-country" value={country} onChange={(e) => setCountry(e.target.value)} />
+              </div>
+            </div>
+          )}
+
+          {current.id === 'brain' && (
+            <div className="wizard-form" role="radiogroup" aria-label={t('home.preset')}>
+              {PRESETS.map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  role="radio"
+                  aria-checked={preset === p}
+                  className={`choice ${preset === p ? 'active' : ''}`}
+                  onClick={() => setPreset(p)}
+                >
+                  <b>{t(`brain.tier.${p}` as TranslationKey)}</b>
+                  <small>{t(`brain.tier.${p}.hint` as TranslationKey)}</small>
                 </button>
               ))}
             </div>
-          </div>
-        )}
-
-        <div style={{ display: 'flex', gap: 8, marginTop: 18, flexWrap: 'wrap' }}>
-          {isLast ? (
-            <button className="pill ok" disabled={busy} onClick={() => void finish()} style={{ cursor: 'pointer' }}>
-              {t('wizard.finish')}
-            </button>
-          ) : (
-            <button
-              className="pill teal"
-              disabled={busy}
-              onClick={() =>
-                void advance(
-                  current.requiresPayload
-                    ? { ...current.defaultPayload, ...form }
-                    : {},
-                )
-              }
-              style={{ cursor: 'pointer' }}
-            >
-              {busy ? '…' : t('wizard.advance')}
-            </button>
           )}
-          <button className="pill" onClick={() => setOpen(false)} style={{ cursor: 'pointer' }}>
-            {t('wizard.later')}
-          </button>
-          <small style={{ marginInlineStart: 'auto', color: 'var(--text-dim)', alignSelf: 'center' }}>
-            {t('wizard.resumeHint')}
-          </small>
+
+          {err && <p className="form-error" role="alert">{err}</p>}
+
+          <div className="wizard-actions">
+            {isLast ? (
+              <button type="button" className="btn primary" disabled={busy} onClick={() => void finish()}>
+                <Check size={16} aria-hidden="true" />
+                {t('wizard.finish')}
+              </button>
+            ) : (
+              <button type="button" className="btn primary" disabled={busy} onClick={() => void advance()}>
+                <Check size={16} aria-hidden="true" />
+                {current.id === 'welcome' ? t('wizard.start') : t('wizard.advance')}
+              </button>
+            )}
+            {current.tab && current.tab !== 'home' && (
+              <button type="button" className="btn ghost small" onClick={() => onNavigate(current.tab)}>
+                <ExternalLink size={15} aria-hidden="true" />
+                {t('wizard.openSection')}
+              </button>
+            )}
+            <button type="button" className="btn ghost small" onClick={() => setHidden(true)}>
+              {t('wizard.later')}
+            </button>
+          </div>
+          <small className="wizard-hint">{t('wizard.resumeHint')}</small>
         </div>
-        {OPTS && null /* placeholder keeps lint happy; per-step UIs live above */}
-      </div>
-    </div>
+      )}
+    </aside>
   );
 }

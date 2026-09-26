@@ -45,7 +45,7 @@ export class AlertRelayService implements OnModuleInit {
     if (!url) return 'unconfigured';
     if (!CRITICAL_KINDS.has(event.kind)) return 'ignored';
 
-    const text = `🛡️ [${event.kind}] ${event.agentId ?? 'platform'} — ${event.detail ?? ''}`.slice(0, 300);
+    const text = `[${event.kind}] ${event.agentId ?? 'platform'} — ${event.detail ?? ''}`.slice(0, 300);
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

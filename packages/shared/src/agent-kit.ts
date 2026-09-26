@@ -102,7 +102,7 @@ export function createExpertAgent(spec: ExpertAgentSpec): IExpertAgent {
         } catch (error) {
           return {
             ok: false,
-            output: `خطا در اجرای ایجنت ${spec.agentId}: ${error instanceof Error ? error.message : String(error)}`,
+            output: `اجرای «${spec.persona.displayName}» با خطا متوقف شد: ${error instanceof Error ? error.message : String(error)}`,
             errorCode: 'AGENT_EXECUTION_FAILED',
             meta: {
               grounded: false,
@@ -115,13 +115,14 @@ export function createExpertAgent(spec: ExpertAgentSpec): IExpertAgent {
         }
       }
 
-      // Default mock behavior (for agents not yet real)
+      // No analyser (e.g. an expert added at runtime from the dashboard): the
+      // agent can classify a question but must not pretend to answer it.
       return {
-        ok: true,
+        ok: false,
+        errorCode: 'AI_AGENT_NO_ANALYSIS',
         output:
-          `${spec.persona.displayName} (${spec.agentId}) — پرسش دریافت شد. ` +
-          `این پاسخ مولدنشده است؛ تا اتصال RAG (فاز ۴) هیچ‌وقت به‌عنوان نظر حقوقی نهایی ارائه نمی‌شود. ` +
-          `مهارت انتخاب‌شده: ${routed?.skillId ?? 'none'}.`,
+          `«${spec.persona.displayName}» پرسش‌ها را دسته‌بندی می‌کند اما هنوز تحلیل حقوقی اختصاصی ندارد؛ پاسخی تولید نشد. ` +
+          'برای پاسخ مستند، از بخش «پیش‌نویس‌ها» درخواست پیش‌نویس ثبت کنید.',
         meta: {
           grounded: false,
           requiresReview: true,

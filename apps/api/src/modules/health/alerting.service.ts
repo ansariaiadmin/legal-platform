@@ -53,7 +53,7 @@ export class AlertingService {
       return;
     }
 
-    const text = `🚨 *${alert.severity.toUpperCase()}*: ${alert.rule}\n${alert.message}\nTime: ${alert.timestamp}`;
+    const text = `*${alert.severity.toUpperCase()}*: ${alert.rule}\n${alert.message}\nTime: ${alert.timestamp}`;
 
     try {
       const response = await fetch(`https://api.telegram.org/bot${config.botToken}/sendMessage`, {
@@ -84,7 +84,7 @@ export class AlertingService {
     }
 
     const payload = {
-      text: `🚨 ${alert.severity.toUpperCase()}: ${alert.rule}`,
+      text: `${alert.severity.toUpperCase()}: ${alert.rule}`,
       attachments: [
         {
           color: alert.severity === 'critical' ? 'danger' : alert.severity === 'warning' ? 'warning' : '#36a64f',

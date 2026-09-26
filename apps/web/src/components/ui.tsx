@@ -1,6 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import { getPrefs } from '@/i18n';
 
 /**
  * P10 UI primitives — tiny, dependency-free, psychology-backed:
@@ -15,15 +16,17 @@ export function toFaDigits(input: string | number): string {
   return String(input).replace(/[0-9]/g, (d) => FA_DIGITS[Number(d)]);
 }
 
+/** Numbers follow the interface language unless `fa` is given explicitly. */
 export function Num({
   value,
-  fa = true,
+  fa: faOverride,
   title,
 }: {
   value: number | string | null | undefined;
   fa?: boolean;
   title?: string;
 }) {
+  const fa = faOverride ?? getPrefs().locale === 'fa';
   if (value == null || value === '') return <span className="num">—</span>;
   const shown = typeof value === 'number'
     ? new Intl.NumberFormat(fa ? 'fa-IR' : 'en-US').format(value)

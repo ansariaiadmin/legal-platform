@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { Bell, Clock, Download, Headset, PhoneCall, Wallet, type LucideIcon } from 'lucide-react';
 import {
   api,
   errText,
@@ -21,6 +22,26 @@ type TabId = 'consult' | 'wallet' | 'inbox';
 
 const PENDING_TOPUP_KEY = 'lp_portal_pending_topup';
 const fa = (n: number) => n.toLocaleString('fa-IR');
+
+/**
+ * Keeps only digits, converting Persian (۰–۹) and Arabic-Indic (٠–٩) digits
+ * to ASCII first — phone keyboards in Iran type Persian digits by default.
+ */
+function digitsOnly(value: string): string {
+  return value
+    .replace(/[\u06F0-\u06F9\u0660-\u0669]/g, (ch) =>
+      String(ch.charCodeAt(0) - (ch.charCodeAt(0) >= 0x06f0 ? 0x06f0 : 0x0660)),
+    )
+    .replace(/[^0-9]/g, '');
+}
+
+/** A pasted +98 / 0098 number becomes the local 09… form the inputs expect. */
+function phoneInput(value: string): string {
+  const d = digitsOnly(value);
+  if (d.startsWith('0098') && d.length === 14) return `0${d.slice(4)}`;
+  if (d.startsWith('98') && d.length === 12) return `0${d.slice(2)}`;
+  return d;
+}
 
 /** +989121234567 → 09121234567 */
 function localPhone(normalized: string | null | undefined): string {
@@ -141,7 +162,7 @@ export default function ClientHome() {
     <div className="shell" style={{ maxWidth: 760 }}>
       <header className="topbar">
         <div className="brand">
-          <div className="logo">⚖️</div>
+          <img className="logo" src="/portal/icon.svg" alt="" width={42} height={42} />
           <div>
             <h1>مشاورهٔ حقوقی آنلاین</h1>
             <small>نوبت مشاوره بگیرید و جایگاه خود را در صف ببینید.</small>
@@ -163,7 +184,8 @@ export default function ClientHome() {
 
       {installPrompt && (
         <div className="install-banner">
-          <span style={{ fontSize: 13 }}>📲 برنامه را روی گوشی نصب کنید تا از نوبت خود بدون باز کردن سایت باخبر شوید.</span>
+          <Download size={18} aria-hidden="true" />
+          <span style={{ fontSize: 13, flex: 1 }}>برنامه را روی گوشی نصب کنید تا از نوبت خود بدون باز کردن سایت باخبر شوید.</span>
           <button className="btn primary" onClick={() => void (installPrompt as unknown as { prompt(): void }).prompt()}>
             نصب
           </button>
@@ -183,13 +205,18 @@ export default function ClientHome() {
           <nav className="tabs">
             {(
               [
-                ['consult', '🎟️', 'مشاوره'],
-                ['wallet', '💰', 'کیف پول'],
-                ['inbox', '🔔', 'اعلان‌ها'],
-              ] as Array<[TabId, string, string]>
-            ).map(([id, icon, label]) => (
-              <button key={id} className={`tab ${tab === id ? 'active' : ''}`} onClick={() => setTab(id)}>
-                <span>{icon}</span>
+                ['consult', Headset, 'مشاوره'],
+                ['wallet', Wallet, 'کیف پول'],
+                ['inbox', Bell, 'اعلان‌ها'],
+              ] as Array<[TabId, LucideIcon, string]>
+            ).map(([id, Icon, label]) => (
+              <button
+                key={id}
+                className={`tab ${tab === id ? 'active' : ''}`}
+                aria-current={tab === id ? 'page' : undefined}
+                onClick={() => setTab(id)}
+              >
+                <Icon size={17} aria-hidden="true" />
                 <span>{label}</span>
                 {id === 'inbox' && unread > 0 && (
                   <span className="pill gold" style={{ fontSize: 10, padding: '1px 7px' }}>
@@ -218,12 +245,21 @@ export default function ClientHome() {
         </>
       )}
 
-      <footer className="hint" style={{ textAlign: 'center', marginTop: 28, fontSize: 12 }}>
-        ساخته‌شده با{' '}
+      {/* Author attribution — required by NOTICE (AGPL-3.0 section 7(b)). */}
+      <footer className="legal-footer">
+        <span>پلتفرم حقوقی</span>
+        <span aria-hidden="true">·</span>
         <a href="https://ansariai.ir" target="_blank" rel="noopener noreferrer">
-          پلتفرم حقوقی
-        </a>{' '}
-        · نرم‌افزار آزاد تحت مجوز AGPL-3.0
+          ساخته‌شده توسط محمد انصاری — ansariai.ir
+        </a>
+        <span aria-hidden="true">·</span>
+        <a href="https://www.gnu.org/licenses/agpl-3.0.html" target="_blank" rel="noopener noreferrer">
+          AGPL-3.0
+        </a>
+        <span aria-hidden="true">·</span>
+        <a href="https://github.com/ansariaiadmin/legal-platform" target="_blank" rel="noopener noreferrer">
+          کد منبع
+        </a>
       </footer>
     </div>
   );
@@ -267,31 +303,50 @@ function OtpCard({ onDone }: { onDone: () => void }) {
     }
   }
 
+  const phoneValid = /^09\d{9}$/.test(phone);
+
   return (
     <div className="auth-wrap">
-      <div className="card">
+      <form
+        className="card"
+        onSubmit={(ev) => {
+          ev.preventDefault();
+          if (busy) return;
+          if (!sent) {
+            if (phoneValid) void requestCode();
+          } else if (code.length === 6) {
+            void verify();
+          }
+        }}
+      >
         <h3>ورود یا ثبت‌نام</h3>
         <p className="hint">با شمارهٔ موبایل خود وارد شوید. خریدها و نوبت‌های شما به همین شماره ثبت می‌شود.</p>
         <div className="field">
-          <label>شمارهٔ موبایل</label>
+          <label htmlFor="otp-phone">شمارهٔ موبایل</label>
           <input
+            id="otp-phone"
+            type="tel"
+            autoComplete="tel"
             dir="ltr"
             inputMode="tel"
             value={phone}
-            disabled={sent}
-            onChange={(e) => setPhone(e.target.value.replace(/[^0-9]/g, ''))}
-            placeholder="09121234567"
+            readOnly={sent}
+            onChange={(e) => setPhone(phoneInput(e.target.value))}
+            placeholder="09XXXXXXXXX"
           />
         </div>
         {sent && (
           <div className="field">
-            <label>کد تأیید</label>
+            <label htmlFor="otp-code">کد تأیید</label>
             <input
+              id="otp-code"
+              maxLength={6}
+              autoFocus
               dir="ltr"
               inputMode="numeric"
               autoComplete="one-time-code"
               value={code}
-              onChange={(e) => setCode(e.target.value.replace(/[^0-9]/g, ''))}
+              onChange={(e) => setCode(digitsOnly(e.target.value))}
               placeholder="۶ رقم"
             />
           </div>
@@ -301,17 +356,18 @@ function OtpCard({ onDone }: { onDone: () => void }) {
             حالت توسعه: کد تأیید <b dir="ltr">{devCode}</b> است.
           </p>
         )}
-        {err && <p className="hint" style={{ color: 'var(--bad)' }}>{err}</p>}
+        {err && <p className="form-error" role="alert">{err}</p>}
         {!sent ? (
-          <button className="btn primary big" disabled={busy || !/^09\d{9}$/.test(phone)} onClick={requestCode}>
+          <button type="submit" className="btn primary big" disabled={busy || !phoneValid}>
             {busy ? '…' : 'ارسال کد'}
           </button>
         ) : (
           <>
-            <button className="btn primary big" disabled={busy || code.length < 5} onClick={verify}>
+            <button type="submit" className="btn primary big" disabled={busy || code.length !== 6}>
               {busy ? '…' : 'ورود'}
             </button>
             <button
+              type="button"
               className="btn ghost"
               style={{ marginTop: 8, width: '100%' }}
               disabled={busy}
@@ -325,7 +381,7 @@ function OtpCard({ onDone }: { onDone: () => void }) {
             </button>
           </>
         )}
-      </div>
+      </form>
     </div>
   );
 }
@@ -424,16 +480,16 @@ function ConsultTab({
       <div className="grid" style={{ gap: 14 }}>
         <div className="card" style={{ textAlign: 'center' }}>
           <p className="hint" style={{ margin: 0 }}>
-            {status === 'up_next' ? '🔔 نوبت شما رسیده است' : status === 'in_call' ? '📞 در حال مشاوره' : 'جایگاه شما در صف'}
+            {status === 'up_next' ? 'نوبت شما رسیده است' : status === 'in_call' ? 'در حال مشاوره' : 'جایگاه شما در صف'}
           </p>
           <div className="pos-ring">
             <div>
-              <div className="num">{status === 'waiting' ? fa(position.position) : status === 'up_next' ? 'شما' : '☎️'}</div>
+              <div className="num">{status === 'waiting' ? fa(position.position) : status === 'up_next' ? 'شما' : <PhoneCall size={34} aria-label="در حال مشاوره" />}</div>
               {status === 'waiting' && <div className="hint">{fa(position.waitingAhead)} نفر پیش از شما</div>}
             </div>
           </div>
           <div style={{ display: 'flex', justifyContent: 'center', gap: 8, flexWrap: 'wrap' }}>
-            {status === 'waiting' && <span className="pill teal">⏱ زمان تقریبی انتظار: {fa(position.etaMinutes)} دقیقه</span>}
+            {status === 'waiting' && <span className="pill teal"><Clock size={13} aria-hidden="true" /> زمان تقریبی انتظار: {fa(position.etaMinutes)} دقیقه</span>}
             <span className={`pill ${position.lawyerOnline ? 'ok' : 'bad'}`}>{position.lawyerOnline ? 'وکیل آنلاین است' : 'وکیل آنلاین نیست'}</span>
             <span className="pill">مشاورهٔ {fa(position.ticket.minutes)} دقیقه‌ای</span>
           </div>
@@ -489,7 +545,7 @@ function ConsultTab({
       <div className="card">
         <div className="field">
           <label>شماره‌ای که وکیل با آن تماس می‌گیرد</label>
-          <input dir="ltr" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value.replace(/[^0-9]/g, ''))} placeholder="09121234567" />
+          <input dir="ltr" inputMode="tel" value={phone} onChange={(e) => setPhone(phoneInput(e.target.value))} placeholder="09XXXXXXXXX" />
         </div>
         {!phoneOk && phone.length > 0 && <p className="hint" style={{ color: 'var(--bad)' }}>شماره باید ۱۱ رقم و با ۰۹ شروع شود.</p>}
       </div>
@@ -582,7 +638,7 @@ function WalletTab({ wallet, notice }: { wallet: WalletView | null; notice: stri
             inputMode="numeric"
             style={{ flex: 1, background: 'rgba(0,0,0,.3)', border: '1px solid var(--line)', borderRadius: 10, padding: 10 }}
             value={amount}
-            onChange={(e) => setAmount(e.target.value.replace(/[^0-9]/g, ''))}
+            onChange={(e) => setAmount(digitsOnly(e.target.value))}
           />
           <button className="btn primary" disabled={busy} onClick={topup}>
             {busy ? '…' : 'پرداخت و شارژ'}

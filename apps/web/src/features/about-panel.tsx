@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import { t } from '@/i18n';
 import { BRAND } from '@/lib/brand';
 
@@ -9,6 +10,12 @@ import { BRAND } from '@/lib/brand';
  * (AGPL-3.0 section 7(b); see NOTICE).
  */
 export function AboutPanel({ onClose }: { onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (ev: KeyboardEvent) => { if (ev.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
   return (
     <div className="about-backdrop" role="dialog" aria-modal="true" aria-labelledby="about-title" onClick={onClose}>
       <div className="card about-card" onClick={(e) => e.stopPropagation()}>
@@ -82,9 +89,9 @@ export function AboutPanel({ onClose }: { onClose: () => void }) {
 export function LegalFooter({ onAbout }: { onAbout: () => void }) {
   return (
     <footer className="legal-footer">
-      <span>
-        © {BRAND.copyrightYear} {t('about.authorName')}
-      </span>
+      <a href={BRAND.website} target="_blank" rel="noopener noreferrer">
+        {t('about.attribution')}
+      </a>
       <span aria-hidden="true">·</span>
       <a href={BRAND.licenseUrl} target="_blank" rel="noopener noreferrer">
         AGPL-3.0

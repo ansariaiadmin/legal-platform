@@ -132,7 +132,7 @@ export class HealthController {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Legal Platform - Monitoring Dashboard</title>
+<title>پلتفرم حقوقی — پایش سرویس</title>
 <style>
   body { font-family: Tahoma, Arial, sans-serif; background: #f5f5f5; margin: 0; padding: 20px; direction: rtl; }
   .container { max-width: 1200px; margin: 0 auto; }
@@ -155,13 +155,13 @@ export class HealthController {
 <body>
 <div class="container">
   <div class="header">
-    <h1>🏛️ پلتفرم حقوقی - داشبورد مانیتورینگ</h1>
+    <h1>پلتفرم حقوقی — پایش سرویس</h1>
     <p>وضعیت: <span class="status-${health.status}">${health.status}</span> | Uptime: ${health.uptimeSeconds}s | ${health.timestamp}</p>
   </div>
 
   <div class="grid">
     <div class="card">
-      <h3>🔍 وضعیت سرویس‌ها</h3>
+      <h3>وضعیت سرویس‌ها</h3>
       <div class="metric"><span>دیتابیس</span><span class="${health.checks.database.status}">${health.checks.database.status} ${health.checks.database.latencyMs ? `(${health.checks.database.latencyMs}ms)` : ''}</span></div>
       <div class="metric"><span>Redis</span><span class="${health.checks.redis.status}">${health.checks.redis.status} ${health.checks.redis.latencyMs ? `(${health.checks.redis.latencyMs}ms)` : ''}</span></div>
       <div class="metric"><span>Storage</span><span class="${health.checks.storage?.status || 'skipped'}">${health.checks.storage?.status || 'skipped'}</span></div>
@@ -169,7 +169,7 @@ export class HealthController {
     </div>
 
     <div class="card">
-      <h3>📊 متریک‌های HTTP</h3>
+      <h3>درخواست‌های HTTP</h3>
       <div class="metric"><span>کل درخواست‌ها</span><span>${stats.http.requestsTotal}</span></div>
       <div class="metric"><span>خطاها</span><span>${stats.http.errorsTotal}</span></div>
       <div class="metric"><span>نرخ خطا</span><span>${stats.http.errorRatePercent.toFixed(2)}%</span></div>
@@ -177,7 +177,7 @@ export class HealthController {
     </div>
 
     <div class="card">
-      <h3>💾 دیتابیس و Redis</h3>
+      <h3>پایگاه داده و Redis</h3>
       <div class="metric"><span>کوئری‌های DB</span><span>${stats.db.queriesTotal}</span></div>
       <div class="metric"><span>خطاهای DB</span><span>${stats.db.failuresTotal}</span></div>
       <div class="metric"><span>عملیات Redis</span><span>${stats.redis.operationsTotal}</span></div>
@@ -185,7 +185,7 @@ export class HealthController {
     </div>
 
     <div class="card">
-      <h3>🤖 دستیاران</h3>
+      <h3>دستیاران</h3>
       <div class="metric"><span>اجراها</span><span>${stats.agents.executionsTotal}</span></div>
       <div class="metric"><span>خطاها</span><span>${stats.agents.failuresTotal}</span></div>
       <div class="metric"><span>بکاپ‌ها</span><span>${stats.backups.jobsTotal}</span></div>
@@ -194,8 +194,8 @@ export class HealthController {
   </div>
 
   <div class="card" style="margin-top: 20px;">
-    <h3>🚨 هشدارهای اخیر</h3>
-    ${alerts.length === 0 ? '<p>هیچ هشداری ثبت نشده ✅</p>' : alerts.map(a => `
+    <h3>هشدارهای اخیر</h3>
+    ${alerts.length === 0 ? '<p>هشداری ثبت نشده است.</p>' : alerts.map(a => `
       <div class="alert alert-${a.severity}">
         <strong>${a.rule}</strong> [${a.severity}]<br>
         ${a.message}<br>
@@ -205,7 +205,7 @@ export class HealthController {
   </div>
 
   <div class="card" style="margin-top: 20px;">
-    <h3>📈 Prometheus Metrics</h3>
+    <h3>متریک‌های Prometheus</h3>
     <p><a href="/api/metrics" target="_blank">مشاهده متریک‌های Prometheus</a> | <a href="/api/health" target="_blank">/health JSON</a> | <a href="/api/ready" target="_blank">/ready JSON</a></p>
     <pre>${this.metrics.getPrometheusMetrics().slice(0, 2000)}...</pre>
   </div>

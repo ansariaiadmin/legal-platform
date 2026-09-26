@@ -27,44 +27,46 @@ export function vocabularyScore(terms: readonly string[], query: string): number
 }
 
 /**
- * Normalize Iranian phone numbers to +989xxxxxxxxx format
- * Accepts: 09xxxxxxxxx, 9xxxxxxxxx, +989xxxxxxxxx, 00989xxxxxxxxx
+ * Converts Persian (۰–۹) and Arabic-Indic (٠–٩) digits to ASCII digits.
+ * Iranian phone keyboards type Persian digits by default, so every numeric
+ * input from people (phone numbers, one-time codes, amounts) goes through this.
+ */
+export function toLatinDigits(value: string): string {
+  return value.replace(/[\u06F0-\u06F9\u0660-\u0669]/g, (ch) => {
+    const code = ch.charCodeAt(0);
+    return String(code >= 0x06f0 ? code - 0x06f0 : code - 0x0660);
+  });
+}
+
+/**
+ * Normalizes an Iranian mobile number to +989xxxxxxxxx.
+ * Accepts 09xxxxxxxxx, 9xxxxxxxxx, +989xxxxxxxxx, 00989xxxxxxxxx and 989xxxxxxxxx,
+ * with Persian or Arabic-Indic digits and any spaces, dashes or brackets.
  */
 export function normalizeIranPhone(phone: string): string | null {
   if (!phone || typeof phone !== 'string') {
     return null;
   }
 
-  // Remove all non-digit characters except leading +
-  const cleaned = phone.trim();
-  
-  // Check for valid Iranian mobile pattern
-  // Remove leading 0, 0098, +98, or 98
-  let digits = cleaned.replace(/\D/g, '');
-  
-  // Handle different prefixes
+  let digits = toLatinDigits(phone).replace(/\D/g, '');
+
   if (digits.startsWith('0098')) {
     digits = digits.substring(4);
-  } else if (digits.startsWith('+98')) {
-    digits = digits.substring(3);
   } else if (digits.startsWith('98')) {
     digits = digits.substring(2);
   } else if (digits.startsWith('09')) {
     digits = digits.substring(1);
-  } else if (digits.startsWith('9')) {
-    // Already starts with 9, keep as is
-  } else {
+  } else if (!digits.startsWith('9')) {
     return null;
   }
 
-  // Must be exactly 10 digits starting with 9
-  if (!/^\d{10}$/.test(digits) || !digits.startsWith('9')) {
+  // Exactly 10 digits starting with 9
+  if (!/^9\d{9}$/.test(digits)) {
     return null;
   }
 
   return `+98${digits}`;
 }
-
 
 /** Lowercases + trims an email and validates it conservatively (ASCII-safe,
  * rejects consecutive dots; enough for an auth destination, not a regex IQ

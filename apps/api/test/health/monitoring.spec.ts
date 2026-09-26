@@ -163,7 +163,7 @@ describe('Monitoring — Health Endpoints', () => {
     const html = mockRes.send.mock.calls[0][0] as string;
     expect(html).toContain('پلتفرم حقوقی');
     expect(html).toContain('وضعیت سرویس‌ها');
-    expect(html).toContain('متریک‌های HTTP');
+    expect(html).toContain('درخواست‌های HTTP');
     expect(html).toContain('/api/metrics');
   });
 });

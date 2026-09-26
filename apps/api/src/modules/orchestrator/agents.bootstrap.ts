@@ -1,5 +1,4 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { LegalExpertBaseAgent } from '@legal-platform/agent-legal-expert-base';
 import { civilExpert } from '@legal-platform/agent-civil-expert';
 import { criminalExpert } from '@legal-platform/agent-criminal-expert';
 import { familyExpert } from '@legal-platform/agent-family-expert';
@@ -10,8 +9,9 @@ import { ExpertRegistry } from './expert-registry';
 /**
  * Static expert registration at boot (SPEC §11a, ADR-002).
  *
- * General fallback (`legal-expert-base`) registers LAST so field-specialized
- * experts always win equal-score comparisons (first-best-wins order).
+ * Only production experts register here. `legal-expert-base` is the
+ * reference template for building new experts; it does not produce answers,
+ * so it never joins the live fleet.
  * Registry throws on duplicate ids: wiring mistakes fail the API at startup.
  */
 @Injectable()
@@ -26,8 +26,7 @@ export class AgentsBootstrap implements OnModuleInit {
         criminalExpert,
         familyExpert,
         registrationExpert,
-        internationalExpert, // P7-T6: bilingual desk, seats BEFORE the generic base
-        new LegalExpertBaseAgent(),
+        internationalExpert,
       ]) {
       this.registry.register(expert);
     }

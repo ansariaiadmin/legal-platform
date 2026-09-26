@@ -1,7 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getPrefs, setPrefs, t, prefsEventName, type TranslationKey } from '@/i18n';
+import { ArrowLeft, ArrowRight, Check, Sparkles } from 'lucide-react';
+import { getPrefs, num, setPrefs, t, prefsEventName, type TranslationKey } from '@/i18n';
+import { WIZARD_FINISHED_EVENT } from './setup-wizard';
 
 /**
  * P7 onboarding tour — one engine, one data table. Steps are pure i18n keys,
@@ -10,7 +12,7 @@ import { getPrefs, setPrefs, t, prefsEventName, type TranslationKey } from '@/i1
  * figure the rest out yourself").
  *
  * `tryKey` is optional: when set, the card offers an action button; the host
- * tab listens for `tour:try:<key>` CustomEvents and fills its own sample.
+ * tab listens for `tour:try:<key>` CustomEvents and fills its own real content (e.g. Article 10 of the Civil Code).
  * The tour engine NEVER pokes component internals — it asks politely by
  * event, so tabs stay free-standing.
  */
@@ -20,13 +22,13 @@ interface TourStep {
   title: TranslationKey;
   body: TranslationKey;
   tabId: string; // which tab it belongs to ('*' = welcome)
-  tryKey?: string; // optional sample-action event id
+  tryKey?: string; // optional action event id (fills real content in the host tab)
 }
 
 export const TOUR_STEPS: readonly TourStep[] = [
   { key: 'tour.welcome', title: 'tour.welcome.title', body: 'tour.welcome.body', tabId: '*' },
   { key: 'tour.home', title: 'tour.home.title', body: 'tour.home.body', tabId: 'home' },
-  { key: 'tour.brain', title: 'tour.brain.title', body: 'tour.brain.body', tabId: 'brain', tryKey: 'brain' },
+  { key: 'tour.brain', title: 'tour.brain.title', body: 'tour.brain.body', tabId: 'brain' },
   { key: 'tour.fleet', title: 'tour.fleet.title', body: 'tour.fleet.body', tabId: 'fleet' },
   { key: 'tour.chat', title: 'tour.chat.title', body: 'tour.chat.body', tabId: 'chat' },
   { key: 'tour.files', title: 'tour.files.title', body: 'tour.files.body', tabId: 'files' },
@@ -48,8 +50,14 @@ export function Tour({
   const [idx, setIdx] = useState(0);
 
   // first-visit auto-open
+  // First visit: the tour starts once the setup wizard is finished, so the
+  // two never compete for the owner's attention.
   useEffect(() => {
-    if (!getPrefs().tourSeen) setOpen(true);
+    const onWizardDone = () => {
+      if (!getPrefs().tourSeen) setOpen(true);
+    };
+    window.addEventListener(WIZARD_FINISHED_EVENT, onWizardDone);
+    return () => window.removeEventListener(WIZARD_FINISHED_EVENT, onWizardDone);
   }, []);
 
   // header 💡 + per-tab restart events
@@ -92,32 +100,36 @@ export function Tour({
   };
 
   return (
-    <div className="tour-card" role="dialog" aria-label="tour">
-      <h4>{t(step.title)}</h4>
+    <div className="tour-card" role="dialog" aria-labelledby="tour-title">
+      <h4 id="tour-title">{t(step.title)}</h4>
       <p>{t(step.body)}</p>
       <div className="tour-actions">
-        <button className="pill" onClick={() => go(-1)} disabled={idx === 0}>
+        <button type="button" className="btn ghost small" onClick={() => go(-1)} disabled={idx === 0}>
+          <ArrowRight size={15} aria-hidden="true" className="flip-ltr" />
           {t('tour.prev')}
         </button>
         {idx < TOUR_STEPS.length - 1 ? (
-          <button className="pill teal" onClick={() => go(1)}>
+          <button type="button" className="btn primary small" onClick={() => go(1)}>
             {t('tour.next')}
+            <ArrowLeft size={15} aria-hidden="true" className="flip-ltr" />
           </button>
         ) : (
-          <button className="pill ok" onClick={finish}>
+          <button type="button" className="btn primary small" onClick={finish}>
+            <Check size={15} aria-hidden="true" />
             {t('tour.done')}
           </button>
         )}
         {step.tryKey && (
-          <button className="pill gold" onClick={trySample}>
+          <button type="button" className="btn ghost small" onClick={trySample}>
+            <Sparkles size={15} aria-hidden="true" />
             {t(`tour.${step.tryKey}.try` as TranslationKey)}
           </button>
         )}
-        <button className="pill" onClick={finish}>
+        <button type="button" className="btn ghost small" onClick={finish}>
           {t('tour.skip')}
         </button>
         <span className="tour-stepper">
-          {t('tour.stepIndicator')} {idx + 1} {t('tour.of')} {TOUR_STEPS.length}
+          {t('tour.stepIndicator')} {num(idx + 1)} {t('tour.of')} {num(TOUR_STEPS.length)}
         </span>
       </div>
     </div>

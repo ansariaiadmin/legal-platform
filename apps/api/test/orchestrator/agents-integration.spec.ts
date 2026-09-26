@@ -1,3 +1,5 @@
+import { ExpertRegistry } from '../../src/modules/orchestrator/expert-registry';
+import { AgentsBootstrap } from '../../src/modules/orchestrator/agents.bootstrap';
 import { civilExpert } from '@legal-platform/agent-civil-expert';
 import { criminalExpert } from '@legal-platform/agent-criminal-expert';
 import { familyExpert } from '@legal-platform/agent-family-expert';
@@ -99,19 +101,18 @@ describe('Agent Fleet Integration — Real Agents', () => {
   });
 });
 
-describe('Agent Fleet — 6 agents exist', () => {
-  it('6 legal agents are defined', () => {
-    // We check that at least 6 agents exist in the repo
-    const agents = [
-      '@legal-platform/agent-civil-expert',
-      '@legal-platform/agent-criminal-expert',
-      '@legal-platform/agent-family-expert',
-      '@legal-platform/agent-registration-expert',
-      '@legal-platform/agent-international-expert',
-      '@legal-platform/agent-legal-expert-base',
-    ];
-
-    expect(agents.length).toBe(6);
+describe('Agent Fleet — production roster', () => {
+  it('registers the five field experts and never the reference template', () => {
+    const registry = new ExpertRegistry();
+    new AgentsBootstrap(registry).onModuleInit();
+    const ids = registry.list().map((a) => a.agentId).sort();
+    expect(ids).toEqual([
+      'civil-expert',
+      'criminal-expert',
+      'family-expert',
+      'international-expert',
+      'registration-expert',
+    ]);
   });
 
   it('at least 2 real agents work (civil and criminal)', async () => {

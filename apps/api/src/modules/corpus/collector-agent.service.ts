@@ -26,8 +26,9 @@ export class CollectorAgentService implements Pick<ICollectorAgent, 'collect'> {
   private readonly adapters = new Map<string, CollectorSourceAdapter>();
 
   constructor() {
-    // mock-first fixtures: deterministic content so tests + the manual
-    // dashboard "sync now" button both behave identically
+    // Sample source with deterministic fixture content, for development and
+    // tests only: production libraries must never receive sample "laws".
+    if (process.env.NODE_ENV === 'production') return;
     this.register({
       sourceId: 'rooznameh-mock',
       fetchLatest: async (windowLabel) => [

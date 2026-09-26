@@ -1,7 +1,7 @@
 """Persian text utilities — Production hardened for Iranian legal platform.
 
 Features:
-- Normalization: Arabic ي/ي ك/ك folding, diacritics removal, Persian digits to English
+- Normalization: Arabic ي→ی and ك→ک folding, diacritics removal, Persian digits to English
 - Tokenization: hazm/parsivar with regex fallback
 - Stopwords: complete Persian stopwords list
 - Stemming/Lemmatization: Persian verbs

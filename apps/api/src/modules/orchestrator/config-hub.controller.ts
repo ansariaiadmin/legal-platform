@@ -15,7 +15,7 @@ class BrainPatchDto {
   @IsIn(['local', 'cloud'])
   target!: BrainTarget;
 
-  @ApiPropertyOptional({ example: 'http://gpu-box:8080' })
+  @ApiPropertyOptional({ example: 'http://192.168.1.20:11434/v1', description: 'Ollama or any OpenAI-compatible endpoint on the office network' })
   @IsString()
   @IsOptional()
   baseUrl?: string;

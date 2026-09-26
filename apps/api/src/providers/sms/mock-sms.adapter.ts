@@ -39,6 +39,7 @@ export class MockSmsAdapter implements SmsProvider {
 
     return {
       success: true,
+      simulated: true,
       messageId: `mock-${Date.now()}`,
     };
   }

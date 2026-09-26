@@ -1,6 +1,6 @@
 /**
  * Conversational configuration intents (ADR-014). The owner TALKS to the
- * Leader — "به مدل محلی وصل شو آدرس http://gpu-box:8080" — and the Leader
+ * Leader — "به مدل محلی وصل شو آدرس http://192.168.1.20:11434/v1" — and the Leader
  * proposes a concrete config action the owner then confirms. Parsing is
  * DETERMINISTIC PERSIAN REGEXES FIRST (SPEC invariant); no LLM sits between
  * the office and its own safety levers.

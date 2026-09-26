@@ -1,8 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { t, getPrefs } from '@/i18n';
+import { AlertTriangle } from 'lucide-react';
+import { AgentIcon } from '@/components/agent-icon';
+import { t, getPrefs, num, tx } from '@/i18n';
 import { api, type FleetAgent } from '@/lib/api';
+import { skillLabel } from '@/lib/skills';
 
 interface ModelRow {
   agentId: string;
@@ -12,14 +15,6 @@ interface ModelRow {
   assignment: { target: string; model: string } | null;
   lending: { source: string; meaning: string } | null;
 }
-
-const AVATAR: Record<string, string> = {
-  'civil-expert': '📜',
-  'criminal-expert': '⚔️',
-  'family-expert': '👨‍👩‍👧',
-  'registration-expert': '🖋️',
-  'legal-expert-base': '🧭',
-};
 
 export function FleetTab() {
   const [agents, setAgents] = useState<FleetAgent[]>([]);
@@ -42,7 +37,7 @@ export function FleetTab() {
   }, []);
 
   if (error) {
-    return <div className="card"><p className="hint">اطلاعات دستیاران دریافت نشد. دوباره وارد شوید یا وضعیت سرور را بررسی کنید.</p></div>;
+    return <div className="card"><p className="form-error" role="alert">{tx('اطلاعات دستیاران دریافت نشد. دوباره وارد شوید یا وضعیت سرور را بررسی کنید.', 'Could not load the assistants. Sign in again or check the server status.')}</p></div>;
   }
 
   return (
@@ -52,7 +47,7 @@ export function FleetTab() {
         return (
           <div key={a.agentId} className="card">
             <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-              <div style={{ fontSize: 34 }}>{AVATAR[a.agentId] ?? '🤖'}</div>
+              <span className="jump-icon"><AgentIcon agentId={a.agentId} /></span>
               <div style={{ flex: 1 }}>
                 <h3 style={{ margin: 0 }}>{(getPrefs().locale === 'en' && a.personaEn) ? a.personaEn : a.persona}</h3>
                 <small style={{ color: 'var(--text-dim)' }}>{(getPrefs().locale === 'en' && a.mottoEn) ? a.mottoEn : a.motto}</small>
@@ -61,18 +56,16 @@ export function FleetTab() {
                 ? <span className="pill bad">{t('fleet.disabled')}</span>
                 : a.healthy
                   ? <span className="pill ok">{t('fleet.healthy')}</span>
-                  : <span className="pill bad">⚠️</span>}
+                  : <span className="pill bad"><AlertTriangle size={12} aria-hidden="true" />{tx('نیازمند بررسی', 'Needs attention')}</span>}
             </div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', margin: '12px 0 8px' }}>
-              {a.skills.map((s) => <span key={s} className="pill">{s}</span>)}
+              {a.skills.map((s) => <span key={s} className="pill">{skillLabel(s, getPrefs().locale)}</span>)}
             </div>
-            <div className="kv"><b>مجوزهای فعال</b><span>{a.activeGrants}</span></div>
+            <div className="kv"><b>{tx('مجوزهای فعال', 'Active permissions')}</b><span>{num(a.activeGrants)}</span></div>
             <div className="kv">
-              <b>مدل</b>
+              <b>{tx('مدل', 'Model')}</b>
               <span>
-                {m?.assignment
-                  ? `${m.assignment.target} — ${m.assignment.model}`
-                  : `❝ ${t('fleet.lends')} ❞`}
+                {m?.assignment ? <span dir="ltr">{`${m.assignment.target} — ${m.assignment.model}`}</span> : t('fleet.lends')}
               </span>
             </div>
           </div>

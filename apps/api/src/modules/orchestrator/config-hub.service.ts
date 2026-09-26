@@ -1,5 +1,6 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { EncryptionService } from '../../security/encryption.service';
 import { STORAGE_PROVIDER } from '../../providers/provider.tokens';
 import { assertLanUrlAllowed, assertPublicEgressAllowed } from '../../security/egress';
 import type { StorageProvider } from '../../providers/storage/storage.provider';
@@ -79,6 +80,7 @@ export class ConfigHubService {
   constructor(
     private readonly config: ConfigService,
     @Inject(STORAGE_PROVIDER) private readonly storage: StorageProvider,
+    @Optional() private readonly encryption?: EncryptionService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -146,7 +148,12 @@ export class ConfigHubService {
     if (this.loaded) return;
     try {
       const raw = await this.storage.get(BRAIN_CONFIG_KEY);
-      this.overrides = JSON.parse(raw.toString('utf8')) as BrainConfig;
+      const stored = JSON.parse(raw.toString('utf8')) as BrainConfig;
+      if (stored.cloud?.apiKey?.startsWith('enc:v1:')) {
+        if (!this.encryption) throw new Error('encrypted AI key but no EncryptionService');
+        stored.cloud = { ...stored.cloud, apiKey: this.encryption.decrypt(stored.cloud.apiKey) };
+      }
+      this.overrides = stored;
     } catch {
       this.overrides = {}; // first boot — env only, perfectly fine
     }
@@ -270,7 +277,7 @@ export class ConfigHubService {
       if (!res.ok) {
         return { ok: false, latencyMs, error: `سرور پاسخ ${res.status} داد.` };
       }
-      return { ok: true, latencyMs, detail: 'endpoint پاسخ درست داد' };
+      return { ok: true, latencyMs, detail: 'سرویس مدل پاسخ درست داد' };
     } catch (err) {
       return { ok: false, latencyMs: Date.now() - started, error: (err as Error).message };
     }
@@ -281,7 +288,16 @@ export class ConfigHubService {
     this.overrides.updatedBy = actorId;
     await this.storage.put({
       key: BRAIN_CONFIG_KEY,
-      content: Buffer.from(JSON.stringify(this.overrides, null, 2)),
+      // The cloud API key is encrypted at rest (ENCRYPTION_MASTER_KEY).
+      content: Buffer.from(
+        JSON.stringify(
+          this.overrides.cloud && this.encryption
+            ? { ...this.overrides, cloud: { ...this.overrides.cloud, apiKey: this.encryption.encrypt(this.overrides.cloud.apiKey) } }
+            : this.overrides,
+          null,
+          2,
+        ),
+      ),
       contentType: 'application/json',
       metadata: { updatedBy: actorId },
     });
@@ -300,8 +316,8 @@ function policyFor(preset: PresetTier): string {
 }
 
 function describeLending(hasLocal: boolean, hasCloud: boolean): string {
-  if (hasLocal && hasCloud) return 'دو مغز وصل است — لیدر در صورت نیاز مغزِ خود را به ناوگان قرض می‌دهد.';
-  if (hasCloud) return 'فقط مغز ابری — همه‌ی ناوگان از مغزِ لیدر قرض می‌گیرد (سناریوی ساده).';
-  if (hasLocal) return 'فقط مغز محلی — همه‌ی ناوگان از مغزِ محلی لیدر قرض می‌گیرد (حریم‌داده حداکثری).';
-  return 'هیچ مغزی وصل نیست — فقط پاسخ‌های قطعیِ بدون-مدل کار می‌کنند.';
+  if (hasLocal && hasCloud) return 'مدل محلی و سرویس ابری هر دو متصل‌اند؛ پیش‌تنظیم تعیین می‌کند کدام اول استفاده شود.';
+  if (hasCloud) return 'فقط سرویس ابری متصل است؛ همهٔ دستیاران از آن استفاده می‌کنند.';
+  if (hasLocal) return 'فقط مدل محلی متصل است؛ همهٔ دستیاران از آن استفاده می‌کنند و داده از سرور شما خارج نمی‌شود.';
+  return 'هنوز مدلی متصل نشده است؛ فقط پاسخ‌های قاعده‌محور و بدون مدل در دسترس‌اند.';
 }

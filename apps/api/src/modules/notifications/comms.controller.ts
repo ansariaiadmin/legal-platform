@@ -1,23 +1,25 @@
 import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiProperty, ApiPropertyOptional, ApiTags } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import { IsIn, IsNotEmpty, IsOptional, IsString, Matches } from 'class-validator';
+import { toLatinDigits } from '@legal-platform/shared';
 import { JwtAccessGuard } from '../../security/jwt-access.guard';
 import { Roles, RolesGuard } from '../../security/roles.guard';
 import { CurrentUser } from '../../security/current-user.decorator';
 import type { AuthenticatedUser } from '../../security/authenticated-user';
 import { UserRole } from '@legal-platform/domain';
 import { AuditService } from '../audit/audit.service';
-import { CommsSettingsService } from './comms-settings.service';
+import { CommsSettingsService, SMS_PANEL_PROVIDERS, type SmsPanelProvider } from './comms-settings.service';
 
 class SmsPanelDto {
-  @ApiProperty({ enum: ['kavenegar', 'ghasedak', 'smsir', 'custom'] })
-  @IsIn(['kavenegar', 'ghasedak', 'smsir', 'custom'])
-  provider!: 'kavenegar' | 'ghasedak' | 'smsir' | 'custom';
+  @ApiProperty({ enum: SMS_PANEL_PROVIDERS })
+  @IsIn(SMS_PANEL_PROVIDERS)
+  provider!: SmsPanelProvider;
 
-  @ApiProperty({ example: 'https://api.kavenegar.com' })
+  @ApiPropertyOptional({ description: 'Gateway URL override; the provider’s official endpoint when omitted' })
   @IsString()
-  @IsNotEmpty()
-  baseUrl!: string;
+  @IsOptional()
+  baseUrl?: string;
 
   @ApiProperty()
   @IsString()
@@ -46,13 +48,14 @@ class CallPanelDto {
   @IsNotEmpty()
   authToken!: string;
 
-  @ApiProperty({ example: '02112345678' })
+  @ApiProperty({ description: 'Landline in national format, e.g. 021XXXXXXXX' })
   @Matches(/^[0-9+]{8,15}$/)
   fromNumber!: string;
 }
 
 class TestSmsDto {
-  @ApiProperty({ example: '09123456789' })
+  @ApiProperty({ description: 'Iranian mobile number: 11 digits starting with 09' })
+  @Transform(({ value }: { value: unknown }) => (typeof value === 'string' ? toLatinDigits(value).trim() : value))
   @Matches(/^0?9\d{9}$/)
   to!: string;
 
@@ -63,7 +66,8 @@ class TestSmsDto {
 }
 
 class TestCallDto {
-  @ApiProperty({ example: '09123456789' })
+  @ApiProperty({ description: 'Iranian mobile number: 11 digits starting with 09' })
+  @Transform(({ value }: { value: unknown }) => (typeof value === 'string' ? toLatinDigits(value).trim() : value))
   @Matches(/^0?9\d{9}$/)
   to!: string;
 }
@@ -91,7 +95,7 @@ export class CommsController {
 
   @Post('sms')
   @Roles(UserRole.LAWYER_OWNER)
-  @ApiOperation({ summary: 'Configure the SMS panel (Kavenegar, Ghasedak or custom)' })
+  @ApiOperation({ summary: 'Connect the office SMS panel (Kavenegar or Ghasedak); all platform SMS then use it' })
   async setSms(@Body() dto: SmsPanelDto, @CurrentUser() user: AuthenticatedUser) {
     await this.comms.setSmsPanel(dto, user.id);
     await this.audit.log({ actorId: user.id, action: 'comms.sms.configured', module: 'comms', entityType: 'sms_panel', entityId: dto.provider, metadata: {}, result: 'success' });
@@ -102,7 +106,7 @@ export class CommsController {
   @Roles(UserRole.LAWYER_OWNER, UserRole.STAFF)
   @ApiOperation({ summary: 'Send a real test SMS through the configured panel; returns latency or the error' })
   testSms(@Body() dto: TestSmsDto) {
-    return this.comms.testSms(dto.to, dto.text ?? 'پلتفرم حقوقی: پیامک آزمایشی. اتصال پنل برقرار است.');
+    return this.comms.testSms(dto.to, dto.text ?? 'پلتفرم حقوقی: اتصال پنل پیامک دفتر برقرار است.');
   }
 
   @Post('call')

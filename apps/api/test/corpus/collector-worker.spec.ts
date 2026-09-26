@@ -95,3 +95,16 @@ describe('P2 — collector mock fixtures → worker state machine → diagnostic
     expect(jobs).toHaveLength(2);
   });
 });
+
+describe('sample collector source', () => {
+  it('is not registered in production, so no sample law can reach a real library', () => {
+    const prev = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    try {
+      expect(new CollectorAgentService().listSources()).toEqual([]);
+    } finally {
+      process.env.NODE_ENV = prev;
+    }
+    expect(new CollectorAgentService().listSources()).toEqual(['rooznameh-mock']);
+  });
+});

@@ -39,20 +39,28 @@ export class VaultController {
 
   @Post('areas/:area/password')
   @Roles(UserRole.LAWYER_OWNER)
-  @ApiOperation({ summary: 'Set or change an area password (at least 8 characters; existing tickets are revoked)' })
+  @ApiOperation({
+    summary: 'Set or change an area password (at least 8 characters; existing tickets are revoked). Changing an existing lock requires currentPassword.',
+  })
   setAreaPassword(
     @Param('area') area: string,
-    @Body() body: { password: string },
+    @Body() body: { password: string; currentPassword?: string },
     @CurrentUser() user: AuthenticatedUser,
+    @Ip() ip: string,
   ) {
-    return this.locks.setPassword(assertArea(area), body?.password ?? '', user.id);
+    return this.locks.setPassword(assertArea(area), body?.password ?? '', user.id, body?.currentPassword, ip);
   }
 
   @Post('areas/:area/disable')
   @Roles(UserRole.LAWYER_OWNER)
-  @ApiOperation({ summary: 'Remove an area lock (existing tickets are revoked)' })
-  disableArea(@Param('area') area: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.locks.disable(assertArea(area), user.id);
+  @ApiOperation({ summary: 'Remove an area lock (requires currentPassword; existing tickets are revoked)' })
+  disableArea(
+    @Param('area') area: string,
+    @Body() body: { currentPassword?: string },
+    @CurrentUser() user: AuthenticatedUser,
+    @Ip() ip: string,
+  ) {
+    return this.locks.disable(assertArea(area), user.id, body?.currentPassword, ip);
   }
 
   @Post('areas/:area/unlock')

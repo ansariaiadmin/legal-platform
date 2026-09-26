@@ -55,9 +55,28 @@ describe('P8 area locks — second-factor gates on dangerous surfaces', () => {
     expect(await svc.verifyTicket('config', tampered)).toBe(false); // tampered sig
 
     // password rotation → old tickets die immediately even before expiry
-    await svc.setPassword('config', 'a-brand-new-pass', 'owner-1');
+    await svc.setPassword('config', 'a-brand-new-pass', 'owner-1', 'correct-horse-battery');
     expect(await svc.verifyTicket('config', ticket)).toBe(false);
     void open1;
+  });
+
+  it('an open session alone cannot replace or remove a lock: the current password is required', async () => {
+    const svc = new AreaLockService(new ConfigService({ JWT_ACCESS_SECRET: 's' }), new RateLimitService(), memStorage());
+    await svc.setPassword('config', 'original-secret', 'owner-1');
+
+    await expect(svc.setPassword('config', 'attacker-chosen', 'owner-1')).rejects.toMatchObject({
+      code: ERROR_CODES.AUTH_INVALID_CREDENTIALS,
+    });
+    await expect(svc.disable('config', 'owner-1', 'wrong-guess')).rejects.toMatchObject({
+      code: ERROR_CODES.AUTH_INVALID_CREDENTIALS,
+    });
+    expect((await svc.status()).find((a) => a.area === 'config')?.locked).toBe(true);
+
+    await svc.disable('config', 'owner-1', 'original-secret');
+    expect((await svc.status()).find((a) => a.area === 'config')?.locked).toBe(false);
+    // an open area can be locked again without a current password
+    await svc.setPassword('config', 'second-secret', 'owner-1');
+    expect((await svc.status()).find((a) => a.area === 'config')?.locked).toBe(true);
   });
 
   it('persistence: a fresh service instance still enforces the lock (restart honesty)', async () => {
@@ -190,7 +209,8 @@ describe('P8 rotation bot — one button, every platform-owned secret', () => {
     const rotation = new RotationService(machine, storage);
 
     const before = await rotation.advice();
-    expect(before.find((a) => a.key === 'machine-tokens')?.status).toBe('never');
+    // nothing issued yet: nothing to rotate, so no nagging
+    expect(before.find((a) => a.key === 'machine-tokens')?.status).toBe('not_applicable');
 
     const t1 = await machine.issue({ label: 'mini-app', scopes: ['client:read'], createdBy: 'u1' });
     const t2 = await machine.issue({ label: 'stream-feeder', scopes: ['events:stream'], createdBy: 'u1' });
@@ -216,7 +236,10 @@ describe('P8 rotation bot — one button, every platform-owned secret', () => {
     // epochs recorded + advice flips to fresh
     const after = await rotation.advice();
     expect(after.find((a) => a.key === 'machine-tokens')?.status).toBe('fresh');
-    expect(after.find((a) => a.key === 'jwt-secrets')?.status).toBe('never'); // env-owned: we DON'T pretend
+    expect(after.find((a) => a.key === 'jwt-secrets')?.status).toBe('manual'); // env-owned: we DON'T pretend
+    // rotate-all does not touch area passwords, so it must not claim it did
+    expect(after.find((a) => a.key === 'area-passwords')?.lastRotatedAt ?? null).toBeNull();
+    expect(after.find((a) => a.key === 'webhook-signing')).toBeUndefined();
 
     // restart honesty: rotation epochs survive a fresh service over same storage
     const rebooted = new RotationService(machine, storage);

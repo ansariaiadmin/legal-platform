@@ -100,9 +100,9 @@ export class LeaderConversationService {
       const applied = await this.applyProposal(pending.proposal, user.id);
       this.pendingProposals.delete([...this.pendingProposals.entries()].find(([, p]) => p === pending)![0]);
       conv.turns.push({ role: 'lawyer', text: input.text.trim(), at: now });
-      conv.turns.push({ role: 'leader', text: `انجام شد ✅ ${applied.summaryFa}`, at: new Date().toISOString() });
+      conv.turns.push({ role: 'leader', text: `انجام شد: ${applied.summaryFa}`, at: new Date().toISOString() });
       return {
-        text: `انجام شد ✅ ${applied.summaryFa}`,
+        text: `انجام شد: ${applied.summaryFa}`,
         placements: [],
         routing: { agentId: null, skillId: null, confidence: 1 },
         grounded: true,
