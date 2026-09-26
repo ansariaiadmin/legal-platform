@@ -1,12 +1,14 @@
 {
-  "name": "انصار داد — AnsarDad OS — دستیار هوشمند عدالت — ساخته شده توسط انصار هوش مصنوعی",
-  "short_name": "AnsarDad",
-  "description": "انصار داد — AnsarDad OS — دستیار هوشمند عدالت — برای وکلای ایرانی — Self-hosted legal practice OS — ساخته شده توسط انصار هوش مصنوعی — ansariai.ir — همکاری، کانفیگ، پشتیبانی — بدون اسم سرویس — داینامیک — هر کی از هر کجا خواست سرویس بگیره — Windows App — Setup Wizard V2 — Guide Images — Cloud + Local — 39/39 — 0 تاریکی — بی‌ادعا سقف",
-  "start_url": "/",
+  "name": "Ansari Law OS — سیستم عامل حقوقی انصاری — دستیار هوشمند عدالت — ساخته شده توسط انصار هوش مصنوعی",
+  "short_name": "AnsariLawOS",
+  "description": "Ansari Law OS — سیستم عامل حقوقی انصاری — برای وکلای ایرانی — Self-hosted legal practice OS — Matter Dashboard — Client Portal — Billing — Time Tracking — Document Management — eSignature — Calendar — Tasks — Reports — ساخته شده توسط انصار هوش مصنوعی — ansariai.ir — همکاری، کانفیگ، پشتیبانی — بدون اسم سرویس — داینامیک — هر کی از هر کجا خواست سرویس بگیره — Professional UI inspired by Clio/MyCase — 39/39 — 0 تاریکی — بی‌ادعا سقف",
+  "start_url": "/app.html",
   "display": "standalone",
-  "background_color": "#0b0e14",
+  "background_color": "#ffffff",
   "theme_color": "#1e40af",
-  "orientation": "portrait-primary",
+  "orientation": "any",
+  "dir": "rtl",
+  "lang": "fa-IR",
   "icons": [
     {
       "src": "/logo-ansardad.png",
@@ -19,64 +21,54 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
-    },
-    {
-      "src": "/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
     }
   ],
-  "categories": ["business", "productivity", "legal", "finance"],
-  "lang": "fa-IR",
-  "dir": "rtl",
   "screenshots": [
     {
       "src": "/setup-guides/step1-system.png",
       "sizes": "1280x720",
       "type": "image/png",
       "form_factor": "wide",
-      "label": "بررسی سیستم — System Check — Windows 11 — Guide Image"
+      "label": "Ansari Law OS — Dashboard — Matter Command Center"
     },
     {
       "src": "/setup-guides/step4-ai.png",
       "sizes": "1280x720",
       "type": "image/png",
       "form_factor": "wide",
-      "label": "هوش مصنوعی — AI Engine — 6 وکیل متخصص — بدون اسم سرویس — داینامیک"
+      "label": "Ansari Law OS — Matter Dashboard — Documents, Tasks, Billing"
     },
     {
       "src": "/setup-guides/step9-health.png",
       "sizes": "1280x720",
       "type": "image/png",
       "form_factor": "wide",
-      "label": "سلامت و تست — Health Check — 39/39 — 0 تاریکی — بی‌ادعا سقف"
+      "label": "Ansari Law OS — Billing — Time Tracking — Reports"
     }
   ],
   "shortcuts": [
     {
-      "name": "پنل ویندوزی — Setup Wizard V2",
-      "short_name": "Setup V2",
-      "description": "پنل ویندوزی جدید — Windows 11 Fluent Design — Cloud Design — Tabbed — Beautiful — 9 مرحله — تصاویر راهنما — پیشنهاد ابری + محلی — بدون اسم سرویس — داینامیک — ساخته شده توسط ansariai — ansariai.ir",
-      "url": "/setup-v2",
+      "name": "Dashboard — داشبورد",
+      "short_name": "Dashboard",
+      "description": "Ansari Law OS — Matter Command Center — Dashboard",
+      "url": "/app.html",
       "icons": [{ "src": "/logo-ansardad.png", "sizes": "192x192" }]
     },
     {
-      "name": "داشبورد — Dashboard",
-      "short_name": "Dashboard",
-      "description": "داشبورد وکیل — 6 وکیل AI — صف مشاوره — امضا — کیف پول — انصار داد — AnsarDad OS",
-      "url": "/",
+      "name": "Matters — پرونده‌ها",
+      "short_name": "Matters",
+      "description": "پرونده‌ها — Matter Dashboard",
+      "url": "/app.html#matters",
+      "icons": [{ "src": "/logo-ansardad.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Setup Wizard V2 — نصب",
+      "short_name": "Setup V2",
+      "description": "نصب — Setup Wizard V2 — Windows 11",
+      "url": "/setup-v2-preview.html",
       "icons": [{ "src": "/logo-ansardad.png", "sizes": "192x192" }]
     }
   ],
-  "related_applications": [],
-  "prefer_related_applications": false,
   "builder": {
     "name": "انصار هوش مصنوعی — ansariai",
     "website": "https://ansariai.ir",
@@ -84,5 +76,9 @@
     "support": "https://ansariai.ir/support",
     "projects": "https://ansariai.ir/projects",
     "collaboration": "ما می‌تونیم براتون کانفیگ کنیم، پشتیبانی کنیم، یا همکاری کنیم — از صفر تا صد — بدون اسم سرویس — داینامیک — هر کی از هر کجا خواست سرویس بگیره — اپ بصورت داینامیک با هر سرویسی ارتباط می‌گیره — وبسایت: ansariai.ir — همه پروژه‌ها دسته‌بندی شده — هر چی می‌سازیم می‌ره تو دسته خودش"
+  },
+  "categories": ["business", "productivity", "legal"],
+  "edge_side_panel": {
+    "preferred_width": 400
   }
 }
