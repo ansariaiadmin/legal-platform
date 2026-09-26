@@ -1,3 +1,12 @@
+# Legal Platform: hardened single-host deployment for a public server.
+#
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# Images are built locally from this checkout (and tagged legal-platform/*,
+# so they can also be pushed to a private registry). Configuration comes from
+# `.env`; see `.env.example`. nginx listens on port 80; for HTTPS, add a TLS
+# server block to infra/nginx/nginx.conf and place certificates in
+# infra/nginx/certs (see docs/SECURITY-HARDENING.md).
 services:
   proxy:
     image: nginx:alpine
@@ -13,6 +22,8 @@ services:
       api:
         condition: service_healthy
       web:
+        condition: service_healthy
+      client:
         condition: service_healthy
     restart: unless-stopped
     deploy:
@@ -30,7 +41,7 @@ services:
         max-file: "3"
         labels: "service=proxy"
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -39,11 +50,16 @@ services:
       - legal-network
 
   web:
+    build:
+      context: .
+      dockerfile: infra/docker/web.Dockerfile
     image: legal-platform/web:latest
     container_name: legal-web
     environment:
       - NODE_ENV=production
       - API_URL=http://api:3001
+      # Used at runtime by the /stream/events route (live dashboard feed).
+      - API_PROXY_TARGET=http://api:3001
       - NEXT_TELEMETRY_DISABLED=1
     depends_on:
       api:
@@ -64,7 +80,44 @@ services:
         max-file: "5"
         labels: "service=web"
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health || wget --no-verbose --tries=1 --spider http://localhost:3000/"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - legal-network
+
+  # Client portal, served by the proxy under /portal.
+  client:
+    build:
+      context: .
+      dockerfile: infra/docker/client.Dockerfile
+    image: legal-platform/client:latest
+    container_name: legal-client
+    environment:
+      - NODE_ENV=production
+      - NEXT_TELEMETRY_DISABLED=1
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 384M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+        labels: "service=client"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3100/portal/"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -73,8 +126,14 @@ services:
       - legal-network
 
   api:
+    build:
+      context: .
+      dockerfile: infra/docker/api.Dockerfile
     image: legal-platform/api:latest
     container_name: legal-api
+    env_file:
+      - path: .env
+        required: false
     environment:
       - NODE_ENV=production
       - PORT=3001
@@ -128,7 +187,7 @@ services:
         max-file: "5"
         labels: "service=api"
     healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3001/api/health || exit 1"]
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://127.0.0.1:3001/api/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -136,61 +195,31 @@ services:
     networks:
       - legal-network
 
-  worker:
-    image: legal-platform/api:latest
-    container_name: legal-worker
-    command: ["node", "apps/api/dist/worker.js"]
+  # Python sidecar: text extraction (PDF, DOCX), normalisation, chunking and
+  # citation extraction. Standard library only, no pip dependencies.
+  workers-py:
+    build:
+      context: .
+      dockerfile: infra/docker/workers.Dockerfile
+    image: legal-platform/workers-py:latest
+    container_name: legal-workers-py
     environment:
-      - NODE_ENV=production
-      - DATABASE_URL=${DATABASE_URL}
-      - REDIS_URL=${REDIS_URL}
-      - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET}
-      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
-      - ENCRYPTION_MASTER_KEY=${ENCRYPTION_MASTER_KEY}
-      - SMS_PROVIDER=${SMS_PROVIDER:-mock}
-      - PAYMENT_PROVIDER=${PAYMENT_PROVIDER:-mock}
-      - PUSH_PROVIDER=${PUSH_PROVIDER:-mock}
-      - TELEPHONY_PROVIDER=${TELEPHONY_PROVIDER:-mock}
-      - AI_PROVIDER=${AI_PROVIDER:-mock}
-      - AI_ROUTING_MODE=${AI_ROUTING_MODE:-iranian_gateway}
-      - AI_BASE_URL=${AI_BASE_URL}
-      - AI_API_KEY=${AI_API_KEY}
-      - AI_EMBEDDING_DIMENSION=${AI_EMBEDDING_DIMENSION:-1024}
-      - STORAGE_DRIVER=${STORAGE_DRIVER:-local}
-      - LOCAL_STORAGE_PATH=${LOCAL_STORAGE_PATH:-/app/uploads}
-      - LOG_LEVEL=${LOG_LEVEL:-info}
-      - PYTHON_WORKER_ENABLED=${PYTHON_WORKER_ENABLED:-true}
-    volumes:
-      - uploads:/app/uploads
-      - worker_logs:/app/logs
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
-        condition: service_healthy
-      api:
         condition: service_healthy
     restart: unless-stopped
     deploy:
       resources:
         limits:
-          cpus: '1.5'
-          memory: 1G
-        reservations:
-          cpus: '0.5'
-          memory: 256M
+          cpus: '1'
+          memory: 512M
     logging:
       driver: "json-file"
       options:
-        max-size: "50m"
-        max-file: "5"
-        labels: "service=worker"
-    healthcheck:
-      test: ["CMD-SHELL", "ps aux | grep -v grep | grep -q 'node.*worker.js' || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 20s
+        max-size: "20m"
+        max-file: "3"
+        labels: "service=workers-py"
     networks:
       - legal-network
 
@@ -261,7 +290,9 @@ services:
     networks:
       - legal-network
 
-  # Optional: Prometheus for monitoring (uncomment to enable)
+  # Optional monitoring stack (not started by default):
+  #   docker compose -f docker-compose.prod.yml --profile monitoring up -d
+  # Both UIs are bound to 127.0.0.1; reach them through an SSH tunnel.
   prometheus:
     image: prom/prometheus:latest
     container_name: legal-prometheus
@@ -270,7 +301,7 @@ services:
       - ./infra/prometheus/alert.rules.yml:/etc/prometheus/alert.rules.yml:ro
       - prometheus_data:/prometheus
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
@@ -301,14 +332,14 @@ services:
     image: grafana/grafana:latest
     container_name: legal-grafana
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-change_me_on_first_login}
       - GF_USERS_ALLOW_SIGN_UP=false
     volumes:
       - grafana_data:/var/lib/grafana
       - ./infra/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
       - ./infra/grafana/datasources:/etc/grafana/provisioning/datasources:ro
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     depends_on:
       - prometheus
     restart: unless-stopped
@@ -339,15 +370,11 @@ volumes:
       device: ${POSTGRES_DATA_PATH:-./data/postgres}
   redis_data:
     driver: local
+  # Named volume: Docker initialises it with the image's ownership, so the
+  # non-root api user can write to it. Back it up with scripts/backup.sh.
   uploads:
     driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${UPLOADS_PATH:-./data/uploads}
   api_logs:
-    driver: local
-  worker_logs:
     driver: local
   postgres_logs:
     driver: local

@@ -1,0 +1,5 @@
+# Shows a "Sponsor" button on the GitHub repository page.
+# Add the donation page here once it is published (for example a Coffeebede or
+# Daramet page), and set the same URL in apps/web/src/lib/brand.ts.
+custom:
+  - https://ansariai.ir

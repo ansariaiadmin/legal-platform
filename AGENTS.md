@@ -1,58 +1,55 @@
-# AGENTS.md — the front door of this repo
+# AGENTS.md
 
-Any agent (human or AI, any session, any tool) that opens this repository MUST
-perform this exact sequence before touching code. It takes under a minute and
-is the reason work survives interruptions.
+Guidance for AI coding agents and new contributors working in this repository. Human-oriented details are in [CONTRIBUTING.md](CONTRIBUTING.md) and [ARCHITECTURE.md](ARCHITECTURE.md).
 
-## 1. Read the brain (state engine)
+## Setup
 
 ```bash
-node scripts/checkpoint.mjs status      # or: npm run agent:state
+npm ci                      # Node.js 22 required
+npm run build:packages      # shared packages and agents must be built before the apps
 ```
 
-`scripts/agent_state.json` holds: current phase, completed/pending tasks,
-architectural decisions, last checkpoint. It is committed to git ON PURPOSE —
-it is the project's memory.
+Rebuild the packages after changing anything in `packages/*` or `apps/agents/*`; the apps import them from `dist/`.
 
-## 2. Read the docs, in this order
+## Checks
 
-1. `docs/HANDOFF.md` — auto-regenerated summary of where we are (never edit by hand).
-2. `docs/ROADMAP.md` — the phase-by-phase, task-by-task plan (`P{n}-T{m}` ids).
-3. `docs/architecture_decisions.md` — ADRs; append-only.
-4. `docs/SPEC.md` §11a — the agentic-layer product rules (deterministic-first
-   routing, agents never call LLM SDKs directly, lawyer review is mandatory).
+```bash
+npm run typecheck
+npm run lint                # type-aware promise rules for apps/api
+npm test                    # all workspaces; run from the repository root
+npm run test:py             # Python worker
+npm run security:secrets
+```
 
-## 3. Resume protocol
+Run a single API test file with `cd apps/api && npx jest test/billing/client-controller`.
 
-- Work on the next pending task in order. Task ids are stable; reference them
-  in commits (`P1-T2: add criminal expert capabilities`).
-- After EVERY completed task:
-  ```bash
-  node scripts/checkpoint.mjs complete "P1-T2: ..."
-  node scripts/checkpoint.mjs sync     # regenerates HANDOFF.md, commits if dirty
-  ```
-- Adding a task: `node scripts/checkpoint.mjs plan "P2-T7: ..."`
-- Recording a decision: `node scripts/checkpoint.mjs decide "ADR-004" "..."`
-  AND append it to `docs/architecture_decisions.md` (the human-readable twin).
-
-## 4. Hard rules (SPEC §12)
-
-- No provider-SDK calls outside `apps/api/src/providers/*`.
-- No enum duplication — register shared terms in `packages/domain`.
-- TDD: logic changes ship with tests; `npm test` must stay green.
-- Never fabricate success: no fake auth/payment/AI/ingestion results, even
-  behind flags. Placeholders must be honest (see `LegalExpertBaseAgent`
-  which explicitly reports `grounded: false` until Phase 4).
-
-## Layout map
+## Layout
 
 ```
-apps/api        NestJS API (orchestrator lives in src/modules/orchestrator)
-apps/web        Next.js App Router (Persian UI, i18n keys)
-apps/agents/*   Expert agents; each has a capabilities.ts
-packages/domain    enums + state machines (single home)
-packages/shared    agent interfaces (IAgent, ISkill, IExpertAgent, ...) + utils
-packages/contracts API error codes + DTO contracts
-scripts/agent_state.json   ← the brain
-scripts/checkpoint.mjs     ← the only sanctioned brain-mutator
+apps/api            NestJS 11 API; migrations in src/database/migrations
+apps/web            Office dashboard (Next.js 15, Persian i18n in src/i18n)
+apps/client         Client portal (Next.js 15, basePath /portal)
+apps/agents/*       Expert assistants; each has a capabilities.ts
+apps/workers/py     Python text-processing worker (standard library only)
+packages/domain     Enums and state machines (single source of truth)
+packages/shared     Agent interfaces and the agent kit
+packages/contracts  ERROR_CODES and httpStatusForCode
+infra/              Dockerfiles and nginx configuration
+scripts/            install, update, backup, restore, diagnostics, logs
 ```
+
+## Rules
+
+- **Providers:** SDK and HTTP calls to external services only in `apps/api/src/providers/*`. In production a provider set to `mock` is replaced by an adapter that reports "not configured"; never return simulated success.
+- **Errors:** throw a code from `ERROR_CODES` with a formal Persian message, for example `new ConflictException({ code, message })`. New codes need a known prefix and a status in `httpStatusForCode`.
+- **Enums:** shared terms live in `packages/domain`; do not duplicate them.
+- **Database:** never run pool queries while holding a client from `pool.connect()`; release the client first. Add migrations as the next three-digit number; never edit released migrations.
+- **Promises:** await every promise or attach a `.catch`. `npm run lint` fails otherwise.
+- **Tests:** logic changes ship with tests. Use `queue.settled()` instead of sleeps. Do not use dynamic `import()` in `src` (it breaks Jest). New constructor dependencies go last and are optional, so existing tests keep compiling.
+- **Texts:** user-facing Persian is formal. When changing an API message, search `apps/api/test` for the old text. Keep the Persian and English i18n keys in sync.
+- **Legal content:** cite exact articles of laws in force; do not hard-code fines or prices.
+- **Licence:** keep `LICENSE`, `NOTICE` and the attribution in the UI footer and About screen unchanged (AGPL section 7 terms).
+
+## Running locally
+
+`docker compose up -d --build` starts the full stack on `http://localhost:8080` (dashboard), `/portal/` (client portal) and `/api/` (API). With `NODE_ENV=development` and `SMS_PROVIDER=mock`, the OTP request response includes a `devCode` field so you can sign in without SMS.

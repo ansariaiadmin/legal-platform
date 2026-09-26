@@ -42,7 +42,7 @@ export function FleetTab() {
   }, []);
 
   if (error) {
-    return <div className="card"><p className="hint">اتصال برقرار نشد — ورود کرده‌ای؟ API بالاست؟</p></div>;
+    return <div className="card"><p className="hint">اطلاعات دستیاران دریافت نشد. دوباره وارد شوید یا وضعیت سرور را بررسی کنید.</p></div>;
   }
 
   return (
@@ -66,9 +66,9 @@ export function FleetTab() {
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', margin: '12px 0 8px' }}>
               {a.skills.map((s) => <span key={s} className="pill">{s}</span>)}
             </div>
-            <div className="kv"><b>گرنت‌های فعال</b><span>{a.activeGrants}</span></div>
+            <div className="kv"><b>مجوزهای فعال</b><span>{a.activeGrants}</span></div>
             <div className="kv">
-              <b>مغز</b>
+              <b>مدل</b>
               <span>
                 {m?.assignment
                   ? `${m.assignment.target} — ${m.assignment.model}`

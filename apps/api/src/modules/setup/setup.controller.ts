@@ -16,21 +16,21 @@ export class SetupController {
 
   @Get()
   @Roles(UserRole.LAWYER_OWNER, UserRole.STAFF)
-  @ApiOperation({ summary: 'wizard state: started? finished? current step + deck of defaults' })
+  @ApiOperation({ summary: 'Wizard state: progress, current step and defaults' })
   status() {
     return this.wizard.status();
   }
 
   @Post('start')
   @Roles(UserRole.LAWYER_OWNER)
-  @ApiOperation({ summary: 'start (or resume — idempotent) the setup wizard' })
+  @ApiOperation({ summary: 'Start or resume the setup wizard' })
   start(@CurrentUser() user: AuthenticatedUser) {
     return this.wizard.start(user.id);
   }
 
   @Post('advance')
   @Roles(UserRole.LAWYER_OWNER)
-  @ApiOperation({ summary: 'complete the CURRENT step with payload; payload-less skips refused for config steps' })
+  @ApiOperation({ summary: 'Complete the current wizard step (configuration steps require a payload)' })
   advance(@Body() body: { stepId: WizardStepId; payload?: Record<string, unknown> }, @CurrentUser() user: AuthenticatedUser) {
     return this.wizard.advance(body.stepId, body.payload ?? {}, user.id);
   }
@@ -43,7 +43,7 @@ export class SetupController {
 
   @Delete()
   @Roles(UserRole.LAWYER_OWNER)
-  @ApiOperation({ summary: 'hard reset (owner only): the wizard re-appears as on day one' })
+  @ApiOperation({ summary: 'Reset the setup wizard (owner only)' })
   reset() {
     return this.wizard.reset().then(() => ({ reset: true }));
   }

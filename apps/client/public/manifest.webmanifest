@@ -1,8 +1,8 @@
 {
-  "name": "مشاوره حقوقی آنلاین",
-  "short_name": "مشاور حقوقی",
-  "description": "نوبت مشاوره حقوقی بگیر، صف را زنده ببین، با هوش مصنوعیِ وکیل حرف بزن.",
-  "start_url": "/",
+  "name": "مشاورهٔ حقوقی آنلاین",
+  "short_name": "مشاورهٔ حقوقی",
+  "description": "نوبت مشاورهٔ حقوقی بگیرید، جایگاه خود در صف را ببینید و از کیف پول پرداخت کنید.",
+  "start_url": "/portal/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#0b0e14",
@@ -10,6 +10,12 @@
   "dir": "rtl",
   "lang": "fa",
   "icons": [
-    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
-  ]
+    {
+      "src": "/portal/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "scope": "/portal/"
 }

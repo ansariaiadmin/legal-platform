@@ -96,7 +96,7 @@ export class ProvidersController {
   }
 
   @Post(':id/test')
-  @ApiOperation({ summary: 'Test the connection before trusting a configuration' })
+  @ApiOperation({ summary: 'Test a provider connection' })
   async testConnection(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
     const health = await this.providersService.testConnection(id);
 

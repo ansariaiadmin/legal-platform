@@ -1,4 +1,9 @@
-# تاریکی روشن شد — v3.1.0 — NOTIF + SMS + TELEGRAM + fallback + throttling — .env شامل همه — docker-compose env_file .env را می‌خواند — امن
+# Legal Platform — single-host stack (used by `sudo ./setup.sh`).
+#
+# Every service reads its configuration from `.env` (created by the installer
+# from `.env.example`). Only the reverse proxy is published, and only on
+# 127.0.0.1:8080 — put your own TLS proxy in front of it, or use
+# docker-compose.prod.yml for a hardened public deployment.
 services:
   proxy:
     image: nginx:alpine
@@ -10,6 +15,7 @@ services:
     depends_on:
       - api
       - web
+      - client
     restart: unless-stopped
     networks:
       - legal-network
@@ -20,8 +26,24 @@ services:
       dockerfile: infra/docker/web.Dockerfile
     container_name: legal-web
     environment:
-      - NODE_ENV=${NODE_ENV:-development}
-      - API_URL=${API_URL:-http://api:3001}
+      - NODE_ENV=${NODE_ENV:-production}
+      - API_URL=http://api:3001
+      - API_PROXY_TARGET=http://api:3001
+      - NEXT_TELEMETRY_DISABLED=1
+    depends_on:
+      - api
+    restart: unless-stopped
+    networks:
+      - legal-network
+
+  # Client portal, served by the proxy under /portal.
+  client:
+    build:
+      context: .
+      dockerfile: infra/docker/client.Dockerfile
+    container_name: legal-client
+    environment:
+      - NEXT_TELEMETRY_DISABLED=1
     depends_on:
       - api
     restart: unless-stopped
@@ -33,27 +55,13 @@ services:
       context: .
       dockerfile: infra/docker/api.Dockerfile
     container_name: legal-api
+    env_file:
+      - path: .env
+        required: false
     environment:
-      - NODE_ENV=${NODE_ENV:-development}
+      - NODE_ENV=${NODE_ENV:-production}
       - PORT=3001
-      - DATABASE_URL=${DATABASE_URL}
-      - REDIS_URL=${REDIS_URL}
-      - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET}
-      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
-      - ENCRYPTION_MASTER_KEY=${ENCRYPTION_MASTER_KEY}
-      - APP_URL=${APP_URL}
-      - SMS_PROVIDER=${SMS_PROVIDER:-mock}
-      - PAYMENT_PROVIDER=${PAYMENT_PROVIDER:-mock}
-      - PUSH_PROVIDER=${PUSH_PROVIDER:-mock}
-      - TELEPHONY_PROVIDER=${TELEPHONY_PROVIDER:-mock}
-      - AI_PROVIDER=${AI_PROVIDER:-mock}
-      - AI_ROUTING_MODE=${AI_ROUTING_MODE:-iranian_gateway}
-      - AI_BASE_URL=${AI_BASE_URL}
-      - AI_API_KEY=${AI_API_KEY}
-      - AI_EMBEDDING_DIMENSION=${AI_EMBEDDING_DIMENSION:-1024}
-      - STORAGE_DRIVER=${STORAGE_DRIVER:-local}
       - LOCAL_STORAGE_PATH=${LOCAL_STORAGE_PATH:-/app/uploads}
-      - LOG_LEVEL=${LOG_LEVEL:-info}
     volumes:
       - uploads:/app/uploads
     depends_on:
@@ -65,36 +73,16 @@ services:
     networks:
       - legal-network
 
-  worker:
+  # Python sidecar for deterministic text processing (normalisation, chunking,
+  # citation extraction). Standard-library only: no pip dependencies.
+  workers-py:
     build:
       context: .
-      dockerfile: infra/docker/api.Dockerfile
-    container_name: legal-worker
-    command: ["node", "apps/api/dist/worker.js"]
+      dockerfile: infra/docker/workers.Dockerfile
+    container_name: legal-workers-py
     environment:
-      - NODE_ENV=${NODE_ENV:-development}
-      - DATABASE_URL=${DATABASE_URL}
-      - REDIS_URL=${REDIS_URL}
-      - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET}
-      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
-      - ENCRYPTION_MASTER_KEY=${ENCRYPTION_MASTER_KEY}
-      - SMS_PROVIDER=${SMS_PROVIDER:-mock}
-      - PAYMENT_PROVIDER=${PAYMENT_PROVIDER:-mock}
-      - PUSH_PROVIDER=${PUSH_PROVIDER:-mock}
-      - TELEPHONY_PROVIDER=${TELEPHONY_PROVIDER:-mock}
-      - AI_PROVIDER=${AI_PROVIDER:-mock}
-      - AI_ROUTING_MODE=${AI_ROUTING_MODE:-iranian_gateway}
-      - AI_BASE_URL=${AI_BASE_URL}
-      - AI_API_KEY=${AI_API_KEY}
-      - AI_EMBEDDING_DIMENSION=${AI_EMBEDDING_DIMENSION:-1024}
-      - STORAGE_DRIVER=${STORAGE_DRIVER:-local}
-      - LOCAL_STORAGE_PATH=${LOCAL_STORAGE_PATH:-/app/uploads}
-      - LOG_LEVEL=${LOG_LEVEL:-info}
-    volumes:
-      - uploads:/app/uploads
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
     restart: unless-stopped
@@ -104,36 +92,17 @@ services:
   postgres:
     image: pgvector/pgvector:pg16
     container_name: legal-postgres
-    env_file:
-      - .env
     environment:
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER:-legal}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-legal_password_change_me}
+      - POSTGRES_DB=${POSTGRES_DB:-legal_platform}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-legal} -d ${POSTGRES_DB:-legal_platform}"]
       interval: 5s
       timeout: 5s
       retries: 12
-    restart: unless-stopped
-    networks:
-      - legal-network
-
-  # Python sidecar workers (SPEC §11a, ADR-010): deterministic text chores
-  # (normalize/chunk/citations) so agents stay fast. Stdlib-only image —
-  # build carries no pip, no supply chain.
-  workers-py:
-    build:
-      context: .
-      dockerfile: infra/docker/workers.Dockerfile
-    container_name: legal-workers-py
-    environment:
-      - REDIS_URL=${REDIS_URL}
-    depends_on:
-      redis:
-        condition: service_healthy
     restart: unless-stopped
     networks:
       - legal-network
@@ -152,13 +121,13 @@ services:
     networks:
       - legal-network
 
-
-  # FIELD REVIEW #2b — the ZarinPal-shaped stub for smoke/CI. Profile-gated:
-  # `docker compose --profile mock-gateways up mock-zarinpal` only. The API
-  # can point PAYMENT_ADAPTER=zarinpal + ZARINPAL_BASE_URL=http://mock-zarinpal:8085/pg/v4/payment
-  # so extract.io runs the FULL request→verify→credit loop in CI.
+  # ZarinPal-compatible payment stub for smoke tests and CI. Opt-in only:
+  #   docker compose --profile mock-gateways up mock-zarinpal
+  # Then set PAYMENT_PROVIDER=zarinpal and
+  # ZARINPAL_BASE_URL=http://mock-zarinpal:8085/pg/v4/payment to exercise the
+  # full request → verify → credit loop without real money.
   mock-zarinpal:
-    image: node:20-alpine
+    image: node:22-alpine
     profiles: [mock-gateways]
     working_dir: /srv
     command: ["node", "scripts/mock-gateway/zarinpal-stub.server.mjs"]

@@ -141,7 +141,14 @@ setup_env() {
     
     log_info "Creating .env from .env.example with generated secrets..."
     
-    cp "$ENV_EXAMPLE" "$ENV_FILE"
+    # The file holds every secret: readable by its owner only. When run
+    # through sudo, hand it to the invoking user so `docker compose` keeps
+    # working without sudo.
+    (umask 077 && cp "$ENV_EXAMPLE" "$ENV_FILE")
+    chmod 600 "$ENV_FILE"
+    if [[ -n "${SUDO_USER:-}" && "${SUDO_USER}" != "root" ]]; then
+        chown "$SUDO_USER": "$ENV_FILE"
+    fi
     
     # Replace secrets with real random values
     JWT_ACCESS=$(generate_secret)
@@ -164,6 +171,39 @@ setup_env() {
     fi
     
     log_success ".env file created with secure secrets"
+}
+
+# Office owner: the phone number that receives the owner role on first sign-in.
+# Taken from the OWNER_PHONE environment variable, or asked for interactively.
+configure_owner() {
+    local current
+    current=$(grep -E '^OWNER_PHONE=' "$ENV_FILE" | cut -d= -f2- || true)
+    if [ -n "$current" ]; then
+        log_info "Office owner phone already set in .env"
+        return
+    fi
+
+    local phone="${OWNER_PHONE:-}"
+    if [ -z "$phone" ] && [ -t 0 ]; then
+        read -r -p "Office owner mobile number (for example 09121234567): " phone
+    fi
+    phone=$(echo "$phone" | tr -d ' -')
+
+    if [ -z "$phone" ]; then
+        log_error "No office owner phone given. Set OWNER_PHONE in .env and run: docker compose up -d"
+        return
+    fi
+    if ! echo "$phone" | grep -qE '^(\+98|0098|98|0)?9[0-9]{9}$'; then
+        log_error "\"$phone\" is not an Iranian mobile number. Set OWNER_PHONE in .env by hand."
+        return
+    fi
+
+    if grep -qE '^OWNER_PHONE=' "$ENV_FILE"; then
+        sed -i "s|^OWNER_PHONE=.*|OWNER_PHONE=$phone|" "$ENV_FILE"
+    else
+        echo "OWNER_PHONE=$phone" >> "$ENV_FILE"
+    fi
+    log_success "Office owner phone saved to .env"
 }
 
 # Wait for health endpoint
@@ -197,6 +237,7 @@ main() {
     validate_disk
     install_docker
     setup_env
+    configure_owner
     
     log_info "Building and starting services..."
     cd "$ROOT_DIR"
@@ -214,11 +255,14 @@ main() {
     log_success "Installation complete!"
     echo ""
     echo "Dashboard URL: http://localhost:8080"
+    echo "Client portal: http://localhost:8080/portal/"
     echo ""
     echo "Next steps:"
-    echo "  1. Visit http://localhost:8080 to access the platform"
+    echo "  1. Open http://localhost:8080, sign in with the office owner phone"
+    echo "     and follow the setup wizard"
     echo "  2. Run ./scripts/diagnostics.sh to verify all services"
-    echo "  3. Configure providers via the dashboard settings"
+    echo "  3. Set the SMS, payment and email gateways in .env (see INSTALL.md),"
+    echo "     then apply them with: docker compose up -d"
     echo ""
 }
 

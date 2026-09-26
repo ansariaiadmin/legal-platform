@@ -86,6 +86,16 @@ export class AllExceptionsFilter implements ExceptionFilter {
           };
         }
 
+        // `new BadRequestException({ code: 'PREFIX_CODE', message: '…' })`:
+        // keep the thrower's status, code and human-readable message.
+        if (typeof record.code === 'string' && /^[A-Z][A-Z0-9_]{2,}$/.test(record.code)) {
+          return {
+            status,
+            code: record.code,
+            message: typeof rawMessage === 'string' && rawMessage ? rawMessage : record.code,
+          };
+        }
+
         if (typeof rawMessage === 'string' && isKnownErrorCode(rawMessage)) {
           return this.fromCode(rawMessage, status);
         }
@@ -104,6 +114,13 @@ export class AllExceptionsFilter implements ExceptionFilter {
           status: 400,
           code: ERROR_CODES.VALIDATION_MALFORMED_JSON,
           message: 'Request body is not valid JSON',
+        };
+      }
+      if (status === 404) {
+        return {
+          status: 404,
+          code: ERROR_CODES.SYSTEM_ROUTE_NOT_FOUND,
+          message: httpMsg || 'Not found',
         };
       }
       if (status === 413) {
@@ -126,8 +143,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
     if (anyError && typeof anyError.code === 'string' && isKnownErrorCode(anyError.code)) {
       return {
         status: httpStatusForCode(anyError.code),
-        code: (anyError as { code?: unknown })?.code,
-        message: (anyError as { message?: unknown })?.message ?? 'Operation failed',
+        code: anyError.code,
+        message: anyError.message ?? 'Operation failed',
       };
     }
 

@@ -108,7 +108,7 @@ export class CommsSettingsService {
   /** Honest test: hit the configured endpoint, report latency or failure. */
   async testSms(to: string, text: string): Promise<{ ok: boolean; latencyMs: number; error?: string }> {
     await this.ensureLoaded();
-    if (!this.sms) return { ok: false, latencyMs: 0, error: 'پنل پیامکی هنوز وصل نیست' };
+    if (!this.sms) return { ok: false, latencyMs: 0, error: 'پنل پیامک هنوز متصل نشده است.' };
     return this.shot(`${this.sms.baseUrl.replace(/\/$/, '')}/v1/${this.sms.apiKey}/sms/send.json`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -118,7 +118,7 @@ export class CommsSettingsService {
 
   async testCall(toNumber: string): Promise<{ ok: boolean; latencyMs: number; error?: string }> {
     await this.ensureLoaded();
-    if (!this.call) return { ok: false, latencyMs: 0, error: 'پنل تماس هنوز وصل نیست' };
+    if (!this.call) return { ok: false, latencyMs: 0, error: 'پنل تماس هنوز متصل نشده است.' };
     return this.shot(`${this.call.baseUrl.replace(/\/$/, '')}/calls`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Account-Id': this.call.accountId, 'X-Auth-Token': this.call.authToken },
@@ -131,7 +131,7 @@ export class CommsSettingsService {
     try {
       const res = await fetch(url, { ...init, signal: AbortSignal.timeout(5000) });
       const latencyMs = Date.now() - started;
-      if (!res.ok) return { ok: false, latencyMs, error: `پاسخ ${res.status} از پنل` };
+      if (!res.ok) return { ok: false, latencyMs, error: `پنل با کد ${res.status} پاسخ داد.` };
       return { ok: true, latencyMs };
     } catch (err) {
       return { ok: false, latencyMs: Date.now() - started, error: (err as Error).message };

@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { OpenAiCompatibleAIAdapter } from '../../src/providers/ai/openai-compatible.adapter';
 import { ZarinpalAdapter } from '../../src/providers/payment/zarinpal.adapter';
 import { KavenegarSmsAdapter } from '../../src/providers/sms/kavenegar.adapter';
+import { GhasedakSmsAdapter } from '../../src/providers/sms/ghasedak.adapter';
 import { ProviderError } from '../../src/providers/provider.error';
 import type { AIProvider } from '../../src/providers/ai/ai.provider';
 
@@ -210,5 +211,50 @@ describe('P9 Kavenegar SMS adapter — path-key visibility, real result ids', ()
     } finally {
       await stubs.close();
     }
+  });
+});
+
+/* ---------------------------- Ghasedak ---------------------------- */
+
+describe('Ghasedak SMS adapter — header key, JSON body, real message ids', () => {
+  it('sends the documented wire shape and returns the gateway message id', async () => {
+    const seen: Array<{ url?: string; key?: string; body: Record<string, unknown> }> = [];
+    const stubs = await httpStub((req, body, res) => {
+      seen.push({ url: req.url, key: req.headers.apikey as string, body: body ? JSON.parse(body) : {} });
+      if (req.url?.endsWith('/WebService/GetAccountInformation')) {
+        res.end(JSON.stringify({ isSuccess: true, statusCode: 200, data: { credit: 1000 } }));
+        return;
+      }
+      res.end(JSON.stringify({ isSuccess: true, statusCode: 200, message: 'ok', data: { messageId: '98765', cost: 1 } }));
+    });
+    try {
+      const adapter = new GhasedakSmsAdapter(
+        new ConfigService({ GHASEDAK_API_KEY: 'gh-key', GHASEDAK_LINE_NUMBER: '3000', GHASEDAK_BASE_URL: stubs.url }),
+      );
+      const r = await adapter.sendSms({ phone: '09120000000', message: 'سلام' });
+      expect(r).toEqual({ success: true, messageId: '98765' });
+      expect(seen[0].url).toBe('/WebService/SendSingleSMS');
+      expect(seen[0].key).toBe('gh-key');
+      expect(seen[0].body).toEqual({ receptor: '09120000000', message: 'سلام', lineNumber: '3000' });
+      expect(await adapter.verifyConfig()).toEqual({ valid: true });
+    } finally {
+      await stubs.close();
+    }
+  });
+
+  it('gateway refusal → ProviderError; missing key → CONFIG_INVALID', async () => {
+    const stubs = await httpStub((_req, _body, res) => {
+      res.end(JSON.stringify({ isSuccess: false, statusCode: 401, message: 'invalid api key' }));
+    });
+    try {
+      const adapter = new GhasedakSmsAdapter(new ConfigService({ GHASEDAK_API_KEY: 'bad', GHASEDAK_BASE_URL: stubs.url }));
+      await expect(adapter.sendSms({ phone: '09120000000', message: 'x' })).rejects.toBeInstanceOf(ProviderError);
+      expect((await adapter.verifyConfig()).valid).toBe(false);
+    } finally {
+      await stubs.close();
+    }
+    expect(() => new GhasedakSmsAdapter(new ConfigService({}))).toThrow(
+      expect.objectContaining({ code: 'PROVIDER_CONFIG_INVALID' }),
+    );
   });
 });

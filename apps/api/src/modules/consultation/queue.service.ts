@@ -39,10 +39,12 @@ export interface QueuePosition {
 
 /**
  * THE TELECOMS BOX (P2a): the lawyer is the station operator. Online/offline
- * is one thumb; the queue opens/closes the same way; دقیقه‌ی هر پلن از داشبورد
- * می‌آید. Every movement emits to the agent bus so the kitchen SEEs the line.
+ * is one switch; the queue opens and closes the same way; plan durations and
+ * prices come from the dashboard. Every movement is emitted on the agent bus
+ * so the Activity tab shows the line.
  *
- * FIX v3.2.0 — تاریکی روشن شد — صف قبلا فقط تو RAM بود — اگر سرور ریست می‌شد همه نوبت‌ها می‌پرید — وکیل ۱۰ تا مشتری رو از دست می‌داد — حالا با StorageProvider persist می‌شه — runtime/consultation/queue.json — ریست هم صف نمی‌پره
+ * Queue and telecoms state are persisted through the StorageProvider
+ * (`runtime/consultation/*.json`), so a restart never drops waiting clients.
  */
 @Injectable()
 export class ConsultationQueueService {
@@ -54,6 +56,8 @@ export class ConsultationQueueService {
     updatedAt: new Date().toISOString(),
   };
   private loaded = false;
+  /** Notifications are sent in the background; tracked so failures are logged, never unhandled. */
+  private readonly inflight = new Set<Promise<void>>();
 
   constructor(
     private readonly billing: BillingService,
@@ -61,6 +65,18 @@ export class ConsultationQueueService {
     @Inject(STORAGE_PROVIDER) private readonly storage: StorageProvider,
     @Optional() private readonly bus?: InProcessAgentEventBus,
   ) {}
+
+  /** Resolves once every background notification has finished (used by tests and graceful shutdown). */
+  async settled(): Promise<void> {
+    await Promise.all([...this.inflight]);
+  }
+
+  private background(task: Promise<void>): void {
+    const tracked: Promise<void> = task
+      .catch((err: unknown) => this.logger.warn(`notification failed: ${(err as Error)?.message ?? String(err)}`))
+      .finally(() => this.inflight.delete(tracked));
+    this.inflight.add(tracked);
+  }
 
   private async ensureLoaded(): Promise<void> {
     if (this.loaded) return;
@@ -107,15 +123,15 @@ export class ConsultationQueueService {
     await this.ensureLoaded();
     this.telecoms = { ...this.telecoms, online, updatedAt: new Date().toISOString() };
     await this.persist();
-    this.emit('queue.updated', `وکیل ${online ? 'آنلاین' : 'آفلاین'} شد`);
+    this.emit('queue.updated', `وکیل ${online ? 'آنلاین' : 'آفلاین'} شد.`);
     return { ...this.telecoms };
   }
 
   async setQueueOpen(open: boolean, reason?: string): Promise<TelecomsState> {
     await this.ensureLoaded();
-    this.telecoms = { ...this.telecoms, queueOpen: open, closeReason: open ? undefined : (reason ?? 'فعلاً ظرفیت تکمیل است'), updatedAt: new Date().toISOString() };
+    this.telecoms = { ...this.telecoms, queueOpen: open, closeReason: open ? undefined : (reason ?? 'ظرفیت مشاوره در حال حاضر تکمیل است.'), updatedAt: new Date().toISOString() };
     await this.persist();
-    this.emit('queue.updated', open ? 'صف باز شد' : `صف بسته شد: ${this.telecoms.closeReason}`);
+    this.emit('queue.updated', open ? 'صف باز شد.' : `صف بسته شد: ${this.telecoms.closeReason}`);
     return { ...this.telecoms };
   }
 
@@ -129,7 +145,7 @@ export class ConsultationQueueService {
     return this.tickets.filter((t) => t.status === 'waiting' || t.status === 'up_next');
   }
 
-  /** "یک نفر بعدی بفرست" — the lawyer pulls the line. */
+  /** "Call the next client": the lawyer pulls the line. */
   async next(): Promise<QueueTicket | null> {
     await this.ensureLoaded();
     const current = this.tickets.find((t) => t.status === 'in_call' || t.status === 'up_next');
@@ -139,11 +155,11 @@ export class ConsultationQueueService {
     nextWaiting.status = 'up_next';
     nextWaiting.upNextAt = new Date().toISOString();
     await this.persist();
-    this.emit('queue.updated', `بلیت ${nextWaiting.ticketId.slice(0, 8)} به نوبت رسید`);
+    this.emit('queue.updated', `نوبت ${nextWaiting.ticketId.slice(0, 8)} رسید.`);
     this.logger.log(`ticket ${nextWaiting.ticketId} is up_next`);
-    void this.notifications.upNext(nextWaiting, `${APP_URL}/call/${nextWaiting.ticketId}`);
+    this.background(this.notifications.upNext(nextWaiting, `${APP_URL.replace(/\/+$/, '')}/portal/`));
     const afterThem = this.tickets.find((t) => t.ticketId !== nextWaiting.ticketId && t.status === 'waiting');
-    if (afterThem) void this.notifications.almostThere(afterThem);
+    if (afterThem) this.background(this.notifications.almostThere(afterThem));
     return nextWaiting;
   }
 
@@ -151,14 +167,14 @@ export class ConsultationQueueService {
     await this.ensureLoaded();
     const t = this.need(ticketId);
     if (t.status !== 'waiting' && t.status !== 'up_next') {
-      throw this.wrongState('فقط نفرهای صف را می‌شود جابه‌جا کرد');
+      throw this.wrongState('فقط نوبت‌های در انتظار را می‌توان جابه‌جا کرد.');
     }
     // re-push to the END: honest reorder, no deletion
     const idx = this.tickets.indexOf(t);
     this.tickets.splice(idx, 1);
     this.tickets.push({ ...t, status: 'waiting' });
     await this.persist();
-    this.emit('queue.updated', `بلیت ${ticketId.slice(0, 8)} به ته صف رفت`);
+    this.emit('queue.updated', `نوبت ${ticketId.slice(0, 8)} به انتهای صف منتقل شد.`);
     return this.need(ticketId);
   }
 
@@ -169,7 +185,7 @@ export class ConsultationQueueService {
       t.status = endAs;
       t.endedAt = new Date().toISOString();
       await this.persist();
-      this.emit('queue.updated', `بلیت ${ticketId.slice(0, 8)} → ${endAs}`);
+      this.emit('queue.updated', `نوبت ${ticketId.slice(0, 8)} → ${endAs}`);
     }
   }
 
@@ -179,24 +195,24 @@ export class ConsultationQueueService {
   async join(userId: string, phone: string, purchaseId: string): Promise<QueueTicket> {
     await this.ensureLoaded();
     if (!this.telecoms.queueOpen) {
-      const err = new Error(this.telecoms.closeReason ?? 'صف بسته است');
+      const err = new Error(this.telecoms.closeReason ?? 'صف مشاوره در حال حاضر بسته است.');
       (err as Error & { code: string }).code = 'QUEUE_CLOSED';
       throw err;
     }
     if (!this.telecoms.online) {
-      const err = new Error('وکیل فعلاً آفلاین است — وقتی آنلاین شد صف می‌آید.');
+      const err = new Error('وکیل در حال حاضر آنلاین نیست. وقتی آنلاین شود، می‌توانید وارد صف شوید.');
       (err as Error & { code: string }).code = 'LAWYER_OFFLINE';
       throw err;
     }
     const purchase = this.billing.getPurchase(purchaseId);
     if (!purchase || purchase.userId !== userId) {
-      throw new BadRequestException({ code: 'PURCHASE_NOT_FOUND', message: 'چنین خریدی نداری' });
+      throw new BadRequestException({ code: 'PURCHASE_NOT_FOUND', message: 'چنین خریدی برای حساب شما ثبت نشده است.' });
     }
     if (purchase.kind !== 'consultation' || purchase.minutes === undefined) {
-      throw new BadRequestException({ code: 'VALIDATION_INVALID_INPUT', message: 'خرید مشاوره نیست' });
+      throw new BadRequestException({ code: 'VALIDATION_INVALID_INPUT', message: 'این خرید مربوط به مشاوره نیست.' });
     }
     if (purchase.consumed) {
-      throw new BadRequestException({ code: 'VALIDATION_INVALID_INPUT', message: 'این خرید قبلاً مصرف شده' });
+      throw new BadRequestException({ code: 'VALIDATION_INVALID_INPUT', message: 'از این خرید قبلاً استفاده شده است.' });
     }
 
     const ticket: QueueTicket = {
@@ -211,11 +227,12 @@ export class ConsultationQueueService {
     this.tickets.push(ticket);
     await this.persist();
     this.billing.markConsumed(purchaseId);
-    this.emit('queue.updated', `بلیت جدید ${ticket.ticketId.slice(0, 8)} (${ticket.minutes} دقیقه)`);
+    await this.billing.flush();
+    this.emit('queue.updated', `نوبت جدید ${ticket.ticketId.slice(0, 8)} (${ticket.minutes} دقیقه)`);
     this.logger.log(`ticket joined: ${ticket.ticketId} for ${userId}`);
-    // "خرید زدی → بگو نفر چندمی" — the buyer IMMEDIATELY learns their place.
+    // The buyer learns their place in line immediately.
     const pos = await this.position(userId);
-    if (pos) void this.notifications.queuePosition(ticket, pos.position, pos.etaMinutes);
+    if (pos) this.background(this.notifications.queuePosition(ticket, pos.position, pos.etaMinutes));
     return ticket;
   }
 
@@ -247,20 +264,20 @@ export class ConsultationQueueService {
     await this.ensureLoaded();
     const t = this.need(ticketId);
     if (t.userId !== userId) {
-      throw new BadRequestException({ code: 'TICKET_NOT_FOUND', message: 'بلیت مال تو نیست' });
+      throw new BadRequestException({ code: 'TICKET_NOT_FOUND', message: 'این نوبت متعلق به حساب شما نیست.' });
     }
     if (t.status !== 'waiting') {
-      throw this.wrongState('فقط بلیت در حال انتظار را می‌شود کنسل کرد');
+      throw this.wrongState('فقط نوبت در انتظار را می‌توان لغو کرد.');
     }
     t.status = 'cancelled';
     t.cancelledAt = new Date().toISOString();
     const purchase = this.billing.getPurchase(t.purchaseId);
     if (purchase && !purchase.refunded) {
       t.refundIssued = true;
-      await this.billing.refundPurchase(userId, t.purchaseId, `انصراف از نوبت ${t.ticketId.slice(0, 8)}`);
+      await this.billing.refundPurchase(userId, t.purchaseId, `بازگشت وجه لغو نوبت ${t.ticketId.slice(0, 8)}`);
     }
     await this.persist();
-    this.emit('queue.updated', `بلیت ${ticketId.slice(0, 8)} کنسل و وجه برگشت`);
+    this.emit('queue.updated', `نوبت ${ticketId.slice(0, 8)} لغو شد و وجه آن بازگشت.`);
     return { refunded: Boolean(t.refundIssued) };
   }
 
@@ -269,19 +286,19 @@ export class ConsultationQueueService {
     await this.ensureLoaded();
     const t = this.need(ticketId);
     if (t.status !== 'up_next') {
-      throw this.wrongState('بلیت هنوز به نوبتش نرسیده');
+      throw this.wrongState('هنوز نوبت این مراجعه‌کننده نرسیده است.');
     }
     t.status = 'in_call';
     t.inCallAt = new Date().toISOString();
     await this.persist();
-    this.emit('queue.updated', `تماس با بلیت ${ticketId.slice(0, 8)} آغاز شد`);
+    this.emit('queue.updated', `تماس برای نوبت ${ticketId.slice(0, 8)} آغاز شد.`);
     return t;
   }
 
   private need(ticketId: string, lenient = false): QueueTicket {
     const t = this.tickets.find((x) => x.ticketId === ticketId);
     if (!t && !lenient) {
-      throw new BadRequestException({ code: 'TICKET_NOT_FOUND', message: 'بلیت پیدا نشد' });
+      throw new BadRequestException({ code: 'TICKET_NOT_FOUND', message: 'نوبت پیدا نشد.' });
     }
     return t as QueueTicket;
   }

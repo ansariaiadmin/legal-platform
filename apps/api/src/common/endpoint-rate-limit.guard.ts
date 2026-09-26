@@ -20,7 +20,7 @@ export interface EndpointRateLimitConfig {
  * - API: 1000/hour/user
  */
 export const EndpointRateLimit = (config: EndpointRateLimitConfig) => {
-  return (target: object, propertyKey?: string, descriptor?: PropertyDescriptor) => {
+  return (target: object, _propertyKey?: string, descriptor?: PropertyDescriptor) => {
     Reflect.defineMetadata(ENDPOINT_RATE_LIMIT_KEY, config, descriptor?.value || target);
     return descriptor;
   };
@@ -94,14 +94,14 @@ export const RateLimitPresets = {
     limit: 5,
     windowMs: 60 * 1000,
     keyBy: 'ip' as const,
-    message: 'تعداد تلاش ورود بیش از حد مجاز است. لطفا یک دقیقه صبر کنید',
+    message: 'تعداد تلاش ورود بیش از حد مجاز است. لطفاً یک دقیقه صبر کنید.',
   },
   // Upload: 10/hour/user
   UPLOAD: {
     limit: 10,
     windowMs: 60 * 60 * 1000,
     keyBy: 'user' as const,
-    message: 'تعداد آپلود بیش از حد مجاز است. لطفا یک ساعت صبر کنید',
+    message: 'تعداد آپلود بیش از حد مجاز است. لطفاً یک ساعت صبر کنید.',
   },
   // API: 1000/hour/user
   API: {

@@ -1,8 +1,10 @@
 {
   "name": "@legal-platform/agent-registration-expert",
-  "version": "0.1.0",
+  "version": "1.0.0",
+  "description": "Property and registration-law expert agent",
+  "license": "AGPL-3.0-or-later",
+  "author": "Mohammad Ansari (https://ansariai.ir)",
   "private": true,
-  "description": "Registration legal expert agent (SPEC section 11a) — fleet member",
   "type": "commonjs",
   "main": "./dist/src/index.js",
   "types": "./dist/src/index.d.ts",
@@ -12,7 +14,9 @@
       "default": "./dist/src/index.js"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "clean": "rm -rf dist",

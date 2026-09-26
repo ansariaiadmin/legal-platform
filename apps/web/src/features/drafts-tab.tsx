@@ -31,9 +31,9 @@ interface UsageMonth {
 }
 
 const STATE_PILL: Record<Draft['state'], { cls: string; label: string }> = {
-  created: { cls: 'pill', label: '⏳ ساخته‌شده' },
-  retrieving: { cls: 'pill teal', label: '🔍 بازیابی' },
-  generating: { cls: 'pill teal', label: '✍️ تولید' },
+  created: { cls: 'pill', label: '⏳ ثبت‌شده' },
+  retrieving: { cls: 'pill teal', label: '🔍 یافتن منابع' },
+  generating: { cls: 'pill teal', label: '✍️ در حال نگارش' },
   awaiting_review: { cls: 'pill gold', label: '👁 منتظر بازبینی' },
   approved: { cls: 'pill ok', label: '✅ تأییدشده' },
   rejected: { cls: 'pill bad', label: '❌ ردشده' },
@@ -80,7 +80,7 @@ export function DraftsTab() {
 
   async function makeDraft() {
     if (prompt.trim().length < 10) {
-      setMsg('حداقل ۱۰ نویسه برای پیش‌نویس لازم است.');
+      setMsg('متن درخواست باید دست‌کم ۱۰ نویسه باشد.');
       return;
     }
     setBusy(true);
@@ -90,11 +90,11 @@ export function DraftsTab() {
       const g = await api.post<Draft>(`/dashboard/rag/drafts/${d.draftId}/generate`);
       setPrompt('');
       if (g.error === 'DRAFT_NO_CITATIONS') {
-        setMsg('بدون استناد معتبر، نوشتم خودخواهانه نبود — اول چیزی را به کتابخانهٔ تأییدشده بیفزا.');
+        setMsg('منبع تأییدشدهٔ مرتبطی پیدا نشد، بنابراین پیش‌نویسی نوشته نشد. ابتدا منبع مرتبط را به کتابخانه اضافه و تأیید کنید.');
       } else if (g.error) {
         setMsg(`خطا: ${g.error}`);
       } else {
-        setMsg('پیش‌نویس آمادهٔ بازبینی است — با منابع، نه با خیال.');
+        setMsg('پیش‌نویس آماده و منتظر بازبینی شماست.');
       }
       await refresh();
     } catch (e) {
@@ -123,7 +123,7 @@ export function DraftsTab() {
     setMsg(null);
     try {
       const r = await api.post<{ indexed: number; degraded: string | null }>('/dashboard/rag/index/rebuild');
-      setMsg(r.degraded ? `وضعیت فروافتاده: انگلیسی گام‌بردار نیست '${r.degraded}'` : `ایندکس مجدد: ${r.indexed} تکه.`);
+      setMsg(r.degraded ? `نمایه‌سازی انجام نشد: ${r.degraded}` : `نمایه‌سازی انجام شد: ${r.indexed} بخش.`);
       await refresh();
     } catch (e) {
       setMsg((e as Error).message);
@@ -143,7 +143,7 @@ export function DraftsTab() {
             <div className="grid cols-3" style={{ marginTop: 8 }}>
               <MiniV k="درخواست‌ها" v={<Num value={usage.totals.requests} />} />
               <MiniV k="توکن‌ها" v={<Num value={usage.totals.tokens} />} />
-              <MiniV k="هزینهٔ تخمینی" v={usage.totals.costUsd === null ? 'بدون قیمت‌گذاری' : `$${usage.totals.costUsd.toFixed(4)}`} />
+              <MiniV k="هزینهٔ تخمینی" v={usage.totals.costUsd === null ? 'قیمت تعریف نشده' : `$${usage.totals.costUsd.toFixed(4)}`} />
             </div>
             {usage.features.length > 0 && (
               <div style={{ marginTop: 10, fontSize: 12, color: 'var(--text-dim)' }}>
@@ -159,7 +159,7 @@ export function DraftsTab() {
           </div>
         )}
         <button className="btn" style={{ marginTop: 12, padding: '8px 16px' }} disabled={busy} onClick={() => void rebuildIndex()}>
-          بازسازی ایندکس برداری (قفسهٔ تأییدشده)
+          بازسازی نمایهٔ جست‌وجوی معنایی (منابع تأییدشده)
         </button>
       </div>
 
@@ -167,23 +167,23 @@ export function DraftsTab() {
       <div className="card">
         <h3 style={{ margin: '0 0 6px' }}>{t('drafts.title')}</h3>
         <p className="hint">
-          بدون حداقل یک سند تأییدشدهٔ مرتبط روی قفسه، دستگاه نمی‌نویسد. اگر نوشت، پایانش می‌بینی از کجا آمده.
+          تا دست‌کم یک منبع تأییدشدهٔ مرتبط در کتابخانه نباشد، پیش‌نویسی نوشته نمی‌شود. هر پیش‌نویس فهرست منابع خود را در پایان دارد.
         </p>
         <textarea
           style={{ ...inputStyle, minHeight: 110 }}
-          placeholder="متن درخواست پیش‌نویس — مثلاً: متن نامهٔ ابلاغ برای موضوع اجاره ملک"
+          placeholder="درخواست خود را بنویسید؛ مثلاً: متن اظهارنامه برای مطالبهٔ اجاره‌بهای معوق"
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
         />
         <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-          <button className="btn primary" disabled={busy} onClick={() => void makeDraft()}>بساز برگ</button>
+          <button className="btn primary" disabled={busy} onClick={() => void makeDraft()}>نوشتن پیش‌نویس</button>
         </div>
       </div>
 
       {/* — list — */}
       <div className="card">
         <h3 style={{ margin: '0 0 10px' }}>پیش‌نویس‌ها</h3>
-        {drafts.length === 0 && <p className="hint">هنوز چیزی نیست.</p>}
+        {drafts.length === 0 && <p className="hint">هنوز پیش‌نویسی ثبت نشده است.</p>}
         {drafts.map((d) => (
           <div key={d.draftId} style={{ padding: '12px 0', borderBottom: '1px dashed var(--line)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -193,7 +193,7 @@ export function DraftsTab() {
             <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4 }}>
               {new Date(d.createdAt).toLocaleString('fa-IR')}
               {d.provenance?.model ? ` · مدل ${d.provenance.model}` : ''}
-              {d.supersedesId ? ' · نسخهٔ اصلاح سند قبلی' : ''}
+              {d.supersedesId ? ' · نسخهٔ اصلاح‌شدهٔ پیش‌نویس قبلی' : ''}
             </div>
             {d.error && <div style={{ marginTop: 6, color: 'var(--rose)', fontSize: 12 }}>خطا: {d.error}</div>}
 
@@ -207,7 +207,7 @@ export function DraftsTab() {
                     منابع استنادشده:
                     {d.provenance.retrieved.map((c, i) => (
                       <div key={c.documentId} style={{ marginTop: 4 }}>
-                        [{i + 1}] «{c.title}» — ردهٔ {c.trustTier}، امتیاز {c.score}
+                        [{i + 1}] «{c.title}»، سطح {c.trustTier}، امتیاز {c.score}
                         <div style={{ opacity: 0.8 }}>{c.preview}…</div>
                       </div>
                     ))}
@@ -221,7 +221,7 @@ export function DraftsTab() {
             )}
             {d.state === 'approved' && (
               <button className="btn" style={{ marginTop: 8, padding: '7px 14px' }} disabled={busy} onClick={() => void review(d.draftId, 'supersede')}>
-                نسخهٔ جدید (supersede)
+                ساخت نسخهٔ جدید
               </button>
             )}
           </div>

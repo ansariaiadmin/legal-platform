@@ -15,7 +15,9 @@ import { MockEmailAdapter } from './email/mock-email.adapter';
 import { SmtpEmailAdapter } from './email/smtp-email.adapter';
 import { ZarinpalAdapter } from './payment/zarinpal.adapter';
 import { KavenegarSmsAdapter } from './sms/kavenegar.adapter';
+import { GhasedakSmsAdapter } from './sms/ghasedak.adapter';
 import type { ProviderCategory } from './provider.tokens';
+import { createUnconfiguredAdapter } from './unconfigured.adapter';
 
 /**
  * Builds the adapter instance for a provider category.
@@ -32,40 +34,41 @@ export function createAdapterFor(
 ): unknown {
   const isProduction = config.get<string>('NODE_ENV') === 'production';
 
-  if (adapterKey === 'mock' && isProduction) {
-    // SPEC section 12: no fake payment / sms / ai success in production.
-    throw new ProviderError(
-      PROVIDER_ERROR_CODES.CONFIG_INVALID,
-      `The mock ${category} adapter is not allowed when NODE_ENV=production`,
-      false,
-      { category, adapterKey },
+  // SPEC section 12: no fake payment / SMS / AI success in production. Storage
+  // is selected by STORAGE_DRIVER, so its adapter key is irrelevant here.
+  if (adapterKey === 'mock' && isProduction && category !== 'storage') {
+    logger.warn(
+      `${category} provider is not configured (${category.toUpperCase()}_PROVIDER=mock); ` +
+        'the feature stays disabled until a real provider is set.',
     );
+    return createUnconfiguredAdapter(category);
   }
 
   switch (category) {
-    case 'sms':
-      // P9-T3: SMS_ADAPTER=kavenegar → real gateway; anything else → mock with
-      // the honest '[MOCK SMS]' log line (which production already forbids via
-      // the adapterKey==='mock' guard above only when key==='mock' — we mirror
-      // intent: real in prod needs the env key).
-      if (config.get<string>('SMS_ADAPTER') === 'kavenegar') {
-        return new KavenegarSmsAdapter(config);
-      }
+    case 'sms': {
+      // SMS_PROVIDER selects the gateway. SMS_ADAPTER is still honoured for
+      // backward compatibility with older .env files.
+      const sms = config.get<string>('SMS_ADAPTER') || adapterKey;
+      if (sms === 'kavenegar') return new KavenegarSmsAdapter(config);
+      if (sms === 'ghasedak') return new GhasedakSmsAdapter(config);
       return new MockSmsAdapter();
-    case 'payment':
-      if (config.get<string>('PAYMENT_ADAPTER') === 'zarinpal') {
-        return new ZarinpalAdapter(config);
-      }
+    }
+    case 'payment': {
+      const payment = config.get<string>('PAYMENT_ADAPTER') || adapterKey;
+      if (payment === 'zarinpal') return new ZarinpalAdapter(config);
       return new MockPaymentAdapter();
+    }
     case 'push':
       return new MockPushAdapter();
     case 'telephony':
       return new MockTelephonyAdapter();
-    case 'ai':
-      if (config.get<string>('AI_PROVIDER_KEY') === 'openai-compatible' || config.get<string>('AI_PROVIDER_KEY') === 'openai') {
+    case 'ai': {
+      const ai = config.get<string>('AI_PROVIDER_KEY') || adapterKey;
+      if (ai === 'openai-compatible' || ai === 'openai') {
         return new OpenAiCompatibleAIAdapter(config);
       }
       return new MockAIAdapter(config);
+    }
     case 'email':
       // P10: EMAIL_DRIVER=smtp → real relay; anything else → dev outbox
       // (the mock-in-production guard above already keys off adapterKey).

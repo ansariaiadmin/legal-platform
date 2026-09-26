@@ -1,5 +1,5 @@
 import {
-  Body, Controller, Get, Param, Post, Query, Sse, UseGuards,
+  Body, Controller, Get, Optional, Param, Post, Query, Sse, UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Observable } from 'rxjs';
@@ -12,6 +12,7 @@ import { CurrentUser } from '../../security/current-user.decorator';
 import type { AuthenticatedUser } from '../../security/authenticated-user';
 import { InProcessAgentEventBus } from '../orchestrator/agent-event-bus';
 import { EmbeddingIndexService } from './embedding-index.service';
+import { PgEmbeddingIndexService, pickSemanticIndex } from './pg-embedding-index.service';
 import { RerankerService } from './reranker.service';
 import { DraftingService } from './drafting.service';
 import { UsageMeterService } from './usage-meter.service';
@@ -30,30 +31,36 @@ const SSE_DONE = new Set(['approved', 'rejected']);
 @UseGuards(JwtAccessGuard, RolesGuard)
 export class RagController {
   constructor(
-    private readonly index: EmbeddingIndexService,
+    private readonly jsonIndex: EmbeddingIndexService,
     private readonly reranker: RerankerService,
     private readonly drafts: DraftingService,
     private readonly meter: UsageMeterService,
     private readonly bus: InProcessAgentEventBus,
+    @Optional() private readonly pgIndex?: PgEmbeddingIndexService,
   ) {}
+
+  /** The live semantic index — the same one drafting reads from. */
+  private get index() {
+    return pickSemanticIndex(this.jsonIndex, this.pgIndex);
+  }
 
   @Get('index/stats')
   @Roles(UserRole.LAWYER_OWNER, UserRole.STAFF)
-  @ApiOperation({ summary: 'stats + degradation flag for the semantic index' })
+  @ApiOperation({ summary: 'Semantic index statistics and health' })
   indexStats() {
     return this.index.stats();
   }
 
   @Post('index/rebuild')
   @Roles(UserRole.LAWYER_OWNER)
-  @ApiOperation({ summary: 'rebuild the vector index over the verified shelf (idempotent)' })
+  @ApiOperation({ summary: 'Rebuild the vector index over verified documents (idempotent)' })
   rebuild() {
     return this.index.rebuild();
   }
 
   @Get('weights')
   @Roles(UserRole.LAWYER_OWNER, UserRole.STAFF)
-  @ApiOperation({ summary: 'show the exact reranker weights — no magic numbers' })
+  @ApiOperation({ summary: 'Current reranker weights' })
   weights() {
     return this.reranker.explainWeights();
   }
@@ -62,7 +69,7 @@ export class RagController {
 
   @Post('drafts')
   @Roles(UserRole.LAWYER_OWNER, UserRole.STAFF)
-  @ApiOperation({ summary: 'create a draft stub — retrieval/generate are separate steps' })
+  @ApiOperation({ summary: 'Create a draft; retrieval and generation are separate steps' })
   async createDraft(
     @CurrentUser() user: AuthenticatedUser,
     @Body() body: { prompt: string; sensitivity?: 'privileged' | 'normal' },
@@ -76,21 +83,21 @@ export class RagController {
 
   @Post('drafts/:id/generate')
   @Roles(UserRole.LAWYER_OWNER, UserRole.STAFF)
-  @ApiOperation({ summary: 'retrieve → cite-behood generate → awaiting lawyereview' })
+  @ApiOperation({ summary: 'Retrieve sources and generate a cited draft for lawyer review' })
   generate(@Param('id') id: string) {
     return this.drafts.generate(id);
   }
 
   @Get('drafts')
   @Roles(UserRole.LAWYER_OWNER, UserRole.STAFF)
-  @ApiOperation({ summary: 'list drafts newest-first' })
+  @ApiOperation({ summary: 'List drafts, newest first' })
   listDrafts() {
     return this.drafts.list();
   }
 
   @Get('drafts/:id')
   @Roles(UserRole.LAWYER_OWNER, UserRole.STAFF)
-  @ApiOperation({ summary: 'one draft with its provenance bundle' })
+  @ApiOperation({ summary: 'One draft with its sources' })
   getDraft(@Param('id') id: string) {
     return this.drafts.get(id);
   }
@@ -99,7 +106,7 @@ export class RagController {
    *  Completes on terminal state (approved/rejected) or after 120s. */
   @Sse('drafts/:id/stream')
   @Roles(UserRole.LAWYER_OWNER, UserRole.STAFF)
-  @ApiOperation({ summary: 'SSE: live progress for one draft until a terminal state' })
+  @ApiOperation({ summary: 'Live progress of one draft (SSE) until it finishes' })
   streamDraft(@Param('id') id: string): Promise<Observable<MessageEvent>> {
     return this.drafts.get(id).then((snapshot) => new Observable<MessageEvent>((subscriber) => {
       subscriber.next({
@@ -113,12 +120,18 @@ export class RagController {
       const unsubscribe = this.bus.subscribe((ev: AgentEvent) => {
         if (ev.taskId !== id) return;
         subscriber.next({ data: ev } as MessageEvent);
-        void this.drafts.get(id).then((now) => {
-          if (now && SSE_DONE.has(now.state)) {
-            subscriber.complete();
+        this.drafts.get(id).then(
+          (now) => {
+            if (now && SSE_DONE.has(now.state)) {
+              subscriber.complete();
+              unsubscribe();
+            }
+          },
+          (err: unknown) => {
+            subscriber.error(err);
             unsubscribe();
-          }
-        });
+          },
+        );
         if (Date.now() - started > 120_000) {
           subscriber.complete();
           unsubscribe();
@@ -132,7 +145,7 @@ export class RagController {
 
   @Post('drafts/:id/review')
   @Roles(UserRole.LAWYER_OWNER)
-  @ApiOperation({ summary: 'P4-T4 review gate: approve | reject | supersede' })
+  @ApiOperation({ summary: 'Review a draft: approve, reject or supersede' })
   review(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
@@ -145,14 +158,14 @@ export class RagController {
 
   @Get('usage/monthly')
   @Roles(UserRole.LAWYER_OWNER, UserRole.STAFF)
-  @ApiOperation({ summary: 'per-feature rollups for the month — never invented' })
+  @ApiOperation({ summary: 'Monthly usage per feature' })
   usage(@Query('month') month?: string) {
     return this.meter.monthlyReport(month);
   }
 
   @Get('usage/alert')
   @Roles(UserRole.LAWYER_OWNER, UserRole.STAFF)
-  @ApiOperation({ summary: 'alert arming state — readable, nothing resets silently' })
+  @ApiOperation({ summary: 'Alert configuration state' })
   usageAlert() {
     return this.meter.alertState();
   }

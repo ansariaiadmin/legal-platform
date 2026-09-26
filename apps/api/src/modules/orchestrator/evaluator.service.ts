@@ -60,7 +60,7 @@ export class EvaluatorService {
           id: id(),
           agentId: m.agentId,
           kind: 'review_grants',
-          summaryFa: `نرخ موفقیت ${m.agentId} به ${(m.successRate * 100).toFixed(0)}٪ رسیده؛ اول وضعیت گرنت/سلامت را بررسی کنید.`,
+          summaryFa: `نرخ موفقیت ${m.agentId} به ${(m.successRate * 100).toFixed(0)}٪ رسیده؛ ابتدا مجوزها و وضعیت سلامت آن را بررسی کنید.`,
           evidence: { successRate: m.successRate, denials: m.denials },
           confidence: 0.8,
         });

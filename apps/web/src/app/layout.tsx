@@ -2,8 +2,12 @@ import type { Metadata } from 'next';
 import '../styles/globals.css';
 
 export const metadata: Metadata = {
-  title: 'پلتفرم حقوقی — دفتر هوشمند',
-  description: 'Practice Management for Lawyers — جامعه‌ای از کارشناس‌های هوشمند',
+  title: 'پلتفرم حقوقی',
+  description: 'دفتر کار هوشمند وکیل — Smart practice workspace for lawyers',
+  applicationName: 'پلتفرم حقوقی',
+  authors: [{ name: 'Mohammad Ansari', url: 'https://ansariai.ir' }],
+  manifest: '/manifest.json',
+  icons: { icon: '/icon.svg', apple: '/icon-192.png' },
 };
 
 export default function RootLayout({
@@ -12,8 +16,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    // P7: dir/lang are client-managed (UiPrefsBar); server ships the Iran default.
-    // suppressHydrationWarning because the client flips dir/lang on boot.
+    // dir/lang are applied on the client (UiPrefsBar); the server renders the
+    // Persian default, hence suppressHydrationWarning.
     <html lang="fa" dir="rtl" suppressHydrationWarning>
       <body>{children}</body>
     </html>

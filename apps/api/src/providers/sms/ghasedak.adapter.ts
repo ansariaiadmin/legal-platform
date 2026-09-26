@@ -1,73 +1,102 @@
-/**
- * Ghasedak SMS Adapter — Real API — v3.1.0 — تاریکی روشن شد
- * Docs: https://ghasedak.me/docs
- * API: POST https://api.ghasedak.me/v2/sms/send/simple
- * Cost: هر پیامک ~120 تومان — اعتبار چک می‌شه
- */
-import { logger } from '@/lib/logger';
+import { ConfigService } from '@nestjs/config';
+import { ProviderError, PROVIDER_ERROR_CODES } from '../provider.error';
+import type { SendSmsResult, SmsProvider } from './sms.provider';
 
-export interface GhasedakConfig {
-  apiKey: string;
-  sender: string;
+/**
+ * Ghasedak SMS adapter (https://ghasedak.me/docs).
+ *
+ * Uses the current REST gateway (`/rest/api/v1/WebService/*`): JSON body,
+ * API key in the `ApiKey` header. The key is never logged.
+ *
+ * Contract (same as every SmsProvider):
+ * - success is reported only when the gateway returns `IsSuccess` and a message id;
+ * - every gateway or network failure surfaces as a ProviderError;
+ * - verifyConfig() calls the account-information endpoint and reports the result as-is.
+ */
+export class GhasedakSmsAdapter implements SmsProvider {
+  private readonly apiKey: string;
+  private readonly lineNumber: string;
+  private readonly base: string;
+
+  constructor(config: ConfigService) {
+    const key = config.get<string>('GHASEDAK_API_KEY')?.trim();
+    if (!key) {
+      throw new ProviderError(
+        PROVIDER_ERROR_CODES.CONFIG_INVALID,
+        'GHASEDAK_API_KEY is missing. Set it, or keep SMS_PROVIDER=mock for development.',
+        false,
+      );
+    }
+    this.apiKey = key;
+    this.lineNumber = config.get<string>('GHASEDAK_LINE_NUMBER') || '';
+    // Override point for sandboxes and contract tests.
+    this.base = config.get<string>('GHASEDAK_BASE_URL') || 'https://gateway.ghasedak.me/rest/api/v1';
+  }
+
+  async sendSms(input: { phone: string; message: string }): Promise<SendSmsResult> {
+    try {
+      const res = await fetch(`${this.base}/WebService/SendSingleSMS`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ApiKey: this.apiKey },
+        body: JSON.stringify({
+          receptor: input.phone,
+          message: input.message,
+          ...(this.lineNumber ? { lineNumber: this.lineNumber } : {}),
+        }),
+        signal: AbortSignal.timeout(10_000),
+      });
+      const parsed = await readJson(res);
+      const ok = pickBool(parsed, 'isSuccess');
+      if (!res.ok || !ok) {
+        throw new ProviderError(
+          res.status === 429 ? PROVIDER_ERROR_CODES.RATE_LIMITED : PROVIDER_ERROR_CODES.SERVICE_UNAVAILABLE,
+          `ghasedak refused: ${String(pickField(parsed, 'message') ?? res.status)}`,
+          res.status === 429 || res.status >= 500,
+        );
+      }
+      const data = (pickField(parsed, 'data') ?? parsed) as Record<string, unknown>;
+      const messageId = pickField(data, 'messageId');
+      if (messageId === undefined || messageId === null || messageId === '') {
+        throw new ProviderError(PROVIDER_ERROR_CODES.SERVICE_UNAVAILABLE, 'ghasedak accepted without message id', true);
+      }
+      return { success: true, messageId: String(messageId) };
+    } catch (e) {
+      if (e instanceof ProviderError) throw e;
+      throw new ProviderError(PROVIDER_ERROR_CODES.NETWORK_ERROR, `sms send failed: ${(e as Error).message}`, true);
+    }
+  }
+
+  async verifyConfig(): Promise<{ valid: boolean; error?: string }> {
+    try {
+      const res = await fetch(`${this.base}/WebService/GetAccountInformation`, {
+        headers: { ApiKey: this.apiKey },
+        signal: AbortSignal.timeout(5_000),
+      });
+      if (!res.ok) return { valid: false, error: `status ${res.status}` };
+      const parsed = await readJson(res);
+      return pickBool(parsed, 'isSuccess') ? { valid: true } : { valid: false, error: String(pickField(parsed, 'message') ?? 'rejected') };
+    } catch (e) {
+      return { valid: false, error: (e as Error).message };
+    }
+  }
 }
 
-export class GhasedakAdapter {
-  private config: GhasedakConfig;
-  private baseUrl = 'https://api.ghasedak.me/v2';
-
-  constructor(config: GhasedakConfig) {
-    this.config = config;
+async function readJson(res: Response): Promise<Record<string, unknown>> {
+  const text = await res.text();
+  try {
+    return JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    throw new ProviderError(PROVIDER_ERROR_CODES.SERVICE_UNAVAILABLE, `ghasedak non-json ${res.status}`, true);
   }
+}
 
-  async send(to: string, message: string): Promise<{ success: boolean; messageId?: string; error?: string; cost?: number }> {
-    try {
-      const res = await fetch(`${this.baseUrl}/sms/send/simple`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'apikey': this.config.apiKey,
-        },
-        body: new URLSearchParams({
-          receptor: to,
-          sender: this.config.sender,
-          message,
-        }),
-        signal: AbortSignal.timeout(10000),
-      });
+/** Ghasedak documents PascalCase fields; tolerate camelCase as well. */
+function pickField(obj: Record<string, unknown> | undefined, camel: string): unknown {
+  if (!obj) return undefined;
+  const pascal = camel.charAt(0).toUpperCase() + camel.slice(1);
+  return obj[camel] ?? obj[pascal];
+}
 
-      const data = await res.json() as any;
-
-      if (!res.ok || data.result?.code !== 200) {
-        const err = data.result?.message || `HTTP ${res.status}`;
-        logger.error({ to, error: err }, 'Ghasedak SMS failed');
-        return { success: false, error: err };
-      }
-
-      logger.info({ to, messageId: data.result?.items?.[0] }, 'Ghasedak SMS sent');
-      return { success: true, messageId: String(data.result?.items?.[0] || Date.now()), cost: 120 };
-    } catch (e) {
-      const err = e instanceof Error ? e.message : String(e);
-      logger.error({ to, error: err }, 'Ghasedak SMS exception');
-      return { success: false, error: err };
-    }
-  }
-
-  async getBalance(): Promise<{ success: boolean; balance?: number; error?: string }> {
-    try {
-      const res = await fetch(`${this.baseUrl}/account/info`, {
-        method: 'GET',
-        headers: { 'apikey': this.config.apiKey },
-        signal: AbortSignal.timeout(5000),
-      });
-      const data = await res.json() as any;
-      if (!res.ok) return { success: false, error: `HTTP ${res.status}` };
-      return { success: true, balance: data.result?.balance || 0 };
-    } catch (e) {
-      return { success: false, error: String(e) };
-    }
-  }
-
-  async testConnection(): Promise<{ success: boolean; balance?: number; error?: string }> {
-    return this.getBalance();
-  }
+function pickBool(obj: Record<string, unknown>, camel: string): boolean {
+  return pickField(obj, camel) === true;
 }

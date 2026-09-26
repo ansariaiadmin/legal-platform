@@ -180,25 +180,19 @@ DB_SIZE=$(stat -c%s "$DB_DUMP_FILE" 2>/dev/null || stat -f%z "$DB_DUMP_FILE" 2>/
 # 2) File storage backup
 # --------------------------------------------------------------------------
 log_info "Step 2/4: File storage backup (documents, uploads)..."
-UPLOADS_DIR="$ROOT_DIR/data/uploads"
 STORAGE_DUMP="$TEMP_DIR/storage-${TIMESTAMP}.tar.gz"
 
-if [[ -d "$UPLOADS_DIR" ]]; then
-    tar -czf "$STORAGE_DUMP" -C "$ROOT_DIR/data" uploads 2>/dev/null || tar -czf "$STORAGE_DUMP" -C "$TEMP_DIR" --files-from /dev/null
+# The uploads volume also holds the runtime state when STORAGE_DRIVER=local.
+# Read it through the api container so named volumes and bind mounts both work.
+if docker compose exec -T api tar -C /app -czf - uploads > "$STORAGE_DUMP" 2>/dev/null \
+    && [[ -s "$STORAGE_DUMP" ]]; then
+    log_success "Storage backup OK: $(du -h "$STORAGE_DUMP" | awk '{print $1}')"
+elif [[ -d "$ROOT_DIR/data/uploads" ]]; then
+    tar -czf "$STORAGE_DUMP" -C "$ROOT_DIR/data" uploads
     log_success "Storage backup OK: $(du -h "$STORAGE_DUMP" | awk '{print $1}')"
 else
-    # Check alternative locations
-    for alt in "$ROOT_DIR/uploads" "$ROOT_DIR/apps/api/uploads" "./uploads"; do
-        if [[ -d "$alt" ]]; then
-            tar -czf "$STORAGE_DUMP" -C "$(dirname "$alt")" "$(basename "$alt")" 2>/dev/null
-            break
-        fi
-    done
-    if [[ ! -f "$STORAGE_DUMP" ]]; then
-        mkdir -p "$TEMP_DIR/empty_uploads"
-        tar -czf "$STORAGE_DUMP" -C "$TEMP_DIR" empty_uploads
-        log_warn "No uploads found — empty archive created"
-    fi
+    log_error "Cannot read the uploads volume; is the api container running?"
+    exit 1
 fi
 
 STORAGE_CHECKSUM=$(sha256sum "$STORAGE_DUMP" | awk '{print $1}')
@@ -221,6 +215,8 @@ if [[ -n "$REDIS_URL" ]]; then
     else
         docker compose exec -T redis redis-cli --rdb /tmp/dump.rdb 2>/dev/null && docker compose cp redis:/tmp/dump.rdb "$REDIS_DUMP" 2>/dev/null || echo "# redis placeholder" > "$REDIS_DUMP"
     fi
+    # Redis holds only transient queue data; never fail the backup over it.
+    [[ -s "$REDIS_DUMP" ]] || echo "# redis placeholder" > "$REDIS_DUMP"
     REDIS_CHECKSUM=$(sha256sum "$REDIS_DUMP" | awk '{print $1}')
     REDIS_SIZE=$(stat -c%s "$REDIS_DUMP" 2>/dev/null || stat -f%z "$REDIS_DUMP" 2>/dev/null || echo 0)
     log_success "Redis dump OK"

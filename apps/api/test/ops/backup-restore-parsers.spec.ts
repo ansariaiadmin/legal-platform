@@ -1,7 +1,7 @@
 /**
  * Backup/restore DSN parsing — regression guard.
  *
- * Field-gate finding (Arena session): scripts/backup.sh and scripts/restore.sh
+ * scripts/backup.sh and scripts/restore.sh
  * used to parse DATABASE_URL by grepping for `host=\K`, `port=\K`, `dbname=\K`
  * keyword-form substrings. Our .env.example and every compose file pass a URI
  * form (postgresql://user:pass@host:port/name), so all four greps missed and

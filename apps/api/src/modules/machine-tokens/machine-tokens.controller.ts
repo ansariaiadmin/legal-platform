@@ -20,21 +20,21 @@ export class MachineTokensController {
 
   @Get()
   @Roles(UserRole.LAWYER_OWNER)
-  @ApiOperation({ summary: 'list machine tokens (revocation state visible)' })
+  @ApiOperation({ summary: 'List machine tokens, including revoked ones' })
   list() {
     return this.tokens.list();
   }
 
   @Get('scopes')
   @Roles(UserRole.LAWYER_OWNER)
-  @ApiOperation({ summary: 'the closed scope vocabulary' })
+  @ApiOperation({ summary: 'Allowed permission scopes' })
   scopes() {
     return { scopes: ALLOWED_SCOPES };
   }
 
   @Post()
   @Roles(UserRole.LAWYER_OWNER)
-  @ApiOperation({ summary: 'issue a new machine token (the token string is returned ONCE)' })
+  @ApiOperation({ summary: 'Issue a machine token (the token is shown only once)' })
   issue(
     @CurrentUser() user: AuthenticatedUser,
     @Body() body: { label: string; scopes: MachineTokenScope[]; expiresInDays?: number },
@@ -44,7 +44,7 @@ export class MachineTokensController {
 
   @Delete(':id')
   @Roles(UserRole.LAWYER_OWNER)
-  @ApiOperation({ summary: 'revoke a machine token — effective this second, survives restarts' })
+  @ApiOperation({ summary: 'Revoke a machine token immediately' })
   async revoke(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     return { revoked: await this.tokens.revoke(id, user.id) };
   }

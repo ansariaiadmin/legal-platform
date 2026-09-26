@@ -1,0 +1,61 @@
+Legal Platform (پلتفرم حقوقی)
+Copyright (C) 2026 Mohammad Ansari <https://ansariai.ir>
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU Affero General Public License as published by the
+Free Software Foundation, either version 3 of the License, or (at your
+option) any later version, supplemented by the additional terms below.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+details. You should have received a copy of the license in the file LICENSE;
+if not, see <https://www.gnu.org/licenses/>.
+
+Nothing produced by this program is legal advice. Outputs must be reviewed by
+a qualified lawyer before they are relied on.
+
+
+ADDITIONAL TERMS UNDER SECTION 7 OF THE GNU AGPL-3.0
+====================================================
+
+The following terms supplement the GNU Affero General Public License,
+version 3, as permitted by its section 7. They apply to every copy and every
+modified version of this program.
+
+(a) Attribution — section 7(b).
+    You must preserve, in every copy and every modified version:
+      1. this NOTICE file and all copyright notices in the source code; and
+      2. the following author attribution in the user interface's
+         Appropriate Legal Notices (the site footer and the "About" screen),
+         in a place and form reasonably visible to users:
+             "Original work by Mohammad Ansari — https://ansariai.ir"
+             (Persian: «ساخته‌شده توسط محمد انصاری — ansariai.ir»)
+    If a modified version's interface has no footer or About screen, the
+    attribution must appear wherever that interface displays its own legal
+    or copyright information.
+
+(b) No misrepresentation of origin — section 7(c).
+    You may not misrepresent the origin of this program or claim that you
+    are its original author. A modified version must be clearly marked as
+    modified, state that it is based on "Legal Platform by Mohammad Ansari",
+    and carry a notice of the changes and the date they were made.
+
+(c) Names and trademarks — section 7(e).
+    This license does not grant any right to use the names "پلتفرم حقوقی",
+    "Legal Platform", "Mohammad Ansari", "ansariai" or the project logo to
+    endorse or promote a derived product, or to present a derived product as
+    the official project. Stating accurately that your product is based on
+    this program is permitted. See TRADEMARKS.md.
+
+These terms are among those that section 7 of the license expressly
+permits; they are not "further restrictions" within the meaning of its
+section 10 and may not be removed from copies of this program.
+
+
+SUPPORT AND CONTACT
+===================
+
+Website:   https://ansariai.ir
+Telegram:  @ansariaiadmin — automation projects and custom platform development
+Donations: see the "Support the project" section of README.md

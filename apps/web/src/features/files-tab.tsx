@@ -40,7 +40,7 @@ export function FilesTab() {
       >
         <div style={{ fontSize: 42 }}>📥</div>
         <div style={{ fontSize: 15, marginTop: 6 }}>{t('files.drop')}</div>
-        <p className="hint" style={{ marginTop: 4 }}>pdf، docx، txt — لیدر خودش می‌فهمد چی است</p>
+        <p className="hint" style={{ marginTop: 4 }}>PDF، DOCX و TXT؛ نوع فایل خودکار تشخیص داده می‌شود.</p>
         <input
           ref={inputRef}
           type="file"
@@ -70,7 +70,7 @@ export function FilesTab() {
                 <div style={{ marginTop: 10 }}>
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     <span className="pill teal">{f.result.record.analysis?.kindGuess ?? 'unknown'}</span>
-                    <span className="pill">{f.result.record.analysis?.chars ?? 0} کاراکتر</span>
+                    <span className="pill">{f.result.record.analysis?.chars ?? 0} نویسه</span>
                     {f.result.record.analysis?.needsOcr && <span className="pill bad">نیاز به OCR</span>}
                     {f.result.record.analysis?.languageHint === 'fa' && <span className="pill gold">فارسی</span>}
                   </div>

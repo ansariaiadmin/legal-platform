@@ -1,36 +1,28 @@
-# Roadmap — legal-platform
+# Roadmap
 
-## Done (v1.0.0)
+This roadmap describes intended direction, not commitments or dates. Suggestions are welcome in the issue tracker.
 
-- [x] Orchestrator: deterministic routing, hybrid inference, intent classifier, fleet routing, config hub, evolution, governance + voice
-- [x] Legal experts: civil/criminal/family/base, corpus grounding, collector worker, budget hard-stop
-- [x] Security: JWT, roles guard, rate-limit, egress, stream ticket, phone normalization
-- [x] Ops: backup/restore parsers, installer one-click, docker prod, storage, diagnostics, migrations
-- [x] Billing: wallet, topup contract, payment contracts
-- [x] Providers: tenant-scoped storage, factory, contracts
-- [x] Tests: 67 suites 476 passed, 0 failed, jest open handles fixed
-- [x] CI: lint + typecheck + jest + build
-- [x] Docs: README badge+mermaid+quickstart, AGENTS, HANDOFF
+## Released: 1.0.0
 
-## v2 (Explicit, Honest — No Hidden Gaps)
+- Office dashboard and client portal (PWA), Persian by default with English.
+- SMS sign-in, passkeys, role-based access, area passwords and audit log.
+- Expert assistants for civil, criminal, family, registration and international law, grounded in a verified library with pgvector retrieval.
+- Drafts with lawyer review, file analysis (PDF, Word, text) and RSA signatures.
+- Phone consultation queue with wallet, Zarinpal top-ups and SMS notifications (Kavenegar, Ghasedak).
+- One-command installer, backups, restore, diagnostics and optional monitoring.
 
-### Why v2?
-- **OCR/Translation/Layout/Golden**: Currently legal RAG uses text extraction + embeddings. v2 will add OCR (tesseract/paddle) for scanned legal docs, translation (MarianMT/NLLB) for multilingual, layout rebuild (layout-parser) for tables/figures, golden benchmarks per Society. Reason: needs ML models + GPU + curated dataset.
-- **Static Files Prod**: Currently local storage driver. v2: S3/minio prod driver with CDN. Reason: needs S3 infra.
-- **Jinja2 Cache Docker Clean**: Currently Next.js cache. v2: Jinja2 cache for legal templates (if Python service added). Reason: currently Node-only, Python template service v2.
-- **Real LLM Gateway**: Currently mock + local + cloud routing. v2: real Iranian gateway + cloud fallback with cost tracking. Reason: needs API keys + gateway infra.
-- **Voice Pipeline**: Currently governance + voice spec. v2: full STT→LLM→TTS pipeline. Reason: needs voice models.
+## Next: 1.x
 
-### Next Steps
-1. OCR multi-engine for scanned legal docs
-2. Translation adapter for multilingual
-3. Layout rebuild with tables
-4. Golden benchmarks per Society
-5. S3 prod storage driver
-6. Real LLM gateway with cost tracking
-7. Voice pipeline STT/TTS
+- **Field testing:** end-to-end tests with real SMS and payment accounts; Playwright tests for the dashboard and portal.
+- **Official gazette connector:** a collector that proposes new laws and amendments from the official gazette for lawyer verification.
+- **Relational storage:** move purchases, queue tickets, notifications, drafts and the corpus from the key-value store to the relational tables reserved in migrations 006 and 007.
+- **Client AI features:** the reserved AI subscriptions for clients (catalog entries are hidden and purchases return `409` until then).
+- **Call integration:** connect the consultation queue to a VoIP or PBX provider so calls can be placed from the dashboard.
+- **OCR** for scanned documents.
+- **S3-compatible storage** for uploads and backups.
 
-## Honest Scope
+## Later
 
-- No hidden gaps: all v2 items require external infra or ML models
-- Current MVP: local storage, text-only RAG, mock LLM routing, 476 tests green
+- Additional payment gateways and SMS providers.
+- Multi-office deployments with per-office branding.
+- A voice assistant with local speech recognition and synthesis.

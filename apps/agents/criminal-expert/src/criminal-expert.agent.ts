@@ -93,13 +93,6 @@ const CRIMES_DB: Record<string, CrimeInfo> = {
   },
 };
 
-const PUNISHMENT_GUIDE: Record<string, { min: string; max: string; notes: string }> = {
-  'حبس': { min: '۹۱ روز', max: '۲۵ سال', notes: 'حداقل حبس تعزیری ۹۱ روز، حداکثر ۲۵ سال برای جرایم متعدد' },
-  'جزای نقدی': { min: '۸ میلیون ریال', max: '۳۶ میلیارد ریال', notes: 'طبق ماده ۱۹ قانون مجازات اسلامی' },
-  'شلاق': { min: '۱ ضربه', max: '۷۴ ضربه', notes: 'حداکثر شلاق تعزیری ۷۴ ضربه' },
-  'دیه': { min: 'یک صدم دیه کامل', max: 'دیه کامل', notes: 'دیه کامل ۱۴۰۳: طبق نرخ اعلامی قوه قضائیه' },
-};
-
 function analyzeCrime(query: string): { crime: CrimeInfo; matchedKeyword: string } | null {
   const lowerQuery = query.toLowerCase();
 
@@ -134,7 +127,7 @@ function analyzeCrime(query: string): { crime: CrimeInfo; matchedKeyword: string
   return null;
 }
 
-function getDefenseStrategies(crime: CrimeInfo, query: string): string[] {
+function getDefenseStrategies(crime: CrimeInfo): string[] {
   const strategies: string[] = [];
 
   strategies.push(`### دفاعیات اختصاصی جرم ${crime.persianName}:`);
@@ -188,7 +181,7 @@ ${crime.punishment}
 ${crime.elements.map((el, i) => `${i + 1}. ${el}`).join('\n')}
 
 ### دفاعیات قابل طرح:
-${getDefenseStrategies(crime, query).join('\n')}
+${getDefenseStrategies(crime).join('\n')}
 
 ### مراحل دادرسی کیفری:
 ۱. **کشف جرم و تحقیقات مقدماتی:** توسط ضابطین و دادسرا (ماده ۲۲ قانون آیین دادرسی کیفری)
@@ -279,14 +272,16 @@ ${getDefenseStrategies(crime, query).join('\n')}
 
 ### درجات مجازات تعزیری (ماده ۱۹ قانون مجازات اسلامی):
 
-**درجه ۱:** حبس بیش از ۲۵ سال، جزای نقدی بیش از ۳۶ میلیارد ریال، مصادره کل اموال
-**درجه ۲:** حبس ۱۵ تا ۲۵ سال، جزای نقدی ۱۸ تا ۳۶ میلیارد ریال
-**درجه ۳:** حبس ۱۰ تا ۱۵ سال، جزای نقدی ۱۲ تا ۱۸ میلیارد ریال
-**درجه ۴:** حبس ۵ تا ۱۰ سال، جزای نقدی ۶ تا ۱۲ میلیارد ریال
-**درجه ۵:** حبس ۲ تا ۵ سال، جزای نقدی ۲ تا ۶ میلیارد ریال
-**درجه ۶:** حبس ۶ ماه تا ۲ سال، جزای نقدی ۸۰ میلیون تا ۲ میلیارد ریال
-**درجه ۷:** حبس ۹۱ روز تا ۶ ماه، جزای نقدی ۴۰ تا ۸۰ میلیون ریال
-**درجه ۸:** حبس تا ۳ ماه، جزای نقدی تا ۴۰ میلیون ریال
+**درجه ۱:** حبس بیش از ۲۵ سال، مصادرهٔ کل اموال، انحلال شخص حقوقی
+**درجه ۲:** حبس بیش از ۱۵ تا ۲۵ سال
+**درجه ۳:** حبس بیش از ۱۰ تا ۱۵ سال
+**درجه ۴:** حبس بیش از ۵ تا ۱۰ سال
+**درجه ۵:** حبس بیش از ۲ تا ۵ سال
+**درجه ۶:** حبس بیش از ۶ ماه تا ۲ سال
+**درجه ۷:** حبس ۹۱ روز تا ۶ ماه
+**درجه ۸:** حبس تا ۳ ماه
+
+مبالغ جزای نقدی هر درجه به استناد ماده ۲۸ قانون مجازات اسلامی با مصوبهٔ هیئت وزیران به‌روز می‌شود؛ مبلغ روز را از آخرین مصوبه استعلام کنید.
 
 ### جهات تخفیف (ماده ۳۸):
 - گذشت شاکی یا مدعی خصوصی
@@ -384,6 +379,8 @@ export const criminalExpert = createExpertAgent({
   persona: {
     displayName: 'کارشناس ارشد امور کیفری',
     motto: 'اصل برائت اول است؛ دفاعِ هنرمندانه از محضر دادسرا شروع می‌شود.',
+    displayNameEn: 'Senior Criminal Law Specialist',
+    mottoEn: "Presumption of innocence comes first; a strong defence starts at the prosecutor's office.",
   },
   customExecute: criminalExpertExecutor,
 });

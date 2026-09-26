@@ -24,12 +24,17 @@ const INBOX_KEY = 'runtime/notifications/inbox.json';
 /**
  * Notification fanout (P2a): EVERY ticket motion reaches the client through
  * in-app + (if the lawyer wired their panel) SMS. Up-next ALSO dials an
- * outbound call ("وقتشه، بیا تو تماس") via telephony port — when the panel
+ * outbound call via the telephony port — when the panel
  * isn't connected the event is still recorded with delivered.call=false and
  * never PRETENDS the phone rang.
  *
- * FIX v3.2.1 — تاریکی روشن شد — قبلا Map تو RAM بود — ریست می‌شد همه نوتیف‌ها می‌پرید — فاجعه — حالا StorageProvider persist — runtime/notifications/inbox.json
+ * The inbox is persisted through the StorageProvider
+ * (`runtime/notifications/inbox.json`), so notifications survive restarts.
  */
+
+/** Persian digits for SMS and in-app text. */
+const fa = (n: number): string => n.toLocaleString('fa-IR');
+
 @Injectable()
 export class NotificationService {
   private readonly logger = new Logger(NotificationService.name);
@@ -77,22 +82,22 @@ export class NotificationService {
     await this.persist();
   }
 
-  /** Position after join / reorder: "نفر Nم هستی، حدود M دقیقه" */
+  /** Position after join or reorder: place in line and estimated wait. */
   async queuePosition(ticket: QueueTicket, position: number, etaMinutes: number): Promise<void> {
     await this.push(ticket.userId, {
       kind: 'queue_position',
-      titleFa: `نفر ${position}ام هستی`,
-      bodyFa: `بلیت ${ticket.ticketId.slice(0, 8)} → ${position === 1 ? 'نفر بعدی تویی!' : `${position - 1} نفر جلوت هستند؛`} حدود ${etaMinutes} دقیقه صبر (${ticket.minutes} دقیقه نوبت خودت).`,
+      titleFa: position === 1 ? 'شما نفر بعدی هستید' : `جایگاه شما در صف: ${fa(position)}`,
+      bodyFa: `نوبت ${ticket.ticketId.slice(0, 8)}: ${position === 1 ? 'شما نفر بعدی هستید.' : `${fa(position - 1)} نفر پیش از شما هستند.`} زمان تقریبی انتظار ${fa(etaMinutes)} دقیقه است (مشاورهٔ ${fa(ticket.minutes)} دقیقه‌ای).`,
       channels: ['in_app', 'sms'],
     }, ticket.phone);
   }
 
-  /** «به نوبتت نزدیک میشی» — when position shrinks to N سېcond or first. */
+  /** Sent when the client moves up to second place in line. */
   async almostThere(ticket: QueueTicket): Promise<void> {
     await this.push(ticket.userId, {
       kind: 'queue_position',
-      titleFa: 'به نوبتت داری نزدیک می‌شی!',
-      bodyFa: `بلیت ${ticket.ticketId.slice(0, 8)} — فقط یک نفر مونده؛ آماده باش تا وکیل صدات کنه.`,
+      titleFa: 'نوبت شما نزدیک است',
+      bodyFa: `نوبت ${ticket.ticketId.slice(0, 8)}: فقط یک نفر پیش از شماست. لطفاً برای تماس وکیل آماده باشید.`,
       channels: ['in_app', 'sms'],
     }, ticket.phone);
   }
@@ -101,8 +106,8 @@ export class NotificationService {
   async pushPayment(userId: string, minutes: number, amountToman: number): Promise<void> {
     await this.push(userId, {
       kind: 'payment',
-      titleFa: 'خرید ثبت شد ✅',
-      bodyFa: `وقت ${minutes} دقیقه‌ای به مبلغ ${amountToman.toLocaleString('fa-IR')} تومان خریدی. وقتی بخواهی وارد صف شو.`,
+      titleFa: 'خرید ثبت شد',
+      bodyFa: `مشاورهٔ ${fa(minutes)} دقیقه‌ای به مبلغ ${amountToman.toLocaleString('fa-IR')} تومان خریداری شد. هر زمان بخواهید می‌توانید وارد صف شوید.`,
       channels: ['in_app'],
     });
   }
@@ -136,10 +141,10 @@ export class NotificationService {
 
     await this.push(ticket.userId, {
       kind: 'queue_up_next',
-      titleFa: '🔔 نوبت توئه!',
+      titleFa: '🔔 نوبت شما رسید',
       bodyFa: callPlaced
-        ? `وکیل تو را صدا زد. لینک مشاوره: ${consultUrl}`
-        : `نوبت توئه ولی پنل تماس وصل نشده — از داخل اپ بپیوند: ${consultUrl}`,
+        ? `وکیل آمادهٔ مشاوره با شماست و به‌زودی تماس می‌گیرد. وضعیت نوبت: ${consultUrl}`
+        : `نوبت شما رسید. وکیل به‌زودی با شمارهٔ ثبت‌شده تماس می‌گیرد. وضعیت نوبت: ${consultUrl}`,
       channels: callPlaced ? ['in_app', 'sms', 'call'] : ['in_app', 'sms'],
     }, ticket.phone);
 
@@ -153,6 +158,9 @@ export class NotificationService {
     payload: Omit<Notification, 'notificationId' | 'userId' | 'at' | 'read' | 'delivered'>,
     phone?: string,
   ): Promise<void> {
+    // Load the persisted inbox first; otherwise the first push after a restart
+    // would overwrite everything that was stored before it.
+    await this.ensureLoaded();
     const n: Notification = {
       notificationId: randomUUID(),
       userId,

@@ -1,81 +1,82 @@
-# Contributing — راهنمای مشارکت — v3.1.2 — تاریکی روشن شد
+# Contributing
 
-**نسخه:** v3.1.2 — سقف 10/10 — تاریکی روشن شد
-**برای:** همه — حتی اگر غیر فنی باشی!
+Thank you for helping improve Legal Platform (پلتفرم حقوقی). This guide explains how to set up the project, what we expect from a change, and how contributions are licensed.
 
-## چطور مشارکت کنم؟ — 3 قدم ساده
+## Before you start
 
-### قدم 1: Fork + Clone — مثل دانلود فیلم
+- For bugs, open an issue with steps to reproduce, the expected result and the actual result. Include the output of `./scripts/diagnostics.sh` when the problem is operational.
+- For larger changes, open an issue first so the approach can be agreed before you invest time.
+- Security problems must **not** be reported in public issues. See [SECURITY.md](SECURITY.md).
+
+## Development setup
+
+Requirements: Node.js 22, npm 10, Python 3.11 (for the text-processing worker), and Docker if you want to run the full stack.
 
 ```bash
 git clone https://github.com/ansariaiadmin/legal-platform.git
 cd legal-platform
+npm ci
+npm run build:packages
 ```
 
-### قدم 2: نصب — جادوگر — فقط Enter — پشتیبانی صفر — تاریکی روشن شد
+Run the full stack locally:
 
 ```bash
-chmod +x install.sh
-./install.sh
+cp .env.example .env        # then fill in the secrets, see INSTALL.md
+docker compose up -d --build
 ```
 
-جادوگر همه چی رو می‌پرسه با راهنما همون‌جا — فقط ضروری‌ها — پرووایدر + SMS + ناتیف — با هزینه — با تست واقعی — تاریکی روشن شد
+The dashboard is served at `http://localhost:8080` and the client portal at `http://localhost:8080/portal/`.
 
-### قدم 3: تغییر + تست + PR
+## Repository layout
+
+| Path | Contents |
+|---|---|
+| `apps/api` | NestJS 11 API, database migrations and API tests |
+| `apps/web` | Office dashboard (Next.js 15) |
+| `apps/client` | Client portal (Next.js 15, served under `/portal`) |
+| `apps/agents/*` | Expert assistants (civil, criminal, family, registration, international, general) |
+| `apps/workers/py` | Python text-processing worker (standard library only) |
+| `packages/domain`, `packages/contracts`, `packages/shared` | Shared types, error codes and agent kit |
+| `infra/` | Dockerfiles and nginx configuration |
+| `scripts/` | Installation, backup, restore and diagnostics scripts |
+
+## Checks
+
+Run these before opening a pull request. CI runs the same steps.
 
 ```bash
-# تغییر بده
-# تست بزن
-./status.sh — وضعیت پرووایدرها — تاریکی روشن شد
-./smoke-test.sh — تست کامل — تاریکی روشن شد
-pytest -q — اگر Python
-npm test — اگر Node
-
-# Commit
-git add -A
-git commit -m "feat: my feature — تاریکی روشن شد"
-git push origin main
-
-# PR بساز — https://github.com/ansariaiadmin/legal-platform/pulls
+npm run typecheck
+npm run lint
+npm test
+npm run test:py
+npm run security:secrets
 ```
 
-## قوانین — ساده
+## Guidelines
 
-- **کد تمیز:** ruff 0 — eslint 0 — 0 any — تاریکی روشن شد
-- **تست:** هر feature باید تست داشته باشه — 928 تست — تاریکی روشن شد
-- **امنیت:** .env permission 600 — no hardcoded secrets — secret scan 0 — تاریکی روشن شد
-- **مستندات:** هر feature باید docs داشته باشه — SETUP-WIZARD-FA.md — تاریکی روشن شد
-- **پشتیبانی صفر:** هر سوال راهنما همون‌جا — چیه؟ چرا؟ مثال؟ کجا؟ هزینه — تاریکی روشن شد
+- **Tests:** every bug fix and feature needs a test. Tests must not depend on timing (use `queue.settled()` rather than sleeps) or on external services.
+- **Types:** avoid `any`; use precise types or `unknown` with narrowing.
+- **Promises:** never leave a promise un-awaited; `npm run lint` enforces this for the API.
+- **Errors:** return a code from `packages/contracts` (`ERROR_CODES`) with a formal Persian message. New codes need a known prefix and an HTTP status in `httpStatusForCode`.
+- **Texts:** user-facing Persian is formal and uses the Persian half-space (ZWNJ) correctly. Update both the Persian and English strings in `apps/web/src/i18n`.
+- **Legal content:** cite the exact article and law, and verify it is in force. Do not hard-code fines or prices that change by regulation.
+- **Secrets:** never commit secrets or real personal data. `.env` is ignored by Git.
+- **Migrations:** add a new numbered migration; never edit one that has been released. See `apps/api/src/database/MIGRATIONS.md`.
+- **Commits:** write clear, imperative commit messages (for example "Fix wallet top-up confirmation").
 
-## چی باید سر جاش باشه که نیست؟ — چک‌لیست
+## Pull requests
 
-- ✅ README.md — با badge + v3.1.2 + تاریکی روشن شد
-- ✅ LICENSE — MIT — باید باشه
-- ✅ SECURITY.md — سیاست امنیت — باید باشه — تاریکی روشن شد
-- ✅ CHANGELOG.md — تاریخچه نسخه‌ها
-- ✅ CONTRIBUTING.md — همین فایل — باید باشه
-- ✅ .env.example — با NOTIF + FALLBACK + THROTTLING + توضیح فارسی — تاریکی روشن شد
-- ✅ docker-compose.yml — با healthcheck + env_file + NOTIF — تاریکی روشن شد
-- ✅ install.sh — v3.1.1 — با chmod 600 + idempotency + هزینه + تست واقعی — تاریکی روشن شد
-- ✅ install.bat — v3.1.0 — برای ویندوز — تاریکی روشن شد
-- ✅ status.sh — v3.1.0 — با health check پرووایدرها + اعتبار — تاریکی روشن شد
-- ✅ smoke-test.sh — v3.1.1 — با SMS تست واقعی + Telegram تست — تاریکی روشن شد
-- ✅ backup.sh — v3.1.0 — با encrypt + .env + keep last 7 — تاریکی روشن شد
-- ✅ update.sh — v3.1.0 — با backup auto + new env check — تاریکی روشن شد
-- ✅ docs/SETUP-WIZARD-FA.md — v3.1.0 — پشتیبانی صفر — تاریکی روشن شد
-- ✅ docs/SETUP-WEB-WIZARD.html — v4.0.0 — بدون ترمینال — فقط کلیک — تاریکی روشن شد
-- ✅ docs/ARCHITECTURE.md — با mermaid graph — تاریکی روشن شد
-- ✅ docs/API.md — با Swagger — باید باشه — تاریکی روشن شد — جدید v3.1.2
-- ✅ src/lib/notification — با throttling + fallback — سقف — تاریکی روشن شد
-- ✅ src/lib/sms — Ghasedak/Kavenegar واقعی — با balance + cost — تاریکی روشن شد
-- ✅ tests — 928 تست — باید باشه
-- ✅ .github/workflows — CI/CD — باید باشه
+1. Fork the repository and create a branch from `main`.
+2. Make your change with tests and documentation.
+3. Make sure all checks pass.
+4. Open a pull request that explains what changed and why, and fill in the template.
 
-## سوالات؟
+## License of contributions
+
+The project is licensed under the [GNU AGPL-3.0-or-later](LICENSE) with the additional terms in [NOTICE](NOTICE). By submitting a contribution you agree that it is licensed under the same terms (inbound = outbound), and you confirm that you have the right to submit it.
+
+## Contact
 
 - Issues: https://github.com/ansariaiadmin/legal-platform/issues
-- Docs: docs/SETUP-WIZARD-FA.md — برای مامان بزرگ — تاریکی روشن شد
-- Web Wizard: docs/SETUP-WEB-WIZARD.html — بدون ترمینال — v4.0.0 — تاریکی روشن شد
-
-**نویسنده:** Fleet 10/10 — مشارکت سقف — تاریکی روشن شد
-**نسخه:** v3.1.2
+- Telegram: [@ansariaiadmin](https://t.me/ansariaiadmin)

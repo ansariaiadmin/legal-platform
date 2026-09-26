@@ -9,22 +9,6 @@ import { Injectable } from '@nestjs/common';
  * counters, but this implementation is dependency-free and auditable.
  */
 
-interface Counter {
-  value: number;
-  labels?: Record<string, string>;
-}
-
-interface HistogramBucket {
-  le: number;
-  count: number;
-}
-
-interface Histogram {
-  sum: number;
-  count: number;
-  buckets: Map<number, number>; // le -> count
-}
-
 @Injectable()
 export class MetricsService {
   private httpRequestsTotal = 0;

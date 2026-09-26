@@ -4,6 +4,8 @@
  * outside the sandbox); the rewrite map in next.config.js does the plumbing.
  */
 
+import { hasKey, t } from '@/i18n';
+
 export const TOKEN_KEY = 'lp_token';
 
 export function getToken(): string | null {
@@ -39,22 +41,82 @@ export function setAreaTicket(area: string, rec: { ticket: string; expiresAt: st
   window.localStorage.setItem(AREA_TICKETS_KEY, JSON.stringify(map));
 }
 
-export function setToken(token: string | null) {
+export const REFRESH_KEY = 'lp_refresh';
+/** Fired on window when the session has expired and could not be renewed. */
+export const SIGNED_OUT_EVENT = 'lp:signed-out';
+
+/** Store (or clear, with null) the access token and, optionally, the refresh token. */
+export function setToken(token: string | null, refreshToken?: string | null) {
   if (typeof window === 'undefined') return;
   if (token) window.localStorage.setItem(TOKEN_KEY, token);
   else window.localStorage.removeItem(TOKEN_KEY);
+  if (!token) window.localStorage.removeItem(REFRESH_KEY);
+  else if (refreshToken) window.localStorage.setItem(REFRESH_KEY, refreshToken);
+}
+
+/** Revoke the server session (best effort) and clear local tokens. */
+export async function signOut(): Promise<void> {
+  const token = getToken();
+  setToken(null);
+  if (!token) return;
+  try {
+    await fetch('/api/auth/logout', { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+  } catch {
+    /* offline: the session expires on its own */
+  }
+}
+
+let refreshing: Promise<boolean> | null = null;
+
+/** Exchange the stored refresh token for a new pair. One request at a time. */
+function renewSession(): Promise<boolean> {
+  if (refreshing) return refreshing;
+  refreshing = (async () => {
+    const refreshToken = typeof window === 'undefined' ? null : window.localStorage.getItem(REFRESH_KEY);
+    if (!refreshToken) return false;
+    try {
+      const res = await fetch('/api/auth/refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken }),
+      });
+      if (!res.ok) return false;
+      const out = (await res.json()) as { accessToken?: string; refreshToken?: string };
+      if (!out.accessToken) return false;
+      setToken(out.accessToken, out.refreshToken);
+      return true;
+    } catch {
+      return false;
+    }
+  })().finally(() => {
+    refreshing = null;
+  });
+  return refreshing;
+}
+
+/** Human-readable text for an API error body ({ success: false, error: { code, message } }). */
+export function describeApiError(status: number, body: unknown): string {
+  const err = (body as { error?: { code?: string; message?: string }; message?: unknown } | undefined)?.error;
+  const code = err?.code;
+  if (code && hasKey(`err.${code}`)) return t(`err.${code}` as never);
+  const message = err?.message ?? (body as { message?: unknown } | undefined)?.message;
+  if (typeof message === 'string' && message && message !== code) return message;
+  return `${t('err.generic')} (${code ?? status})`;
 }
 
 export class ApiError extends Error {
+  public readonly code?: string;
+
   constructor(
     public readonly status: number,
     public readonly body: unknown,
   ) {
-    super(`API ${status}`);
+    super(describeApiError(status, body));
+    this.code = (body as { error?: { code?: string } } | undefined)?.error?.code;
   }
 }
 
-async function request<T>(method: string, path: string, body?: unknown, isForm = false): Promise<T> {
+async function request<T>(method: string, path: string, body?: unknown, isForm = false, retried = false): Promise<T> {
   const token = getToken();
   const headers: Record<string, string> = {};
   if (token) headers.Authorization = `Bearer ${token}`;
@@ -81,6 +143,12 @@ async function request<T>(method: string, path: string, body?: unknown, isForm =
     parsed = text ? JSON.parse(text) : undefined;
   } catch {
     parsed = text;
+  }
+  if (res.status === 401 && token && !path.startsWith('/auth/')) {
+    // Access tokens are short-lived: renew once and retry, otherwise sign out.
+    if (!retried && (await renewSession())) return request<T>(method, path, body, isForm, true);
+    setToken(null);
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event(SIGNED_OUT_EVENT));
   }
   if (!res.ok) throw new ApiError(res.status, parsed);
   return parsed as T;
@@ -135,7 +203,7 @@ export async function passkeyLogin(identifier: string): Promise<void> {
     },
   })) as PublicKeyCredential | null;
 
-  if (!credential) throw new Error('مراسم لغو شد.');
+  if (!credential) throw new Error('ورود با کلید عبور لغو شد.');
   const assertion = credential.response as AuthenticatorAssertionResponse;
 
   const out = await api.post<{ accessToken: string; refreshToken: string }>('/auth/passkey/login/finish', {
@@ -146,7 +214,7 @@ export async function passkeyLogin(identifier: string): Promise<void> {
     signatureB64: bufferToB64(assertion.signature),
     newCounter: 1, // counters are tracked server-side; browsers that omit counters send 1+previous
   });
-  setToken(out.accessToken);
+  setToken(out.accessToken, out.refreshToken);
 }
 
 // ---------------- shared response shapes (mirrors apps/api DTOs) ----------

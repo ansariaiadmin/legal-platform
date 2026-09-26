@@ -1,78 +1,78 @@
-# ARCHITECTURE.md — legal-platform — Self-Hosted Legal Practice OS
+# Architecture
 
-## ۳. legal-platform — Self-Hosted Legal Practice OS
+Legal Platform is a single-office, self-hosted system built as a modular monolith. One installation serves one law office: its lawyers and staff through the dashboard, and its clients through the portal.
 
-### Purpose
-Single-tenant self-hosted legal platform: CMS, booking, CRM timeline, wallet, payments, notifications, AI workspace RAG + 6 specialized agents, law update monitor, S3 backup, audit logs, Persian UI.
+## Runtime view
 
-### Graph
 ```mermaid
 graph TD
-    User --> Nginx[Nginx alpine<br/>reverse proxy]
-    Nginx --> Web[web<br/>Next.js 15.5.26<br/>USER app]
-    Nginx --> API[api<br/>NestJS 11<br/>USER app<br/>healthcheck]
-    Nginx --> Client[client<br/>Next.js 15.5.26<br/>USER app]
-
-    API --> Postgres[(Postgres pgvector:pg16<br/>pgdata<br/>healthcheck<br/>POSTGRES_USER from env)]
-    API --> Redis[(Redis 7<br/>healthcheck)]
-    API --> Workers[workers/py<br/>pylegal<br/>RESP client + Persian tools]
-
-    subgraph APIInternal[NestJS API Internal]
-        Main[main.ts]
-        Main --> Config[config<br/>env only]
-        Main --> Auth[auth<br/>JWT + RBAC]
-        Main --> CMS[cms module]
-        Main --> Booking[booking]
-        Main --> CRM[crm + timeline]
-        Main --> Wallet[wallet + payments]
-        Main --> Notif[notifications]
-        Main --> AI[AI workspace<br/>RAG + pgvector]
-        AI --> Agents[6 agents<br/>civil, criminal, family, registration, international, base]
-        Agents --> RAG[RAG service<br/>embeddings]
-        RAG --> PgVector[pgvector]
-        Main --> LawUpdate[law update monitor]
-        Main --> Provider[providers<br/>email, sms, s3]
-        Main --> Audit[audit logs]
-        Main --> Backup[backup/restore<br/>S3 offsite]
-        Main --> Health[health<br/>/health + /ready]
-    end
-
-    Workers --> Redis
-    Workers --> Postgres
-    Workers --> PersTools[persian_tools.py<br/>chunk + NER]
+    Browser[Browser or installed PWA] --> Nginx[nginx gateway :8080]
+    Nginx -->|/| Web[web: office dashboard<br/>Next.js 15]
+    Nginx -->|/portal/| Client[client: client portal<br/>Next.js 15]
+    Nginx -->|/api/| API[api: NestJS 11]
+    API --> Postgres[(PostgreSQL 16 + pgvector)]
+    API --> Redis[(Redis 7)]
+    API -->|job queue in Redis| Py[workers-py: text processing<br/>Python standard library]
+    Py --> Redis
+    API --> Providers[External providers<br/>AI · SMS · payment · SMTP]
 ```
 
-### Connections
-- **Nginx → Web/API/Client:** Depends_on service_healthy, reverse proxy
-- **API → Postgres:** DATABASE_URL=${DATABASE_URL} from env_file, pgvector for RAG
-- **API → Redis:** REDIS_URL from env, for workers queue
-- **API → Workers:** Via Redis BLPOP/LPUSH, RESP client minimal stdlib sockets
-- **AI → Agents:** 6 specialized agents routed via skillId, RAG via pgvector
-- **Workers → Persian Tools:** chunk_legal_text, NER for Iranian names, city detection
-- **Backup → S3:** Offsite backup to S3
+| Service | Role |
+|---|---|
+| `proxy` | nginx; the only published port. Routes `/` to the dashboard, `/portal/` to the portal and `/api/` to the API. Server-sent events are proxied without buffering. |
+| `web` | Office dashboard. Talks to the API through relative `/api` URLs. |
+| `client` | Client portal, built with `basePath: '/portal'`, installable as a PWA. |
+| `api` | All business logic, authentication, scheduling and provider access. |
+| `workers-py` | Text extraction (PDF, DOCX), Persian normalisation, chunking and citation extraction. Receives jobs through a Redis list. |
+| `postgres` | Identity, sessions, audit log, provider configuration, wallet ledger, vector index and the runtime key-value store. |
+| `redis` | Python job queue, optional shared rate limiting and event bridge. |
 
-### Modern Standards Check
-- ✅ **Modular Monolith:** apps/api, apps/web, apps/client, apps/agents/*, packages/domain/contracts/shared — DDD
-- ✅ **Hexagonal:** providers/* (email, sms, s3) are ports, adapters via env
-- ✅ **Security:** JWT, RBAC, audit logs, non-root USER app, no hardcoded secrets, secret scan, RLS? Single-tenant but self-hosted
-- ✅ **AI Architecture:** RAG + pgvector + 6 agents with routing, skill-based
-- ✅ **Observability:** Health, monitoring, diagnostics, backup/restore
-- ✅ **Docker:** Multi-stage, USER app, healthcheck, env_file, depends_on healthy
-- ✅ **Testing:** 476 tests (best), unit+integration+e2e
-- ✅ **0 Vuln:** After upgrade next 14.2.35→15.5.26, nestjs 10→11, postcss 8.4.31→8.5.28, now 0 vuln
-- ✅ **0 Any:** After fix civil/criminal agents + test file
-- ✅ **Ruff 0:** After fixing RESP undefined, SIM102, C414, BLE001, UP031
-- ⚠️ **Product Gap:** Needs mobile app, e-signature for 10/10 product
+The production compose file adds an optional `monitoring` profile (Prometheus and Grafana, bound to `127.0.0.1`).
 
-### Deep Issues Fixed
-- **Hardcoded Password:** POSTGRES_PASSWORD:-legal_password_change_me → require from env
-- **Console.log:** 4 → Logger
-- **Any 15 → 0:** Proper Record types
-- **NPM Audit 13 → 0:** Major upgrade
-- **Ruff 72 → 0:** Import sorted, RESP fixed, etc.
-- **Package Manager Conflict:** pnpm-lock.yaml + package-lock.json → only package-lock.json
-- **ESLint Conflict:** eslint.config.mjs + .eslintrc.json → only .eslintrc.json
+## API modules
 
----
+| Area | Modules |
+|---|---|
+| Identity and access | `auth` (SMS and email OTP, passkeys, sessions), `authvault` (area passwords, credential rotation), `machine-tokens`, `audit` |
+| Legal work | `orchestrator` (lead assistant, routing to expert assistants, files, voice), `corpus` (legal library and verification), `rag` (retrieval, drafts, usage), `signature` |
+| Consultations and money | `billing` (wallet, catalog, purchases, client API), `consultation` (queue and lawyer controls), `notifications` (in-app, SMS panels) |
+| Operations | `health`, `ops` (backup bundles, deployment profile), `security` (daily checks and reports), `setup` (wizard), `providers` (provider configuration) |
 
+Every response error uses one format, `{ "success": false, "error": { "code", "message" } }`. Codes and their HTTP statuses are defined once in `packages/contracts`.
 
+## Expert assistants
+
+Questions reach a lead assistant, which classifies the request deterministically first and consults the AI model only when the classification is uncertain. The request is then handed to one of the expert assistants in `apps/agents/*`: civil, criminal, family, registration, international or general. Assistants never call an AI SDK directly; they use the AI provider through the API, and every legal claim must cite a verified library source. A lawyer reviews drafts before they are approved.
+
+## Data
+
+- **Relational tables:** users, roles, sessions, OTP challenges, audit log, provider configuration, the double-entry wallet ledger (`wallet_accounts`, `wallet_entries`) and the vector index (`rag_chunks`).
+- **Runtime store:** the legal library, purchases, queue tickets, notifications, drafts, usage records, settings and reports are JSON documents behind `StorageProvider`. With `STORAGE_DRIVER=pg` (the production default when a database is configured) they live in the `runtime_state` table; with `local` they are files under `LOCAL_STORAGE_PATH`.
+- **Uploads:** files uploaded by users are stored under `LOCAL_STORAGE_PATH` on the `uploads` volume.
+
+Migrations and their status are listed in [apps/api/src/database/MIGRATIONS.md](apps/api/src/database/MIGRATIONS.md).
+
+## Providers
+
+External services sit behind interfaces in `apps/api/src/providers`: AI (OpenAI-compatible), SMS (Kavenegar, Ghasedak), payment (Zarinpal), email (SMTP), storage, telephony and push. The provider factory selects an adapter from the environment. In production, a category left as `mock` receives an adapter that reports "not configured", so the feature is disabled instead of faking success.
+
+## Security
+
+Short-lived access tokens with rotating refresh tokens and reuse detection, role-based guards, optional passwords per sensitive area, encryption of stored secrets with `ENCRYPTION_MASTER_KEY`, rate limiting, security headers and non-root containers. See [SECURITY.md](SECURITY.md) and [docs/SECURITY-HARDENING.md](docs/SECURITY-HARDENING.md).
+
+## Repository layout
+
+| Path | Contents |
+|---|---|
+| `apps/api` | API, migrations and tests |
+| `apps/web` | Office dashboard |
+| `apps/client` | Client portal |
+| `apps/agents/*` | Expert assistants |
+| `apps/workers/py` | Python worker |
+| `packages/domain` | Enums and state machines |
+| `packages/contracts` | Error codes and HTTP status mapping |
+| `packages/shared` | Agent interfaces and agent kit |
+| `infra/docker`, `infra/nginx` | Container images and gateway configuration |
+| `scripts/` | Installation, update, backup, restore, diagnostics and logs |
+
+Design decisions are recorded in [docs/architecture_decisions.md](docs/architecture_decisions.md).

@@ -6,7 +6,11 @@ import { api, type BrainView } from '@/lib/api';
 import { Kpi, Skeleton } from '@/components/ui';
 
 const TIER_ICON: Record<string, string> = { spartan: '🟢', counsel: '🟡', senator: '🔴' };
-const TIER_FA: Record<string, string> = { spartan: 'اسپارتان', counsel: 'کانسل', senator: 'سناتور' };
+const TIER_KEY: Record<string, 'brain.tier.spartan' | 'brain.tier.counsel' | 'brain.tier.senator'> = {
+  spartan: 'brain.tier.spartan',
+  counsel: 'brain.tier.counsel',
+  senator: 'brain.tier.senator',
+};
 
 interface DeploymentView {
   mode: 'single' | 'multi';
@@ -52,7 +56,7 @@ export function HomeTab({ brain, goTab }: { brain: BrainView | null; goTab: (t: 
             {brain?.lendingScenario ?? <Skeleton count={2} width={70} />}
           </p>
           <div style={{ display: 'flex', gap: 10, marginTop: 14, flexWrap: 'wrap' }}>
-            <span className="pill gold">{TIER_ICON[brain?.preset ?? 'counsel']} {t('home.preset')}: {TIER_FA[brain?.preset ?? 'counsel']}</span>
+            <span className="pill gold">{TIER_ICON[brain?.preset ?? 'counsel']} {t('home.preset')}: {t(TIER_KEY[brain?.preset ?? 'counsel'] ?? 'brain.tier.counsel')}</span>
             <span className="pill teal">{t('home.policy')}: {brain?.effectivePolicy ?? '—'}</span>
           </div>
         </div>
@@ -64,11 +68,11 @@ export function HomeTab({ brain, goTab }: { brain: BrainView | null; goTab: (t: 
           tone={brainOn ? 'ok' : 'bad'}
         />
 
-        <Jump emoji="💬" title={t('tab.chat')} body="با لیدر حرف بزن؛ فایل بفرست؛ بگو چه کاری انجام دهد." onClick={() => goTab('chat')} />
-        <Jump emoji="🧠" title={t('tab.brain')} body="آدرس مدل محلی یا کلید ابری — لیدر همان لحظه با مغز تازه کار می‌کند." onClick={() => goTab('brain')} />
-        <Jump emoji="🍳" title={t('tab.kitchen')} body="کارِ ایجنت‌ها را زنده ببین: کدام ایجنت، کدام مهارت، روی کدام مغز." onClick={() => goTab('kitchen')} />
-        <Jump emoji="👥" title={t('tab.fleet')} body="کارتِ شخصی هر کارشناس: مهارت‌ها، سلامت، گرنت‌های فعال." onClick={() => goTab('fleet')} />
-        <Jump emoji="📁" title={t('tab.files')} body="فایل بریز؛ لیدر اول می‌خواند، بعد جواب می‌دهد و می‌گوید کجا بگذاردش." onClick={() => goTab('files')} />
+        <Jump emoji="💬" title={t('tab.chat')} body="پرسش حقوقی بپرسید، فایل بفرستید یا دستور تنظیمات بدهید." onClick={() => goTab('chat')} />
+        <Jump emoji="🧠" title={t('tab.brain')} body="نشانی مدل محلی یا کلید سرویس ابری را وارد کنید؛ تغییر بلافاصله اعمال می‌شود." onClick={() => goTab('brain')} />
+        <Jump emoji="🍳" title={t('tab.kitchen')} body="ببینید کدام دستیار، با کدام مهارت و روی کدام مدل کار می‌کند." onClick={() => goTab('kitchen')} />
+        <Jump emoji="👥" title={t('tab.fleet')} body="مهارت‌ها، وضعیت و مجوزهای هر دستیار تخصصی." onClick={() => goTab('fleet')} />
+        <Jump emoji="📁" title={t('tab.files')} body="فایل بارگذاری کنید؛ پیش از هر پاسخ خوانده می‌شود و محل نگهداری آن پیشنهاد می‌شود." onClick={() => goTab('files')} />
       </div>
 
       <details className="reveal">

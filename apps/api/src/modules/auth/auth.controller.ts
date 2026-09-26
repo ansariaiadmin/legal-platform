@@ -44,7 +44,7 @@ export class AuthController implements OnApplicationBootstrap {
 
   @Post('email-otp/request')
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Request a login OTP over email (P10 factor)' })
+  @ApiOperation({ summary: 'Request a login OTP by email' })
   @ApiResponse({ status: 201, description: 'OTP challenge created' })
   @ApiResponse({ status: 400, description: 'VALIDATION_INVALID_INPUT' })
   @ApiResponse({ status: 429, description: 'AUTH_RATE_LIMITED or AUTH_RESEND_COOLDOWN' })
@@ -66,14 +66,14 @@ export class AuthController implements OnApplicationBootstrap {
 
   @Post('passkey/login/begin')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'identifier → passkey login challenge (decoy challenge for unknown accounts — enumeration-proof)' })
+  @ApiOperation({ summary: 'Start a passkey sign-in (unknown accounts receive a decoy challenge)' })
   passkeyBegin(@Body() body: { identifier: string }, @Ip() ip: string) {
     return this.authService.beginPasskeyLogin(body.identifier ?? '', ip);
   }
 
   @Post('passkey/login/finish')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'signed WebAuthn assertion → full session (primary boundary, no OTP)' })
+  @ApiOperation({ summary: 'Complete a passkey sign-in and receive tokens' })
   passkeyFinish(@Body() body: {
     challengeId: string; credentialId: string; authenticatorDataB64: string;
     clientDataJSONB64: string; signatureB64: string; newCounter: number;

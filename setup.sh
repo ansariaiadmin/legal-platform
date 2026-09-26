@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # ╔══════════════════════════════════════════════════════════════════╗
-# ║     Legal Platform — نصب کامل با یک دستور (Ubuntu 22.04+)        ║
+# ║   پلتفرم حقوقی (Legal Platform) — نصب با یک دستور (Ubuntu 22.04+)  ║
 # ╚══════════════════════════════════════════════════════════════════╝
 #
 #   اجرا:        sudo ./setup.sh
@@ -9,7 +9,7 @@
 #
 # It validates the host, installs Docker if missing, generates all secrets,
 # builds & starts the stack, runs migrations, and waits until healthy.
-# On success it prints the dashboard URL and the exact credentials file.
+# On success it prints the dashboard and client-portal URLs.
 #
 set -euo pipefail
 
@@ -22,7 +22,7 @@ c_dim()   { printf '\033[0;36m%s\033[0m\n' "$*"; }
 banner() {
   echo ""
   c_green "┌────────────────────────────────────────────┐"
-  c_green "│   پلتفرم حقوقی — نصب خودکار (Legal SaaS)   │"
+  c_green "│        پلتفرم حقوقی — نصب خودکار           │"
   c_green "└────────────────────────────────────────────┘"
   echo ""
 }
@@ -59,11 +59,14 @@ c_green "│            نصب کامل شد! 🎉                 │"
 c_green "└────────────────────────────────────────────┘"
 echo ""
 c_dim  "  داشبورد:        http://localhost:8080"
-c_dim  "  ستاپ‌ویزارد:   همان صفحهٔ اول — اگر نصب تازه باشد ویزارد خودش بالا می‌آید"
+c_dim  "  پورتال موکلان:  http://localhost:8080/portal/"
+c_dim  "  ویزارد راه‌اندازی: پس از نخستین ورود مالک، خودکار باز می‌شود"
 echo ""
 echo "  قدم‌های بعدی:"
-echo "  1) مرورگر را باز کنید و به آدرس بالا بروید — ویزارد شما را قدم‌به‌قدم"
-echo "     راهنمایی می‌کند (مالک، رمز عبور، اتصال پیامک/درگاه)."
+echo "  1) داشبورد را باز کنید و با شمارهٔ موبایل مالک (OWNER_PHONE) وارد شوید."
+echo "     تا وقتی پنل پیامک تنظیم نشده، کد ورود در لاگ API چاپ می‌شود:"
+echo "     docker compose logs api | grep OTP"
+echo "     سپس ویزارد شما را گام‌به‌گام راهنمایی می‌کند."
 echo "  2) راهنمای کامل فارسی:  docs/RUNBOOK.md"
 echo "  3) لاگ‌ها:              docker compose logs -f api"
 echo "  4) بکاپ:                ./scripts/backup.sh"

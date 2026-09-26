@@ -75,7 +75,7 @@ export class PgWalletService {
     if (!Number.isFinite(amountToman) || amountToman < 10_000) {
       throw new BadRequestException({
         code: 'VALIDATION_INVALID_INPUT',
-        message: 'حداقل شارژ ۱۰٬۰۰۰ تومان است',
+        message: 'حداقل مبلغ شارژ ۱۰٬۰۰۰ تومان است.',
       });
     }
     const session = await this.payment.createPaymentSession({
@@ -94,7 +94,7 @@ export class PgWalletService {
          VALUES ($1, $2, $3, 'topup', 0, $4, $5, $6)`,
         [
           randomUUID(), this.tenant, userId, session.sessionId, amountToman,
-          `آغاز شارژ ${amountToman.toLocaleString('fa-IR')} تومانی`,
+          `درخواست شارژ ${amountToman.toLocaleString('fa-IR')} تومان`,
         ],
       );
       await client.query('COMMIT');
@@ -128,7 +128,7 @@ export class PgWalletService {
         await client.query('ROLLBACK');
         throw new BadRequestException({
           code: 'VALIDATION_INVALID_INPUT',
-          message: 'جلسه‌ی شارژی با این شناسه برای این کیف پول ثبت نشده است.',
+          message: 'درخواست شارژی با این شناسه برای این کیف پول ثبت نشده است.',
         });
       }
       const creditedRow = intent.rows.find((r: { amount_toman: string }) => Number(r.amount_toman) > 0);
@@ -153,7 +153,7 @@ export class PgWalletService {
         );
         throw new BadRequestException({
           code: 'WALLET_TOPUP_AMOUNT_MISMATCH',
-          message: 'مبلغ تأییدشده‌ی درگاه با شارژ درخواستی یکی نیست — نه شارژ می‌کنیم نه حدس می‌زنیم.',
+          message: 'مبلغ تأییدشده از سوی درگاه با مبلغ درخواستی برابر نیست؛ کیف پول شارژ نشد. با پشتیبانی تماس بگیرید.',
         });
       }
 
@@ -198,7 +198,7 @@ export class PgWalletService {
       const balance = Number(account.balance_toman);
       if (balance < amountToman) {
         await client.query('ROLLBACK');
-        const err = new Error('موجودی کیف پول کافی نیست — اول شارژش کن.');
+        const err = new Error('موجودی کیف پول کافی نیست. ابتدا کیف پول را شارژ کنید.');
         (err as Error & { code?: string }).code = 'WALLET_INSUFFICIENT_FUNDS';
         throw err;
       }

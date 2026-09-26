@@ -7,7 +7,7 @@ import type { StorageProvider } from '../../providers/storage/storage.provider';
 import { InProcessAgentEventBus } from '../orchestrator/agent-event-bus';
 import { CorpusService } from '../corpus/corpus.service';
 import { EmbeddingIndexService } from './embedding-index.service';
-import { PgEmbeddingIndexService } from './pg-embedding-index.service';
+import { PgEmbeddingIndexService, pickSemanticIndex } from './pg-embedding-index.service';
 import { RerankerService, type RerankedHit } from './reranker.service';
 import { UsageMeterService } from './usage-meter.service';
 import { AI_PROVIDER } from '../../providers/provider.tokens';
@@ -99,7 +99,6 @@ export class DraftingService {
     @Inject(STORAGE_PROVIDER) private readonly storage: StorageProvider,
     private readonly corpus: CorpusService,
     private readonly index: EmbeddingIndexService,
-    @Optional() private readonly pgIndex: PgEmbeddingIndexService,
     private readonly reranker: RerankerService,
     private readonly meter: UsageMeterService,
     @Optional() @Inject(forwardRef(() => InProcessAgentEventBus)) private readonly bus?: InProcessAgentEventBus,
@@ -108,14 +107,13 @@ export class DraftingService {
     // (cloud AND local box) is gone, drafts degrade to verbatim extractive
     // spans instead of dying. Never presented as composed advice (SPEC §9).
     @Optional() private readonly workers?: PythonWorkerService,
+    // pgvector-backed index; when present and reachable it replaces the JSON index.
+    @Optional() private readonly pgIndex?: PgEmbeddingIndexService,
   ) {}
 
-  /** Prefer pgvector if available, else fallback to JSON */
+  /** pgvector when available, otherwise the JSON index (same choice as the controller). */
   private get semanticIndex(): EmbeddingIndexService | PgEmbeddingIndexService {
-    if (this.pgIndex && this.pgIndex.availability().pg) {
-      return this.pgIndex;
-    }
-    return this.index;
+    return pickSemanticIndex(this.index, this.pgIndex);
   }
 
   private async ensure(): Promise<void> {

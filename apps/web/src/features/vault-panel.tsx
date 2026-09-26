@@ -7,7 +7,7 @@ import { t } from '@/i18n';
 /**
  * P8 vault panel — the password & security desk inside the security tab:
  *  - area locks: set/disable/unlock (config/vault/ops) — real tickets stored
- *  - passkeys (اثر انگشت/چهره): navigator.credentials ceremony against our
+ *  - passkeys (fingerprint / face): navigator.credentials ceremony against our
  *    stdlib WebAuthn contract; browsers lacking getPublicKey() are told so,
  *    honestly, instead of fake-success
  *  - rotation robot: staleness advice + one-button rotate-all + credentials

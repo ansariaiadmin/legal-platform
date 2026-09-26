@@ -17,8 +17,8 @@ async function bootstrap(): Promise<void> {
   if (!env.isProduction) {
     const config = new DocumentBuilder()
       .setTitle('Legal Platform API')
-      .setDescription('Legal practice platform REST API')
-      .setVersion('1.0')
+      .setDescription('REST API of پلتفرم حقوقی (Legal Platform). Copyright Mohammad Ansari, AGPL-3.0-or-later.')
+      .setVersion('1.0.0')
       .addBearerAuth()
       .build();
 

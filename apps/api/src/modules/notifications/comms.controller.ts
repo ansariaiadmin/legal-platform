@@ -71,7 +71,7 @@ class TestCallDto {
 /**
  * The wired-office (P2a): the lawyer brings THEIR SMS panel and THEIR call
  * server; until one is plugged, the whole comms layer tells the truth
- * ("نامتصل") instead of green-lighting fake deliveries (SPEC §2).
+ * ("not connected") instead of reporting deliveries that never happened (SPEC §2).
  */
 @ApiTags('comms')
 @Controller('dashboard/comms')
@@ -84,14 +84,14 @@ export class CommsController {
 
   @Get('view')
   @Roles(UserRole.LAWYER_OWNER, UserRole.STAFF)
-  @ApiOperation({ summary: 'Comms state — masked keys, configured-or-honestly-empty' })
+  @ApiOperation({ summary: 'SMS and call panel settings (keys masked)' })
   view() {
     return this.comms.view();
   }
 
   @Post('sms')
   @Roles(UserRole.LAWYER_OWNER)
-  @ApiOperation({ summary: 'Wire the SMS panel (Kavenegar/Ghasedak/…/custom)' })
+  @ApiOperation({ summary: 'Configure the SMS panel (Kavenegar, Ghasedak or custom)' })
   async setSms(@Body() dto: SmsPanelDto, @CurrentUser() user: AuthenticatedUser) {
     await this.comms.setSmsPanel(dto, user.id);
     await this.audit.log({ actorId: user.id, action: 'comms.sms.configured', module: 'comms', entityType: 'sms_panel', entityId: dto.provider, metadata: {}, result: 'success' });
@@ -100,14 +100,14 @@ export class CommsController {
 
   @Post('sms/test')
   @Roles(UserRole.LAWYER_OWNER, UserRole.STAFF)
-  @ApiOperation({ summary: 'Send a REAL test SMS through the wired panel — honest latency/error back' })
+  @ApiOperation({ summary: 'Send a real test SMS through the configured panel; returns latency or the error' })
   testSms(@Body() dto: TestSmsDto) {
-    return this.comms.testSms(dto.to, dto.text ?? 'پلتفرم حقوقی: تست اتصال ✅');
+    return this.comms.testSms(dto.to, dto.text ?? 'پلتفرم حقوقی: پیامک آزمایشی. اتصال پنل برقرار است.');
   }
 
   @Post('call')
   @Roles(UserRole.LAWYER_OWNER)
-  @ApiOperation({ summary: 'Wire the call panel — الكلمة: بدون آن نوبت «تماس جعلی» نمی‌شود' })
+  @ApiOperation({ summary: 'Configure the call panel; without it, up-next clients get an SMS instead of a call' })
   async setCall(@Body() dto: CallPanelDto, @CurrentUser() user: AuthenticatedUser) {
     await this.comms.setCallPanel(dto, user.id);
     await this.audit.log({ actorId: user.id, action: 'comms.call.configured', module: 'comms', entityType: 'call_panel', entityId: dto.accountId, metadata: {}, result: 'success' });
@@ -116,7 +116,7 @@ export class CommsController {
 
   @Post('call/test')
   @Roles(UserRole.LAWYER_OWNER, UserRole.STAFF)
-  @ApiOperation({ summary: 'Real outbound test call via the wired panel' })
+  @ApiOperation({ summary: 'Place a test call through the configured call panel' })
   testCall(@Body() dto: TestCallDto) {
     return this.comms.testCall(dto.to);
   }

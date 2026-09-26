@@ -12,7 +12,7 @@ groups:
         annotations:
           summary: "نرخ خطای بالا - {{ $value }}% در 5 دقیقه"
           description: "نرخ خطای API بیش از 5% است (فعلی: {{ $value }}%). نیاز به بررسی فوری."
-          runbook_url: "https://github.com/legal-platform/docs/MONITORING.md#high-error-rate"
+          runbook_url: "https://github.com/ansariaiadmin/legal-platform/blob/main/docs/MONITORING.md#high-error-rate"
 
       # DB connection failures
       - alert: DatabaseConnectionFailures
@@ -24,7 +24,7 @@ groups:
         annotations:
           summary: "خطای اتصال دیتابیس - {{ $value }} خطا در 5 دقیقه"
           description: "تعداد خطاهای اتصال به دیتابیس از حد مجاز گذشته. بررسی وضعیت PostgreSQL."
-          runbook_url: "https://github.com/legal-platform/docs/MONITORING.md#db-failures"
+          runbook_url: "https://github.com/ansariaiadmin/legal-platform/blob/main/docs/MONITORING.md#db-failures"
 
       # Disk space <10% (requires node_exporter)
       - alert: DiskSpaceLow
@@ -36,7 +36,7 @@ groups:
         annotations:
           summary: "فضای دیسک کم - کمتر از 10% باقی مانده"
           description: "فضای دیسک سرور کمتر از 10% است. بکاپ‌ها و لاگ‌ها را بررسی و پاکسازی کنید."
-          runbook_url: "https://github.com/legal-platform/docs/MONITORING.md#disk-space"
+          runbook_url: "https://github.com/ansariaiadmin/legal-platform/blob/main/docs/MONITORING.md#disk-space"
 
       - alert: DiskSpaceWarning
         expr: (1 - (node_filesystem_avail_bytes / node_filesystem_size_bytes)) * 100 > 80
@@ -58,7 +58,7 @@ groups:
         annotations:
           summary: "خطای ایجنت‌ها بالا - {{ $value }} خطا در 10 دقیقه"
           description: "تعداد خطاهای ایجنت‌های حقوقی از حد مجاز گذشته. لاگ‌ها را بررسی کنید."
-          runbook_url: "https://github.com/legal-platform/docs/MONITORING.md#agent-failures"
+          runbook_url: "https://github.com/ansariaiadmin/legal-platform/blob/main/docs/MONITORING.md#agent-failures"
 
       - alert: SpecificAgentFailures
         expr: legal_platform_agent_failures_total > 5
@@ -80,7 +80,7 @@ groups:
         annotations:
           summary: "خطا در بکاپ - بکاپ اخیر ناموفق بوده"
           description: "عملیات بکاپ با خطا مواجه شده. لاگ بکاپ را بررسی کنید."
-          runbook_url: "https://github.com/legal-platform/docs/BACKUP.md#troubleshooting"
+          runbook_url: "https://github.com/ansariaiadmin/legal-platform/blob/main/docs/BACKUP.md#troubleshooting"
 
       # API down
       - alert: APIDown

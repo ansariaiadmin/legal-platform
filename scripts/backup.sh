@@ -113,15 +113,20 @@ PGPASSWORD="$DB_PASS" pg_dump \
         -F c > "$DB_DUMP_FILE"
 }
 
-# Tar uploads volume data
+# Archive the uploads volume. With STORAGE_DRIVER=local it also holds the
+# runtime state: legal library, purchases, queue, notifications and settings.
+# Reading it through the api container works whether the volume is a Docker
+# named volume (the default) or a bind mount.
 UPLOADS_DUMP="$TEMP_DIR/uploads.tar"
-log_info "Archiving uploads..."
-if [[ -d "$ROOT_DIR/data/uploads" ]]; then
-    tar -cf "$UPLOADS_DUMP" -C "$ROOT_DIR/data" uploads 2>/dev/null || true
+log_info "Archiving uploads and runtime state..."
+if docker compose exec -T api tar -C /app -cf - uploads > "$UPLOADS_DUMP" 2>/dev/null \
+    && [[ -s "$UPLOADS_DUMP" ]]; then
+    log_success "Uploads archived from the api container"
+elif [[ -d "$ROOT_DIR/data/uploads" ]]; then
+    tar -cf "$UPLOADS_DUMP" -C "$ROOT_DIR/data" uploads
 else
-    # Create empty archive if no uploads exist
-    mkdir -p "$TEMP_DIR/empty_uploads"
-    tar -cf "$UPLOADS_DUMP" -C "$TEMP_DIR" empty_uploads
+    log_error "Cannot read the uploads volume. Start the stack (docker compose up -d) and retry."
+    exit 1
 fi
 
 # Create manifest with metadata.
@@ -142,7 +147,8 @@ cat > "$LOCAL_MANIFEST" << EOF
   "services": {
     "postgres": "$(docker compose ps -q postgres 2>/dev/null | head -1 || echo 'unknown')",
     "api": "$(docker compose ps -q api 2>/dev/null | head -1 || echo 'unknown')",
-    "web": "$(docker compose ps -q web 2>/dev/null | head -1 || echo 'unknown')"
+    "web": "$(docker compose ps -q web 2>/dev/null | head -1 || echo 'unknown')",
+    "client": "$(docker compose ps -q client 2>/dev/null | head -1 || echo 'unknown')"
   },
   "files": {
     "db_dump": {

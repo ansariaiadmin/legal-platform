@@ -1,24 +1,20 @@
 import { BadRequestException, Inject, Injectable, Logger } from '@nestjs/common';
-import { randomUUID, createHash, createSign, createVerify } from 'node:crypto';
+import { randomUUID, createHash, createSign, createVerify, generateKeyPairSync } from 'node:crypto';
 import { STORAGE_PROVIDER } from '../../providers/provider.tokens';
 import type { StorageProvider } from '../../providers/storage/storage.provider';
 
 /**
- * E-Signature Service — امضای الکترونیک — v3.2.0 — تاریکی روشن شد
- * 
- * وکیل واقعی نیاز داره پیش‌نویس رو امضا کنه — ماده ۶۵۵ قانون مدنی + قانون تجارت الکترونیکی
- * این ماژول امضای ساده با کلید خصوصی/عمومی + هش SHA256 + زمان‌مهر + IP + audit log
- * 
- * برای production باید با مرکز میانی (CA) مثل کانون سردفتران یا نماد اعتماد وصل بشه
- * ولی برای self-hosted، کلید خود وکیل کافیه — مثل PGP — وکیل کلیدش رو خودش نگه می‌داره
- * 
- * Features:
- * - Generate keypair for lawyer (RSA 2048)
- * - Sign draft/document with private key
- * - Verify signature with public key
- * - Timestamp + IP + user agent
- * - Audit trail
- * - Revocation list
+ * Document signatures for drafts and documents (RSA-2048 over SHA-256).
+ *
+ * Each lawyer holds a key pair; a signature records the document hash, the
+ * signer, a timestamp, the client IP and user agent, and is kept in an audit
+ * trail with a revocation list.
+ *
+ * Legal status: this proves integrity and who signed inside this system. It
+ * is not a "secure electronic signature" (امضای الکترونیکی مطمئن) under the
+ * Iranian Electronic Commerce Act of 1382 (قانون تجارت الکترونیکی), which
+ * requires a certificate issued by a licensed certification authority. Use
+ * a licensed provider when that level of evidence is required.
  */
 
 export interface SignatureRecord {
@@ -40,7 +36,7 @@ export interface SignatureRecord {
 export interface KeyPairRecord {
   userId: string;
   publicKey: string;
-  privateKeyEncrypted: string; // encrypted with user's password
+  privateKeyEncrypted: string; // PKCS#8 PEM, encrypted with the key password
   createdAt: string;
   expiresAt: string;
   revoked: boolean;
@@ -48,6 +44,7 @@ export interface KeyPairRecord {
 
 const SIGNATURES_KEY = 'runtime/signatures/signatures.json';
 const KEYS_KEY = 'runtime/signatures/keys.json';
+const KEY_LIFETIME_MS = 365 * 24 * 3600 * 1000;
 
 @Injectable()
 export class SignatureService {
@@ -94,11 +91,14 @@ export class SignatureService {
     ]);
   }
 
-  /** Generate RSA keypair for lawyer — private key encrypted with password */
-  async generateKeyPair(userId: string, password: string): Promise<{ publicKey: string; keyId: string }> {
+  /**
+   * Generate an RSA-2048 key pair for a lawyer. The private key never leaves
+   * the server: it is stored PKCS#8-encrypted (AES-256-CBC) under the
+   * lawyer's key password, which is not stored anywhere.
+   */
+  async generateKeyPair(userId: string, password: string): Promise<{ publicKey: string; keyId: string; expiresAt: string }> {
     await this.ensureLoaded();
-    
-    const { generateKeyPairSync } = await import('node:crypto');
+
     const { publicKey, privateKey } = generateKeyPairSync('rsa', {
       modulusLength: 2048,
       publicKeyEncoding: { type: 'spki', format: 'pem' },
@@ -110,77 +110,85 @@ export class SignatureService {
       publicKey,
       privateKeyEncrypted: privateKey,
       createdAt: new Date().toISOString(),
-      expiresAt: new Date(Date.now() + 365 * 24 * 3600 * 1000).toISOString(), // 1 year
+      expiresAt: new Date(Date.now() + KEY_LIFETIME_MS).toISOString(),
       revoked: false,
     };
 
     this.keys.set(userId, record);
     await this.persist();
-    this.logger.log(`keypair generated for user ${userId}`);
+    this.logger.log(`key pair generated for user ${userId}`);
 
-    return { publicKey, keyId: userId };
+    return { publicKey, keyId: userId, expiresAt: record.expiresAt };
   }
 
-  /** Sign a document/draft — returns signature record */
+  /**
+   * Sign a document with the signer's stored key. The key password unlocks
+   * the encrypted private key for this operation only.
+   */
   async sign(input: {
     documentId: string;
     documentContent: string;
     signerId: string;
     signerName: string;
-    privateKey: string;
     password: string;
     ip: string;
     userAgent: string;
   }): Promise<SignatureRecord> {
     await this.ensureLoaded();
 
-    const documentHash = createHash('sha256').update(input.documentContent, 'utf8').digest('hex');
-    
-    try {
-      const sign = createSign('SHA256');
-      sign.update(documentHash);
-      sign.end();
-      const signature = sign.sign({ key: input.privateKey, passphrase: input.password }, 'base64');
-
-      const keyRecord = this.keys.get(input.signerId);
-      if (!keyRecord) {
-        throw new BadRequestException({ code: 'KEY_NOT_FOUND', message: 'کلید امضای شما یافت نشد — ابتدا کلید بسازید' });
-      }
-
-      const record: SignatureRecord = {
-        signatureId: randomUUID(),
-        documentId: input.documentId,
-        documentHash,
-        signerId: input.signerId,
-        signerName: input.signerName,
-        signature,
-        publicKey: keyRecord.publicKey,
-        signedAt: new Date().toISOString(),
-        ip: input.ip,
-        userAgent: input.userAgent,
-        verified: true,
-      };
-
-      this.signatures.set(record.signatureId, record);
-      await this.persist();
-      this.logger.log(`document ${input.documentId} signed by ${input.signerId}`);
-
-      return record;
-    } catch (e) {
-      throw new BadRequestException({ code: 'SIGN_FAILED', message: `امضا ناموفق: ${(e as Error).message}` });
+    const keyRecord = this.keys.get(input.signerId);
+    if (!keyRecord || keyRecord.revoked) {
+      throw new BadRequestException({ code: 'KEY_NOT_FOUND', message: 'کلید امضای شما یافت نشد. ابتدا کلید بسازید.' });
     }
+    if (Date.parse(keyRecord.expiresAt) <= Date.now()) {
+      throw new BadRequestException({ code: 'KEY_EXPIRED', message: 'کلید امضای شما منقضی شده است. کلید تازه بسازید.' });
+    }
+
+    const documentHash = createHash('sha256').update(input.documentContent, 'utf8').digest('hex');
+
+    let signature: string;
+    try {
+      const signer = createSign('SHA256');
+      signer.update(documentHash);
+      signer.end();
+      signature = signer.sign({ key: keyRecord.privateKeyEncrypted, passphrase: input.password }, 'base64');
+    } catch {
+      // A wrong password is the only realistic cause: the key itself was
+      // produced by generateKeyPair().
+      throw new BadRequestException({ code: 'WRONG_KEY_PASSWORD', message: 'رمز کلید امضا نادرست است.' });
+    }
+
+    const record: SignatureRecord = {
+      signatureId: randomUUID(),
+      documentId: input.documentId,
+      documentHash,
+      signerId: input.signerId,
+      signerName: input.signerName,
+      signature,
+      publicKey: keyRecord.publicKey,
+      signedAt: new Date().toISOString(),
+      ip: input.ip,
+      userAgent: input.userAgent,
+      verified: true,
+    };
+
+    this.signatures.set(record.signatureId, record);
+    await this.persist();
+    this.logger.log(`document ${input.documentId} signed by ${input.signerId}`);
+
+    return record;
   }
 
   /** Verify a signature */
   async verify(signatureId: string, documentContent: string): Promise<{ valid: boolean; record?: SignatureRecord; reason?: string }> {
     await this.ensureLoaded();
     const record = this.signatures.get(signatureId);
-    if (!record) return { valid: false, reason: 'امضا یافت نشد' };
-    if (record.revokedAt) return { valid: false, reason: `امضا باطل شده: ${record.revokedReason}`, record };
+    if (!record) return { valid: false, reason: 'امضا یافت نشد.' };
+    if (record.revokedAt) return { valid: false, reason: `امضا باطل شده است: ${record.revokedReason}`, record };
 
     const documentHash = createHash('sha256').update(documentContent, 'utf8').digest('hex');
     if (documentHash !== record.documentHash) {
-      return { valid: false, reason: 'محتوای سند تغییر کرده — هش مطابقت ندارد', record };
+      return { valid: false, reason: 'محتوای سند پس از امضا تغییر کرده است.', record };
     }
 
     try {
@@ -188,9 +196,9 @@ export class SignatureService {
       verify.update(documentHash);
       verify.end();
       const valid = verify.verify(record.publicKey, record.signature, 'base64');
-      return { valid, record, reason: valid ? undefined : 'امضا نامعتبر — کلید عمومی مطابقت ندارد' };
+      return { valid, record, reason: valid ? undefined : 'امضا با کلید عمومی امضاکننده مطابقت ندارد.' };
     } catch (e) {
-      return { valid: false, reason: `خطای تایید: ${(e as Error).message}`, record };
+      return { valid: false, reason: `خطا در بررسی امضا: ${(e as Error).message}`, record };
     }
   }
 
@@ -210,7 +218,7 @@ export class SignatureService {
   async revoke(signatureId: string, reason: string): Promise<SignatureRecord> {
     await this.ensureLoaded();
     const record = this.signatures.get(signatureId);
-    if (!record) throw new BadRequestException({ code: 'SIGNATURE_NOT_FOUND', message: 'امضا یافت نشد' });
+    if (!record) throw new BadRequestException({ code: 'SIGNATURE_NOT_FOUND', message: 'امضا یافت نشد.' });
     
     record.revokedAt = new Date().toISOString();
     record.revokedReason = reason;
@@ -229,7 +237,8 @@ export class SignatureService {
     return { publicKey: key.publicKey, createdAt: key.createdAt, expiresAt: key.expiresAt };
   }
 
-  stats(): { totalSignatures: number; totalKeys: number } {
+  async stats(): Promise<{ totalSignatures: number; totalKeys: number }> {
+    await this.ensureLoaded();
     return { totalSignatures: this.signatures.size, totalKeys: this.keys.size };
   }
 }

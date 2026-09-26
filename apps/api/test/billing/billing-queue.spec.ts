@@ -52,8 +52,8 @@ async function bootstrap() {
   const billing = new BillingService(wallet);
   const { sms, sent } = spyingSms();
   const comms = new CommsSettingsService(storage);
-  const notifications = new NotificationService(sms, comms);
-  const queue = new ConsultationQueueService(billing, notifications, undefined);
+  const notifications = new NotificationService(sms, storage, comms);
+  const queue = new ConsultationQueueService(billing, notifications, storage);
   return { payment, storage, wallet, billing, notifications, queue, comms, sent };
 }
 
@@ -62,7 +62,7 @@ async function fundWallet(wallet: WalletService, userId: string, amount: number)
   return wallet.topupConfirm(userId, sessionId); // mock adapter; dev marks paid
 }
 
-describe('wallet (P2a)', () => {
+describe('wallet', () => {
   it('topup → confirm credits balance once (idempotent on the same session)', async () => {
     const { wallet } = await bootstrap();
     await fundWallet(wallet, 'u1', 500_000);
@@ -81,7 +81,7 @@ describe('wallet (P2a)', () => {
     expect((await wallet.state('u1')).balanceToman).toBe(100_000);
   });
 
-  it('wallet state survives a FRESH service instance — persisted via StorageProvider', async () => {
+  it('wallet state survives a new service instance (persisted via StorageProvider)', async () => {
     const storage = memStorage();
     const payment = new MockPaymentAdapter();
     const before = new WalletService(payment, storage);
@@ -91,8 +91,8 @@ describe('wallet (P2a)', () => {
   });
 });
 
-describe('billing catalog & purchases (P2a)', () => {
-  it('catalog ships 10/20/30 plans + all four AI subscription features', async () => {
+describe('billing catalog and purchases', () => {
+  it('catalog has the 10/20/30-minute plans and the four AI subscription features', async () => {
     const { billing } = await bootstrap();
     const c = billing.catalog();
     expect(c.consultation.map((p) => p.minutes).sort()).toEqual([10, 20, 30]);
@@ -115,7 +115,7 @@ describe('billing catalog & purchases (P2a)', () => {
     await expect(billing.buySubscription('u1', 'ai_chat' as never, 1, 'wallet')).rejects.toThrow('فعال است');
   });
 
-  it('lawyer edits plans — only 10/20/30 tolerated', async () => {
+  it('plan editing accepts only 10, 20 and 30 minutes', async () => {
     const { billing } = await bootstrap();
     billing.setPlans([
       { minutes: 10, priceToman: 100_000, active: true },
@@ -124,54 +124,56 @@ describe('billing catalog & purchases (P2a)', () => {
     ]);
     const c = billing.catalog();
     expect(c.consultation.map((p) => p.minutes)).toEqual([10, 30]); // 20 inactive, hidden
-    expect(() => billing.setPlans([{ minutes: 25 as never, priceToman: 1, active: true }])).toThrow('۱۰/۲۰/۳۰');
+    expect(() => billing.setPlans([{ minutes: 25 as never, priceToman: 1, active: true }])).toThrow('۱۰، ۲۰ و ۳۰');
   });
 });
 
-describe('the consultation queue (P2a)', () => {
+describe('consultation queue', () => {
   async function paidTicketInLine(queue: ConsultationQueueService, billing: BillingService, wallet: WalletService, userId: string, minutes: 10 | 20 | 30, phone: string) {
     await fundWallet(wallet, userId, 2_000_000);
-    queue.setOnline(true);
+    await queue.setOnline(true);
     const purchase = await billing.buyConsultation(userId, minutes, 'wallet');
     return queue.join(userId, phone, purchase.id);
   }
 
-  it('join → SMS «نفر اولی» (or N-nth) with honest ETA', async () => {
+  it('join sends an SMS with the queue position and an ETA in Persian digits', async () => {
     const { wallet, billing, queue, sent } = await bootstrap();
     const t1 = await paidTicketInLine(queue, billing, wallet, 'u1', 20, '09120000001');
     const t2 = await paidTicketInLine(queue, billing, wallet, 'u2', 10, '09120000002');
-    expect(queue.position('u2')!.position).toBe(2);
-    expect(queue.position('u2')!.etaMinutes).toBe(20);
+    await queue.settled();
+    expect((await queue.position('u2'))!.position).toBe(2);
+    expect((await queue.position('u2'))!.etaMinutes).toBe(20);
     expect(sent.some((s) => s.phone === '09120000001' && s.text.includes('نفر'))).toBe(true);
-    expect(sent.some((s) => s.phone === '09120000002' && s.text.includes('20 دقیقه'))).toBe(true);
+    expect(sent.some((s) => s.phone === '09120000002' && s.text.includes('۲۰ دقیقه'))).toBe(true);
     expect(t1.status).toBe('waiting');
     expect(t2.status).toBe('waiting');
   });
 
-  it('queue CLOSED → QUEUE_CLOSED; offline lawyer → LAWYER_OFFLINE', async () => {
+  it('closed queue gives QUEUE_CLOSED; offline lawyer gives LAWYER_OFFLINE', async () => {
     const { wallet, billing, queue } = await bootstrap();
-    queue.setQueueOpen(false, 'مرخصی امروز');
+    await queue.setQueueOpen(false, 'مرخصی امروز');
     await fundWallet(wallet, 'u1', 2_000_000);
     const p = await billing.buyConsultation('u1', 10, 'wallet');
-    expect(() => queue.join('u1', '0912', p.id)).toThrow('مرخصی امروز');
-    queue.setQueueOpen(true);
-    queue.setOnline(false);
-    expect(() => queue.join('u1', '0912', p.id)).toThrow('آفلاین');
+    await expect(queue.join('u1', '0912', p.id)).rejects.toThrow('مرخصی امروز');
+    await queue.setQueueOpen(true);
+    await queue.setOnline(false);
+    await expect(queue.join('u1', '0912', p.id)).rejects.toThrow('آنلاین نیست');
   });
 
-  it('same purchase cannot re-join (consumed marked), next() sends up_next SMS to the caller then «نزدیک می‌شی» to the second', async () => {
+  it('a purchase cannot be used twice; next() notifies the first client and warns the second', async () => {
     const { wallet, billing, queue, sent } = await bootstrap();
     await paidTicketInLine(queue, billing, wallet, 'u1', 10, '09120000001');
     await paidTicketInLine(queue, billing, wallet, 'u2', 10, '09120000002');
     const purchase = await billing.buyConsultation('u1', 10, 'wallet');
-    queue.join('u1', '09120000001', purchase.id);
+    await queue.join('u1', '09120000001', purchase.id);
     const dup = await billing.getPurchase(purchase.id);
     expect(dup!.consumed).toBe(true);
-    expect(() => queue.join('u1', '09120000001', purchase.id)).toThrow('قبلاً مصرف شده');
+    await expect(queue.join('u1', '09120000001', purchase.id)).rejects.toThrow('قبلاً استفاده شده');
     sent.length = 0;
-    const up = queue.next()!;
+    const up = (await queue.next())!;
+    await queue.settled();
     expect(up.status).toBe('up_next');
-    expect(sent.some((s) => s.text.includes('نوبت توئه'))).toBe(true);
+    expect(sent.some((s) => s.text.includes('نوبت شما رسید'))).toBe(true);
     expect(sent.some((s) => s.phone === '09120000002' && s.text.includes('نزدیک'))).toBe(true);
   });
 
@@ -179,37 +181,37 @@ describe('the consultation queue (P2a)', () => {
     const { wallet, billing, queue } = await bootstrap();
     await paidTicketInLine(queue, billing, wallet, 'u1', 10, '09120000001');
     const before = (await wallet.state('u1')).balanceToman; // 1_750_000
-    const t1 = queue.myTickets('u1')[0];
+    const t1 = (await queue.myTickets('u1'))[0];
     const res = await queue.cancel('u1', t1.ticketId);
     expect(res.refunded).toBe(true);
     expect((await wallet.state('u1')).balanceToman).toBe(before + 250_000);
-    const t_after = queue.myTickets('u1')[0];
+    const t_after = (await queue.myTickets('u1'))[0];
     expect(t_after.status).toBe('cancelled');
   });
 
-  it('skip pushes to the end — the q passes ONE', async () => {
+  it('skip moves a ticket to the end of the queue', async () => {
     const { wallet, billing, queue } = await bootstrap();
     const t1 = await paidTicketInLine(queue, billing, wallet, 'u1', 10, '09120000001');
     await paidTicketInLine(queue, billing, wallet, 'u2', 10, '09120000002');
-    queue.skip(t1.ticketId);
-    expect(queue.position('u2')!.position).toBe(1);
-    expect(queue.position('u1')!.position).toBe(2);
+    await queue.skip(t1.ticketId);
+    expect((await queue.position('u2'))!.position).toBe(1);
+    expect((await queue.position('u1'))!.position).toBe(2);
   });
 
-  it('startCall → in_call; end → done; lifecycle respected', async () => {
+  it('startCall then end follows the ticket lifecycle', async () => {
     const { wallet, billing, queue } = await bootstrap();
     const t = await paidTicketInLine(queue, billing, wallet, 'u1', 10, '09120000001');
-    expect(() => queue.startCall(t.ticketId)).toThrow('به نوبت');
-    const up = queue.next()!;
-    queue.startCall(up.ticketId);
-    expect(queue.myTickets('u1')[0].status).toBe('in_call');
-    queue.endTicket(up.ticketId, 'done');
-    expect(queue.myTickets('u1')[0].status).toBe('done');
+    await expect(queue.startCall(t.ticketId)).rejects.toThrow('هنوز نوبت');
+    const up = (await queue.next())!;
+    await queue.startCall(up.ticketId);
+    expect((await queue.myTickets('u1'))[0].status).toBe('in_call');
+    await queue.endTicket(up.ticketId, 'done');
+    expect((await queue.myTickets('u1'))[0].status).toBe('done');
   });
 });
 
-describe('comms settings (P2a)', () => {
-  it('view is HONESTLY unconfigured before wiring; after wiring, secrets are masked', async () => {
+describe('comms settings', () => {
+  it('reports unconfigured before setup and masks secrets after', async () => {
     const { comms } = await bootstrap();
     expect((await comms.view()).sms.configured).toBe(false);
     await comms.setSmsPanel(
@@ -222,10 +224,10 @@ describe('comms settings (P2a)', () => {
     expect(JSON.stringify(v)).not.toContain('A1B2C3D4SECRETKEY99');
   });
 
-  it('testSms without a panel responds with the honest “not wired” error', async () => {
+  it('testSms without a panel returns a not-configured error', async () => {
     const { comms } = await bootstrap();
     const r = await comms.testSms('09120000000', '🧪');
     expect(r.ok).toBe(false);
-    expect(r.error).toContain('وصل نیست');
+    expect(r.error).toContain('متصل نشده');
   });
 });

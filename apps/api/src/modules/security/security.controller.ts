@@ -22,7 +22,7 @@ export class SecurityController {
 
   @Get('posture')
   @Roles(UserRole.LAWYER_OWNER, UserRole.STAFF)
-  @ApiOperation({ summary: 'latest posture score (x/10) + counts, or null before first scan' })
+  @ApiOperation({ summary: 'Latest security score (out of 10) and counts; null before the first scan' })
   async posture() {
     const latest = await this.audit.latest();
     if (!latest) return { scanned: false };
@@ -40,35 +40,35 @@ export class SecurityController {
 
   @Get('standards')
   @Roles(UserRole.LAWYER_OWNER, UserRole.STAFF)
-  @ApiOperation({ summary: 'the standards matrix the guardian enforces (OWASP/ASVS/CWE/NIST refs)' })
+  @ApiOperation({ summary: 'Security checks and their OWASP, ASVS, CWE and NIST references' })
   standards() {
     return { standards: this.audit.listStandards() };
   }
 
   @Get('reports/latest')
   @Roles(UserRole.LAWYER_OWNER, UserRole.STAFF)
-  @ApiOperation({ summary: 'newest full security report incl. per-check evidence + remediation' })
+  @ApiOperation({ summary: 'Latest full security report, with evidence and remediation per check' })
   async latestReport() {
     return { report: await this.audit.latest() };
   }
 
   @Get('reports')
   @Roles(UserRole.LAWYER_OWNER, UserRole.STAFF)
-  @ApiOperation({ summary: 'report history (bounded ring, persisted across restarts)' })
+  @ApiOperation({ summary: 'Report history (most recent reports, kept across restarts)' })
   async history() {
     return { reports: await this.audit.readHistory() };
   }
 
   @Post('scan')
   @Roles(UserRole.LAWYER_OWNER)
-  @ApiOperation({ summary: 'run the standards matrix NOW and persist (guardian agent does this daily too)' })
+  @ApiOperation({ summary: 'Run the security checks now (they also run daily)' })
   async scan() {
     return { report: await this.scheduler.runNow('manual') };
   }
 
   @Get('schedule')
   @Roles(UserRole.LAWYER_OWNER, UserRole.STAFF)
-  @ApiOperation({ summary: 'scan cadence state: interval + whether the timer is armed' })
+  @ApiOperation({ summary: 'Scan schedule: interval and whether it is active' })
   schedule() {
     return this.scheduler.state();
   }

@@ -29,7 +29,7 @@ export class RouteQueryDto {
 
   @ApiPropertyOptional({
     enum: ['privileged', 'normal'],
-    description: 'privileged => never leaves the box (ADR-004)',
+    description: 'privileged: processed only by local models, never sent to a cloud provider',
   })
   @IsIn(['privileged', 'normal'])
   @IsOptional()

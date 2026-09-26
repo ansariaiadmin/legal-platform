@@ -2,6 +2,8 @@ import { ConfigService } from '@nestjs/config';
 import { adapterKeyFromEnv, createAdapterFor } from '../../src/providers/provider.factory';
 import { MockSmsAdapter } from '../../src/providers/sms/mock-sms.adapter';
 import { MockPaymentAdapter } from '../../src/providers/payment/mock-payment.adapter';
+import { GhasedakSmsAdapter } from '../../src/providers/sms/ghasedak.adapter';
+import { KavenegarSmsAdapter } from '../../src/providers/sms/kavenegar.adapter';
 import { PROVIDER_ERROR_CODES } from '../../src/providers/provider.error';
 import { PROVIDER_CATEGORIES } from '../../src/providers/provider.tokens';
 import { isHealthCheckable } from '../../src/providers/health-checkable';
@@ -27,13 +29,36 @@ describe('provider factory', () => {
     expect(createAdapterFor('payment', 'mock', config)).toBeInstanceOf(MockPaymentAdapter);
   });
 
-  /** SPEC section 12: no fake payment / sms / ai success in production. */
-  it('refuses to build a mock adapter in production', () => {
+  /**
+   * SPEC section 12: no fake payment / sms / ai success in production.
+   * The app must still boot, so a mock key yields an "unconfigured" adapter
+   * that reports unhealthy and rejects every call (SPEC section 8).
+   */
+  it('never hands out a mock adapter in production', async () => {
     process.env.NODE_ENV = 'production';
+    const config = new ConfigService();
 
-    expect(() => createAdapterFor('payment', 'mock', new ConfigService())).toThrow(
-      expect.objectContaining({ code: PROVIDER_ERROR_CODES.CONFIG_INVALID }),
-    );
+    const payment = createAdapterFor('payment', 'mock', config) as {
+      verifyConfig(): Promise<{ valid: boolean }>;
+      createPaymentSession(input: unknown): Promise<unknown>;
+    };
+    expect(payment).not.toBeInstanceOf(MockPaymentAdapter);
+    expect((await payment.verifyConfig()).valid).toBe(false);
+    await expect(payment.createPaymentSession({ amount: 1000 })).rejects.toMatchObject({
+      code: PROVIDER_ERROR_CODES.CONFIG_INVALID,
+    });
+
+    const sms = createAdapterFor('sms', 'mock', config) as { sendSms(input: unknown): Promise<unknown> };
+    expect(sms).not.toBeInstanceOf(MockSmsAdapter);
+    await expect(sms.sendSms({ phone: '09120000000', message: 'x' })).rejects.toMatchObject({
+      code: PROVIDER_ERROR_CODES.CONFIG_INVALID,
+    });
+  });
+
+  it('selects real SMS gateways from SMS_PROVIDER', () => {
+    const config = new ConfigService({ GHASEDAK_API_KEY: 'k', KAVENEGAR_API_KEY: 'k' });
+    expect(createAdapterFor('sms', 'ghasedak', config)).toBeInstanceOf(GhasedakSmsAdapter);
+    expect(createAdapterFor('sms', 'kavenegar', config)).toBeInstanceOf(KavenegarSmsAdapter);
   });
 
   it('reads the adapter key from <CATEGORY>_PROVIDER and defaults to mock', () => {

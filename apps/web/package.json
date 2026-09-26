@@ -1,6 +1,9 @@
 {
   "name": "@legal-platform/web",
   "version": "1.0.0",
+  "description": "Legal Platform lawyer dashboard (Next.js)",
+  "license": "AGPL-3.0-or-later",
+  "author": "Mohammad Ansari (https://ansariai.ir)",
   "private": true,
   "scripts": {
     "dev": "next dev",

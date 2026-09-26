@@ -2,10 +2,11 @@ import type { Metadata, Viewport } from 'next';
 import '../styles/globals.css';
 
 export const metadata: Metadata = {
-  title: 'مشاوره حقوقی آنلاین',
-  description: 'نوبت مشاوره بگیر، صف را زنده ببین، با AIِ وکیل مشورت کن.',
-  manifest: '/manifest.webmanifest',
-  appleWebApp: { capable: true, statusBarStyle: 'black-translucent', title: 'مشاور حقوقی' },
+  title: 'مشاورهٔ حقوقی آنلاین',
+  description: 'نوبت مشاورهٔ حقوقی بگیرید، جایگاه خود در صف را ببینید و از کیف پول پرداخت کنید.',
+  manifest: '/portal/manifest.webmanifest',
+  icons: { icon: '/portal/icon.svg' },
+  appleWebApp: { capable: true, statusBarStyle: 'black-translucent', title: 'مشاورهٔ حقوقی' },
 };
 
 export const viewport: Viewport = {
@@ -18,10 +19,6 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="fa" dir="rtl">
-      <head>
-        <link rel="manifest" href="/manifest.webmanifest" />
-        <link rel="icon" href="/icon.svg" type="image/svg+xml" />
-      </head>
       <body>{children}</body>
     </html>
   );

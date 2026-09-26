@@ -4,331 +4,225 @@ import { createHash } from 'node:crypto';
 import { AI_PROVIDER } from '../../providers/provider.tokens';
 import type { AIProvider } from '../../providers/ai/ai.provider';
 import { CorpusService, type CorpusDocument } from '../corpus/corpus.service';
-import type { SemanticHit, IndexEntry } from './embedding-index.service';
-import { cosineSim } from './embedding-index.service';
+import type { SemanticHit } from './embedding-index.service';
+
+const CHUNK_SIZE = 700;
+const CHUNK_OVERLAP = 100;
+
+interface PendingChunk {
+  chunkId: string;
+  documentId: string;
+  canonicalTitle: string;
+  trustTier: 1 | 2 | 3;
+  position: number;
+  content: string;
+  embedding: number[];
+}
+
+type IndexResult = { indexed: number; dimension: number | null; degraded: string | null; pg: boolean };
 
 /**
- * PgEmbeddingIndexService — v3.2.2 — تاریکی روشن شد — pgvector واقعی
- * 
- * BEFORE: EmbeddingIndexService file-based JSON — runtime/rag/index.json — cosineSim in JS — برای 100 سند خوبه ولی برای 10k سند کند — scale نمی‌شه
- * AFTER: pgvector — document_chunks.embedding vector(1536) — با <=> cosine distance — index IVFFLAT — برای 100k سند هم سریع — سقف
- * 
- * Design:
- * - If DATABASE_URL present and pgvector extension exists, use PG
- * - Else fallback to in-memory (for tests/dev without DB)
- * - Rebuild: delete old chunks for tenant, insert new chunks with embeddings
- * - Search: embed query, then SELECT with embedding <=> query_embedding ORDER BY distance
- * - Stats: count chunks, distinct documents, dimension
- * - Degraded: no AI provider -> empty, no PG -> fallback to JS cosine
+ * pgvector-backed semantic index (table `rag_chunks`, migration 010).
+ *
+ * Used instead of the JSON index (EmbeddingIndexService) when Postgres has
+ * the pgvector extension and the table exists; `pickSemanticIndex()` makes
+ * that choice for both writers (rebuild) and readers (drafting), so the two
+ * can never disagree about which index is live.
+ *
+ * Rebuild embeds every chunk first and then replaces all rows in a single
+ * transaction: a failure leaves the previous index intact.
  */
-
 @Injectable()
 export class PgEmbeddingIndexService {
   private readonly logger = new Logger(PgEmbeddingIndexService.name);
-  private fallbackEntries: IndexEntry[] = [];
   private dimension: number | null = null;
   private pgAvailable = false;
+  private readonly ready: Promise<void>;
 
   constructor(
     private readonly pool: Pool,
     private readonly corpus: CorpusService,
     @Optional() @Inject(AI_PROVIDER) private readonly ai?: AIProvider,
   ) {
-    this.checkPgVector().then(available => {
-      this.pgAvailable = available;
-      if (available) {
-        this.logger.log('pgvector available — using PG for embeddings — سقف — تاریکی روشن شد');
-      } else {
-        this.logger.warn('pgvector not available — fallback to JS cosine — برای production PG نصب کن');
-      }
-    });
+    this.ready = this.probe();
   }
 
-  private async checkPgVector(): Promise<boolean> {
+  /** Resolves once the pgvector probe has finished (used by tests and ops). */
+  whenReady(): Promise<void> {
+    return this.ready;
+  }
+
+  private async probe(): Promise<void> {
     try {
-      const client = await this.pool.connect();
-      try {
-        await client.query('SELECT 1 FROM pg_extension WHERE extname = $1', ['vector']);
-        // Check if document_chunks table exists with embedding column
-        await client.query('SELECT embedding FROM document_chunks LIMIT 1');
-        return true;
-      } catch {
-        return false;
-      } finally {
-        client.release();
+      const res = await this.pool.query<{ has_vector: boolean; has_table: boolean }>(
+        `SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'vector') AS has_vector,
+                to_regclass('public.rag_chunks') IS NOT NULL AS has_table`,
+      );
+      const row = res.rows[0];
+      this.pgAvailable = Boolean(row?.has_vector && row?.has_table);
+      if (this.pgAvailable) {
+        const dim = await this.pool.query<{ dimension: number }>('SELECT dimension FROM rag_chunks LIMIT 1');
+        this.dimension = dim.rows[0]?.dimension ?? null;
+        this.logger.log('pgvector index available (rag_chunks)');
+      } else {
+        this.logger.log('pgvector index unavailable; the JSON semantic index is used');
       }
     } catch {
-      return false;
+      this.pgAvailable = false;
     }
   }
 
   availability(): { degraded: string | null; pg: boolean } {
     if (!this.ai) return { degraded: 'no_embedding_provider', pg: this.pgAvailable };
-    if (!this.pgAvailable) return { degraded: 'no_pgvector_fallback_js', pg: false };
+    if (!this.pgAvailable) return { degraded: 'pgvector_unavailable', pg: false };
     return { degraded: null, pg: true };
   }
 
-  async rebuild(): Promise<{ indexed: number; dimension: number | null; degraded: string | null; pg: boolean }> {
+  async rebuild(): Promise<IndexResult> {
+    await this.ready;
     if (!this.ai) return { indexed: 0, dimension: this.dimension, degraded: 'no_embedding_provider', pg: this.pgAvailable };
+    if (!this.pgAvailable) return { indexed: 0, dimension: this.dimension, degraded: 'pgvector_unavailable', pg: false };
 
     const docs = await this.corpus.list({ verifiedOnly: true });
-    
-    if (!this.pgAvailable) {
-      // Fallback to JS in-memory — same as old EmbeddingIndexService
-      return this.rebuildFallback(docs);
+    const pending: PendingChunk[] = [];
+    let dim: number | null = null;
+    for (const doc of docs) {
+      for (const chunk of toChunks(doc)) {
+        const emb = await this.ai.embedText({ text: chunk.content });
+        if (dim !== null && emb.dimension !== dim) {
+          throw new Error(`embedding dimension changed mid-rebuild (${dim} → ${emb.dimension})`);
+        }
+        dim = emb.dimension;
+        pending.push({
+          ...chunk,
+          documentId: doc.documentId,
+          canonicalTitle: doc.canonicalTitle,
+          trustTier: doc.trustTier,
+          embedding: emb.embedding,
+        });
+      }
     }
 
-    // PG rebuild
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
-      
-      // Delete old chunks for these documents? For simplicity, delete all and reinsert
-      // In production, you'd want tenant isolation — here we delete all verified docs chunks
-      const docIds = docs.map(d => d.documentId);
-      if (docIds.length > 0) {
-        // Delete chunks for docs that are no longer verified? For now, truncate and rebuild all verified
-        await client.query('DELETE FROM document_chunks WHERE document_id = ANY($1::uuid[])', [docIds]);
+      await client.query('DELETE FROM rag_chunks');
+      for (const c of pending) {
+        await client.query(
+          `INSERT INTO rag_chunks
+             (chunk_id, document_id, canonical_title, trust_tier, position, content, dimension, embedding)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8::vector)`,
+          [c.chunkId, c.documentId, c.canonicalTitle, c.trustTier, c.position, c.content, c.embedding.length, toVector(c.embedding)],
+        );
       }
-
-      let indexed = 0;
-      let dim: number | null = null;
-
-      for (const doc of docs) {
-        const chunks = this.toChunks(doc);
-        for (const chunk of chunks) {
-          const emb = await this.ai.embedText({ text: chunk.content });
-          dim = emb.dimension;
-          
-          // Ensure document exists in legal_documents table (it should, via corpus)
-          // Insert chunk with embedding
-          try {
-            await client.query(
-              `INSERT INTO document_chunks (id, document_id, position, content, start_offset, end_offset, embedding, created_at)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
-               ON CONFLICT (document_id, position) DO UPDATE SET content = $4, embedding = $7, created_at = NOW()`,
-              [
-                createHash('sha256').update(`${doc.documentId}:${chunk.position}`).digest('hex').slice(0, 32),
-                doc.documentId,
-                chunk.position,
-                chunk.content,
-                chunk.position * 700, // approximate offset
-                chunk.position * 700 + chunk.content.length,
-                JSON.stringify(emb.embedding), // pgvector accepts JSON array string? Actually needs '[1,2,3]' — pg driver handles array?
-              ]
-            );
-            indexed++;
-          } catch (e) {
-            // Try alternative: embedding as string '[1,2,3]'
-            try {
-              await client.query(
-                `INSERT INTO document_chunks (id, document_id, position, content, start_offset, end_offset, embedding, created_at)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7::vector, NOW())
-                 ON CONFLICT (document_id, position) DO UPDATE SET content = $4, embedding = $7::vector, created_at = NOW()`,
-                [
-                  createHash('sha256').update(`${doc.documentId}:${chunk.position}-${Date.now()}`).digest('hex').slice(0, 32),
-                  doc.documentId,
-                  chunk.position,
-                  chunk.content,
-                  chunk.position * 700,
-                  chunk.position * 700 + chunk.content.length,
-                  `[${emb.embedding.join(',')}]`,
-                ]
-              );
-              indexed++;
-            } catch (e2) {
-              this.logger.warn(`Failed to insert chunk ${chunk.position} for doc ${doc.documentId}: ${(e2 as Error).message}`);
-            }
-          }
-        }
-      }
-
       await client.query('COMMIT');
-      this.dimension = dim ?? this.dimension;
-      this.logger.log(`pgvector index rebuilt: ${indexed} chunks @ dim=${this.dimension} — سقف — تاریکی روشن شد`);
-      return { indexed, dimension: this.dimension, degraded: null, pg: true };
     } catch (e) {
-      await client.query('ROLLBACK');
-      this.logger.error(`PG rebuild failed, fallback to JS: ${(e as Error).message}`);
-      return this.rebuildFallback(docs);
+      await client.query('ROLLBACK').catch(() => undefined);
+      this.logger.error(`pgvector rebuild failed; previous index kept: ${(e as Error).message}`);
+      throw e;
     } finally {
       client.release();
     }
-  }
 
-  private async rebuildFallback(docs: CorpusDocument[]): Promise<{ indexed: number; dimension: number | null; degraded: string | null; pg: boolean }> {
-    const out: IndexEntry[] = [];
-    let dim: number | null = null;
-    for (const doc of docs) {
-      const chunks = this.toChunks(doc);
-      for (const chunk of chunks) {
-        const emb = await this.ai!.embedText({ text: chunk.content });
-        dim = emb.dimension;
-        out.push({
-          documentId: doc.documentId,
-          canonicalTitle: doc.canonicalTitle,
-          chunkId: chunk.chunkId,
-          position: chunk.position,
-          content: chunk.content,
-          vector: emb.embedding,
-          trustTier: doc.trustTier,
-          verified: true,
-          sha256: doc.sha256,
-          ingestedAt: doc.ingestedAt,
-        });
-      }
-    }
-    this.fallbackEntries = out;
     this.dimension = dim ?? this.dimension;
-    return { indexed: out.length, dimension: this.dimension, degraded: this.pgAvailable ? null : 'no_pgvector_fallback_js', pg: false };
-  }
-
-  private toChunks(doc: CorpusDocument): Array<{ chunkId: string; position: number; content: string }> {
-    const CHUNK = 700;
-    const OVERLAP = 100;
-    const chunks: Array<{ chunkId: string; position: number; content: string }> = [];
-    let pos = 0;
-    let off = 0;
-    while (off < doc.bodyRaw.length) {
-      const end = Math.min(doc.bodyRaw.length, off + CHUNK);
-      const content = doc.bodyRaw.slice(off, end).trim();
-      if (content.length > 0) {
-        chunks.push({
-          chunkId: createHash('sha256').update(`${doc.documentId}:${pos}`).digest('hex').slice(0, 24),
-          position: pos,
-          content,
-        });
-        pos += 1;
-      }
-      if (end === doc.bodyRaw.length) break;
-      off = Math.max(off + 1, end - OVERLAP);
-    }
-    return chunks;
+    this.logger.log(`pgvector index rebuilt: ${pending.length} chunks, dimension ${this.dimension ?? '-'}`);
+    return { indexed: pending.length, dimension: this.dimension, degraded: null, pg: true };
   }
 
   async search(query: string, opts?: { topK?: number }): Promise<SemanticHit[]> {
-    if (!this.ai) return [];
-    
+    await this.ready;
+    if (!this.ai || !this.pgAvailable) return [];
     const topK = opts?.topK ?? 5;
-    const qEmb = await this.ai.embedText({ text: query });
-
-    if (this.dimension !== null && qEmb.dimension !== this.dimension) {
-      this.logger.warn(`query dim ${qEmb.dimension} ≠ index dim ${this.dimension} — refusing`);
+    const q = await this.ai.embedText({ text: query });
+    if (this.dimension !== null && q.dimension !== this.dimension) {
+      this.logger.warn(`query dimension ${q.dimension} does not match index dimension ${this.dimension}; rebuild the index`);
       return [];
     }
 
-    if (!this.pgAvailable) {
-      // Fallback JS cosine
-      const scored = this.fallbackEntries
-        .map((e) => ({
-          documentId: e.documentId,
-          canonicalTitle: e.canonicalTitle,
-          trustTier: e.trustTier,
-          score: cosineSim(qEmb.embedding, e.vector),
-          preview: e.content.slice(0, 200),
-        }))
-        .filter((h) => h.score > 0)
-        .sort((a, b) => b.score - a.score);
-
-      const perDoc = new Map<string, SemanticHit>();
-      for (const h of scored) {
-        if (!perDoc.has(h.documentId)) perDoc.set(h.documentId, h);
-      }
-      return [...perDoc.values()].slice(0, topK);
-    }
-
-    // PG vector search
-    const client = await this.pool.connect();
     try {
-      // Use <=> for cosine distance (0 = identical, 2 = opposite)
-      // Score = 1 - distance/2 or 1 - distance for cosine?
-      // pgvector cosine distance is 1 - cosine_similarity, so similarity = 1 - distance
-      const res = await client.query(
-        `SELECT 
-           dc.document_id,
-           ld.canonical_title,
-           ld.trust_tier,
-           dc.content,
-           1 - (dc.embedding <=> $1::vector) as similarity
-         FROM document_chunks dc
-         JOIN legal_documents ld ON ld.id = dc.document_id
-         WHERE ld.verified_at IS NOT NULL AND ld.valid_to IS NULL
-         ORDER BY dc.embedding <=> $1::vector
-         LIMIT $2`,
-        [`[${qEmb.embedding.join(',')}]`, topK * 3] // fetch more chunks, then dedup per doc
+      const res = await this.pool.query<{
+        document_id: string;
+        canonical_title: string;
+        trust_tier: number;
+        content: string;
+        similarity: string | number;
+      }>(
+        `SELECT document_id, canonical_title, trust_tier, content,
+                1 - (embedding <=> $1::vector) AS similarity
+           FROM rag_chunks
+          WHERE dimension = $2
+          ORDER BY embedding <=> $1::vector
+          LIMIT $3`,
+        [toVector(q.embedding), q.dimension, topK * 3],
       );
-
       const perDoc = new Map<string, SemanticHit>();
       for (const row of res.rows) {
-        const docId = row.document_id as string;
-        if (!perDoc.has(docId)) {
-          perDoc.set(docId, {
-            documentId: docId,
-            canonicalTitle: row.canonical_title as string,
-            trustTier: row.trust_tier as 1 | 2 | 3,
-            score: Number(row.similarity),
-            preview: (row.content as string).slice(0, 200),
-          });
-        }
+        const score = Number(row.similarity);
+        if (!(score > 0) || perDoc.has(row.document_id)) continue;
+        perDoc.set(row.document_id, {
+          documentId: row.document_id,
+          canonicalTitle: row.canonical_title,
+          trustTier: row.trust_tier as 1 | 2 | 3,
+          score,
+          preview: row.content.slice(0, 200),
+        });
       }
       return [...perDoc.values()].slice(0, topK);
     } catch (e) {
-      this.logger.error(`PG vector search failed, fallback to JS: ${(e as Error).message}`);
-      // Fallback
-      const scored = this.fallbackEntries
-        .map((e) => ({
-          documentId: e.documentId,
-          canonicalTitle: e.canonicalTitle,
-          trustTier: e.trustTier,
-          score: cosineSim(qEmb.embedding, e.vector),
-          preview: e.content.slice(0, 200),
-        }))
-        .filter((h) => h.score > 0)
-        .sort((a, b) => b.score - a.score);
-
-      const perDoc = new Map<string, SemanticHit>();
-      for (const h of scored) {
-        if (!perDoc.has(h.documentId)) perDoc.set(h.documentId, h);
-      }
-      return [...perDoc.values()].slice(0, topK);
-    } finally {
-      client.release();
+      this.logger.error(`pgvector search failed: ${(e as Error).message}`);
+      return [];
     }
   }
 
   async stats(): Promise<{ chunks: number; documents: number; dimension: number | null; degraded: string | null; pg: boolean }> {
-    if (!this.pgAvailable) {
-      return {
-        chunks: this.fallbackEntries.length,
-        documents: new Set(this.fallbackEntries.map((e) => e.documentId)).size,
-        dimension: this.dimension,
-        degraded: this.availability().degraded,
-        pg: false,
-      };
-    }
-
-    const client = await this.pool.connect();
+    await this.ready;
+    const { degraded, pg } = this.availability();
+    if (!this.pgAvailable) return { chunks: 0, documents: 0, dimension: this.dimension, degraded, pg };
     try {
-      const res = await client.query(
-        `SELECT COUNT(*) as chunks, COUNT(DISTINCT document_id) as docs FROM document_chunks`
+      const res = await this.pool.query<{ chunks: string; docs: string }>(
+        'SELECT COUNT(*) AS chunks, COUNT(DISTINCT document_id) AS docs FROM rag_chunks',
       );
       return {
         chunks: Number(res.rows[0]?.chunks ?? 0),
         documents: Number(res.rows[0]?.docs ?? 0),
         dimension: this.dimension,
-        degraded: this.availability().degraded,
-        pg: true,
+        degraded,
+        pg,
       };
-    } catch {
-      return {
-        chunks: this.fallbackEntries.length,
-        documents: new Set(this.fallbackEntries.map((e) => e.documentId)).size,
-        dimension: this.dimension,
-        degraded: 'pg_stats_failed_fallback_js',
-        pg: false,
-      };
-    } finally {
-      client.release();
+    } catch (e) {
+      this.logger.error(`pgvector stats failed: ${(e as Error).message}`);
+      return { chunks: 0, documents: 0, dimension: this.dimension, degraded: 'pgvector_stats_failed', pg };
     }
   }
+}
+
+/** Single decision point: which semantic index is live for reads and writes. */
+export function pickSemanticIndex<T>(jsonIndex: T, pgIndex?: PgEmbeddingIndexService): T | PgEmbeddingIndexService {
+  return pgIndex && pgIndex.availability().pg ? pgIndex : jsonIndex;
+}
+
+function toVector(values: number[]): string {
+  return `[${values.join(',')}]`;
+}
+
+function toChunks(doc: CorpusDocument): Array<{ chunkId: string; position: number; content: string }> {
+  const chunks: Array<{ chunkId: string; position: number; content: string }> = [];
+  const body = doc.bodyRaw;
+  let position = 0;
+  let offset = 0;
+  while (offset < body.length) {
+    const end = Math.min(body.length, offset + CHUNK_SIZE);
+    const content = body.slice(offset, end).trim();
+    if (content.length > 0) {
+      chunks.push({
+        chunkId: createHash('sha256').update(`${doc.documentId}:${position}`).digest('hex').slice(0, 32),
+        position,
+        content,
+      });
+      position += 1;
+    }
+    if (end === body.length) break;
+    offset = Math.max(offset + 1, end - CHUNK_OVERLAP);
+  }
+  return chunks;
 }

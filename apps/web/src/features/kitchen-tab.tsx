@@ -13,21 +13,21 @@ import { api, getToken, type AgentEventMsg, type FleetAgent } from '@/lib/api';
  */
 
 const KIND_FA: Record<string, string> = {
-  'task.accepted': 'تَسک پذیرفته شد',
+  'task.accepted': 'درخواست دریافت شد',
   'task.classified': 'دسته‌بندی شد',
-  'task.routed': 'روت شد',
-  'inference.decided': 'مغز انتخاب شد',
-  'skill.started': 'مهارت شروع به کار کرد',
-  'skill.completed': 'مهارت تمام شد',
-  'task.completed': 'سِرو شد',
+  'task.routed': 'به دستیار سپرده شد',
+  'inference.decided': 'مدل انتخاب شد',
+  'skill.started': 'اجرای مهارت آغاز شد',
+  'skill.completed': 'اجرای مهارت پایان یافت',
+  'task.completed': 'انجام شد',
   'task.failed': 'ناموفق',
-  'grant.issued': 'گرنت صادر شد',
-  'grant.revoked': 'گرنت باطل شد',
-  'model.assigned': 'مغز سپرده شد',
-  'model.unassigned': 'مغز پس گرفته شد',
-  'file.uploaded': 'فایل رسید',
-  'file.analyzed': 'فایل خوانده شد',
-  'conversation.turn': 'نوبت گفت‌وگو',
+  'grant.issued': 'مجوز صادر شد',
+  'grant.revoked': 'مجوز لغو شد',
+  'model.assigned': 'مدل اختصاص یافت',
+  'model.unassigned': 'اختصاص مدل برداشته شد',
+  'file.uploaded': 'فایل بارگذاری شد',
+  'file.analyzed': 'فایل بررسی شد',
+  'conversation.turn': 'پیام گفت‌وگو',
 };
 
 const CACHE: Record<string, string> = {
@@ -194,15 +194,15 @@ export function KitchenTab() {
           <h2 style={{ margin: '0 0 2px' }}>{t('kitchen.title')} 🍳</h2>
           <p className="hint" style={{ margin: 0 }}>{t('kitchen.subtitle')}</p>
         </div>
-        <span className={`pill ${live ? 'ok' : 'bad'}`}>{live ? '● زنده' : '○ در حال اتصال…'}</span>
+        <span className={`pill ${live ? 'ok' : 'bad'}`}>{live ? '● متصل' : '○ در حال اتصال…'}</span>
       </div>
 
       <div className="floor">
         {/* leader */}
         <div className="node leader" style={{ left: `${pos.get('legal-leader')!.x}%`, top: `${pos.get('legal-leader')!.y}%` }}>
           <div className="orb">👑<i className="heat" /></div>
-          <div className="name">لیدر</div>
-          <div className="sub">مدیر جامعه</div>
+          <div className="name">دستیار اصلی</div>
+          <div className="sub">هماهنگ‌کنندهٔ دستیاران</div>
         </div>
         {/* experts */}
         {agents.map((a) => {
@@ -231,7 +231,7 @@ export function KitchenTab() {
               {ev.model ? ` · ${ev.model}` : ''}
               {ev.detail ? ` · ${ev.detail}` : ''}
             </span>
-            {ev.assignmentSource && <span className="badge">{ev.assignmentSource === 'leader_fallback' ? 'قرض از لیدر' : ev.assignmentSource}</span>}
+            {ev.assignmentSource && <span className="badge">{ev.assignmentSource === 'leader_fallback' ? 'مدل دستیار اصلی' : ev.assignmentSource}</span>}
             <time>{new Date(ev.at).toLocaleTimeString('fa-IR')}</time>
           </div>
         ))}

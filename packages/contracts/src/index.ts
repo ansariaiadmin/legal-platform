@@ -70,6 +70,7 @@ export const ERROR_CODES = {
   SECURITY_DECRYPTION_FAILED: 'SECURITY_DECRYPTION_FAILED',
   // system
   SYSTEM_INTERNAL_ERROR: 'SYSTEM_INTERNAL_ERROR',
+  SYSTEM_ROUTE_NOT_FOUND: 'SYSTEM_ROUTE_NOT_FOUND',
   // P2a — commerce & consultation
   WALLET_INSUFFICIENT_FUNDS: 'WALLET_INSUFFICIENT_FUNDS',
   QUEUE_CLOSED: 'QUEUE_CLOSED',
@@ -80,6 +81,8 @@ export const ERROR_CODES = {
   PAYMENT_GATEWAY_ERROR: 'PAYMENT_GATEWAY_ERROR',
   SUBSCRIPTION_ACTIVE: 'SUBSCRIPTION_ACTIVE',
   SUBSCRIPTION_EXPIRED: 'SUBSCRIPTION_EXPIRED',
+  /** A feature exists in the API but is intentionally not offered yet. */
+  SYSTEM_FEATURE_NOT_AVAILABLE: 'SYSTEM_FEATURE_NOT_AVAILABLE',
   COMMS_NOT_CONFIGURED: 'COMMS_NOT_CONFIGURED',
   SYSTEM_NOT_IMPLEMENTED: 'SYSTEM_NOT_IMPLEMENTED',
   // P4 — drafting with citations
@@ -146,8 +149,11 @@ export function httpStatusForCode(code: string): number {
   if (code.startsWith(ERROR_PREFIXES.TICKET) || code.startsWith(ERROR_PREFIXES.COMMS)) return 409;
   if (code === ERROR_CODES.SUBSCRIPTION_ACTIVE) return 409;
   if (code === ERROR_CODES.SUBSCRIPTION_EXPIRED) return 403;
+  if (code === ERROR_CODES.SYSTEM_FEATURE_NOT_AVAILABLE) return 409;
   if (code === ERROR_CODES.PURCHASE_NOT_FOUND) return 404;
   if (code === ERROR_CODES.AUTH_RATE_LIMITED || code === ERROR_CODES.AUTH_RESEND_COOLDOWN) return 429;
+  // The database or another dependency is down: retryable, and not a sign-out.
+  if (code === ERROR_CODES.AUTH_DEPENDENCY_DOWN) return 503;
   if (code === ERROR_CODES.AUTH_INSUFFICIENT_ROLE) return 403;
   if (code.startsWith(ERROR_PREFIXES.MACHINE_TOKEN)) return 401;
   if (code === ERROR_CODES.SECURITY_SCAN_FAILED) return 500;

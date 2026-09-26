@@ -1,4 +1,4 @@
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
@@ -32,7 +32,7 @@ COPY apps/api apps/api
 # Packages must be built before the API: it resolves their types from dist/.
 RUN npm run build:packages && npm run build -w @legal-platform/api
 
-FROM node:20-alpine AS runner
+FROM node:22-alpine AS runner
 
 WORKDIR /app
 

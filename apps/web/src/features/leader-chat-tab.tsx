@@ -18,7 +18,7 @@ export function ChatTab() {
   const [bubbles, setBubbles] = useState<Bubble[]>([
     {
       role: 'leader',
-      text: 'سلام! من لیدرم 👋\nمی‌تونی هر کاری خواستی بهم بگی:\n• «به مدل محلی وصل شو آدرس http://gpu-box:8080»\n• «تیر سناتور رو فعال کن»\n• یه فایل بفرست تا بخونمش و بگم کجا باید بره\nیا مستقیم سؤال حقوقی‌ات رو بپرس.',
+      text: 'سلام، دستیار دفتر هستم.\nمی‌توانید پرسش حقوقی بپرسید یا کارها را به زبان ساده بخواهید؛ مثلاً:\n• «به مدل محلی در نشانی http://gpu-box:8080 وصل شو»\n• «پیش‌تنظیم حداکثر کیفیت را فعال کن»\n• فایلی بفرستید تا آن را بخوانم و محل نگهداری‌اش را پیشنهاد کنم.',
     },
   ]);
   const [text, setText] = useState('');
@@ -83,7 +83,7 @@ export function ChatTab() {
                     await api.post(`/dashboard/orchestrator/leader/config-proposals/${b.proposalId}/accept`);
                     setBubbles((x) => [
                       ...x,
-                      { role: 'leader', text: `انجام شد ✅ ${b.proposalSummary}` },
+                      { role: 'leader', text: `انجام شد: ${b.proposalSummary}` },
                     ]);
                   }}
                 >
@@ -96,7 +96,7 @@ export function ChatTab() {
             ))}
           </div>
         ))}
-        {busy && <div className="bubble leader"><span className="who">{t('chat.leader')}</span>⏳ دارم فکر می‌کنم…</div>}
+        {busy && <div className="bubble leader"><span className="who">{t('chat.leader')}</span>⏳ در حال آماده‌کردن پاسخ…</div>}
       </div>
       <div className="chatbar">
         <input

@@ -11,3 +11,7 @@ venv/
 backups/
 data/
 uploads/
+*.tsbuildinfo
+next-env.d.ts.bak
+runtime/
+coverage/

@@ -1,7 +1,8 @@
-/* Offline shell (P2a): cache app shell + fonts only — data stays live from
-   the API so a stuck network NEVER shows stale queue positions as truth. */
-const CACHE = 'lp-client-v1';
-const SHELL = ['/', '/manifest.webmanifest', '/icon.svg'];
+/* Offline shell: caches the app shell only. Data always comes live from the
+   API, so a poor connection never shows an outdated queue position. */
+const CACHE = 'lp-client-v2';
+const BASE = '/portal';
+const SHELL = [`${BASE}/`, `${BASE}/manifest.webmanifest`, `${BASE}/icon.svg`];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)));
@@ -17,8 +18,8 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
-  if (url.pathname.startsWith('/api/')) return; // network only — truth lives there
+  if (url.pathname.startsWith('/api/')) return; // always from the network
   event.respondWith(
-    fetch(event.request).catch(() => caches.match(event.request).then((r) => r || caches.match('/'))),
+    fetch(event.request).catch(() => caches.match(event.request).then((r) => r || caches.match(`${BASE}/`))),
   );
 });

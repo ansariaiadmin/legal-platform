@@ -9,7 +9,7 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 @Controller()
 export class RootController {
   @Get()
-  @ApiOperation({ summary: 'Service billboard (no 404 on the bare host)' })
+  @ApiOperation({ summary: 'Service information' })
   root(): { service: string; links: Record<string, string> } {
     return {
       service: 'پلتفرم حقوقی — Legal Platform API',

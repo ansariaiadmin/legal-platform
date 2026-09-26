@@ -42,6 +42,18 @@ describe('AllExceptionsFilter', () => {
     });
   });
 
+  it('keeps code, status and message from an exception thrown with an object body', () => {
+    const { json, status, host } = createHarness();
+
+    filter.catch(new BadRequestException({ code: 'PURCHASE_NOT_FOUND', message: 'چنین خریدی ثبت نشده است.' }), host);
+
+    expect(status).toHaveBeenCalledWith(400);
+    expect(json).toHaveBeenCalledWith({
+      success: false,
+      error: { code: 'PURCHASE_NOT_FOUND', message: 'چنین خریدی ثبت نشده است.', details: undefined },
+    });
+  });
+
   it('uses 429 for rate limiting rather than 403', () => {
     const { status, host } = createHarness();
 
@@ -115,9 +127,14 @@ describe('error code coverage', () => {
       !code.startsWith('SYSTEM_') &&
       !code.startsWith('PROVIDER_') &&
       !code.startsWith('AI_') &&
-      code !== ERROR_CODES.PAYMENT_GATEWAY_ERROR && // upstream gateway hiccup → 502, same treaty as PROVIDER_
-      code !== ERROR_CODES.DRAFT_AI_UNAVAILABLE, // P4: the writing seam is absent → 502, same treaty
+      code !== ERROR_CODES.PAYMENT_GATEWAY_ERROR && // upstream payment gateway failure → 502, like PROVIDER_
+      code !== ERROR_CODES.DRAFT_AI_UNAVAILABLE && // no drafting model configured → 502
+      code !== ERROR_CODES.AUTH_DEPENDENCY_DOWN, // database unreachable → 503, asserted below
   );
+
+  it('AUTH_DEPENDENCY_DOWN maps to 503 so clients keep their session and retry', () => {
+    expect(httpStatusForCode(ERROR_CODES.AUTH_DEPENDENCY_DOWN)).toBe(503);
+  });
 
   it.each(callerFacing)('%s maps to a 4xx status', (_name, code) => {
     const status = httpStatusForCode(code);

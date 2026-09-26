@@ -25,7 +25,6 @@ export interface Alert {
 export class AlertingService {
   private readonly logger = new Logger(AlertingService.name);
   private alerts: Alert[] = [];
-  private lastCheck = 0;
   private errorRateWindow: Array<{ timestamp: number; errorRate: number }> = [];
   private diskCheckCache: { freePercent: number; timestamp: number } | null = null;
 
@@ -210,7 +209,7 @@ export class AlertingService {
     if (stats.agents.failuresTotal > 10) {
       return {
         rule: 'agent_failures_high',
-        message: `خطای ایجنت‌ها بالا: ${stats.agents.failuresTotal} خطا`,
+        message: `تعداد خطای دستیاران زیاد است: ${stats.agents.failuresTotal} خطا`,
         severity: 'warning',
         timestamp: new Date().toISOString(),
         value: stats.agents.failuresTotal,
@@ -221,7 +220,7 @@ export class AlertingService {
       if (count > 5) {
         return {
           rule: 'agent_specific_failures',
-          message: `ایجنت ${agentId} دچار ${count} خطا شده`,
+          message: `دستیار ${agentId} با ${count} خطا مواجه شده است`,
           severity: 'warning',
           timestamp: new Date().toISOString(),
           value: count,
@@ -251,7 +250,6 @@ export class AlertingService {
       await this.sendAlert(alert);
     }
 
-    this.lastCheck = Date.now();
     return alerts;
   }
 

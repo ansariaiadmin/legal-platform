@@ -1,6 +1,9 @@
 {
   "name": "@legal-platform/api",
   "version": "1.0.0",
+  "description": "Legal Platform API (NestJS)",
+  "license": "AGPL-3.0-or-later",
+  "author": "Mohammad Ansari (https://ansariai.ir)",
   "private": true,
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -19,12 +22,12 @@
     "preflight": "ts-node src/preflight.ts"
   },
   "dependencies": {
-    "@legal-platform/agent-civil-expert": "0.1.0",
-    "@legal-platform/agent-criminal-expert": "0.1.0",
-    "@legal-platform/agent-family-expert": "0.1.0",
+    "@legal-platform/agent-civil-expert": "1.0.0",
+    "@legal-platform/agent-criminal-expert": "1.0.0",
+    "@legal-platform/agent-family-expert": "1.0.0",
     "@legal-platform/agent-international-expert": "1.0.0",
-    "@legal-platform/agent-legal-expert-base": "0.1.0",
-    "@legal-platform/agent-registration-expert": "0.1.0",
+    "@legal-platform/agent-legal-expert-base": "1.0.0",
+    "@legal-platform/agent-registration-expert": "1.0.0",
     "@legal-platform/contracts": "1.0.0",
     "@legal-platform/domain": "1.0.0",
     "@legal-platform/shared": "1.0.0",

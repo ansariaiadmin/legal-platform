@@ -4,9 +4,13 @@ import { AppModule } from './app.module';
 
 async function bootstrap() {
   const logger = new Logger('Worker');
-  // Worker context - no HTTP listener
-  await NestFactory.createApplicationContext(AppModule);
+  // Application context without an HTTP listener.
+  const app = await NestFactory.createApplicationContext(AppModule);
+  app.enableShutdownHooks();
   logger.log('worker ready');
 }
 
-bootstrap();
+bootstrap().catch((error: unknown) => {
+  new Logger('Worker').error(`worker failed to start: ${(error as Error)?.stack ?? String(error)}`);
+  process.exit(1);
+});

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Logger, Param, Post, Query, UseGuards, ConflictException } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { IsIn, IsInt, IsNotEmpty, IsOptional, IsString, Min } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -66,12 +66,14 @@ class MarkReadDto {
 /**
  * The PUBLIC site surface (P2a): what the client PWA calls. Wallet top-up,
  * direct purchase, queue join/position/cancel, notifications — all owner of
- * "کاربر ورودی" flows that pair with lawyer-side telecoms.
+ * client-side flows that pair with the lawyer-side telecoms controls.
  */
 @ApiTags('client')
 @Controller('client')
 @UseGuards(JwtAccessGuard, RolesGuard)
 export class ClientController {
+  private readonly logger = new Logger(ClientController.name);
+
   constructor(
     private readonly wallet: WalletService,
     private readonly billing: BillingService,
@@ -83,14 +85,16 @@ export class ClientController {
 
   @Get('catalog')
   @Roles(UserRole.CLIENT, UserRole.LAWYER_OWNER, UserRole.STAFF)
-  @ApiOperation({ summary: 'Everything buyable: consultation plans + AI subscriptions' })
+  @ApiOperation({ summary: 'What a client can buy: the active consultation plans' })
   catalog() {
-    return { ...this.billing.catalog(), comms: {} };
+    // AI subscriptions are not offered to clients until the portal has
+    // client-facing AI features to deliver; see buySubscription below.
+    return { consultation: this.billing.catalog().consultation, subscriptions: [] };
   }
 
   @Get('wallet')
   @Roles(UserRole.CLIENT, UserRole.LAWYER_OWNER, UserRole.STAFF)
-  @ApiOperation({ summary: 'My wallet: balance + recent txns' })
+  @ApiOperation({ summary: 'My wallet: balance and recent transactions' })
   async myWallet(@CurrentUser() user: AuthenticatedUser) {
     const s = await this.wallet.state(user.id);
     return { balanceToman: s.balanceToman, txns: s.txns.slice(-20).reverse() };
@@ -98,9 +102,12 @@ export class ClientController {
 
   @Post('wallet/topup')
   @Roles(UserRole.CLIENT, UserRole.LAWYER_OWNER)
-  @ApiOperation({ summary: 'Start a wallet top-up — gateway session' })
+  @ApiOperation({ summary: 'Start a wallet top-up; returns the gateway URL to send the user to' })
   topup(@CurrentUser() user: AuthenticatedUser, @Body() dto: TopupDto) {
-    return this.wallet.topupStart(user.id, dto.amountToman, `${process.env.APP_URL ?? ''}/client/wallet/verify`);
+    // The gateway returns the user to the client portal, which then calls
+    // wallet/topup/confirm with the Authority it received.
+    const appUrl = (process.env.APP_URL ?? '').replace(/\/+$/, '');
+    return this.wallet.topupStart(user.id, dto.amountToman, `${appUrl}/portal/?topup=return`);
   }
 
   @Post('wallet/topup/confirm')
@@ -117,15 +124,23 @@ export class ClientController {
   @ApiOperation({ summary: 'Buy a 10/20/30-minute consultation slot' })
   async buyConsultation(@CurrentUser() user: AuthenticatedUser, @Body() dto: BuyConsultationDto) {
     const purchase = await this.billing.buyConsultation(user.id, dto.minutes, dto.payWith ?? 'wallet');
-    void this.notifications.pushPayment?.(user.id, dto.minutes, purchase.priceToman);
+    // The purchase is already committed; a failed notification must not fail
+    // the request or surface as an unhandled rejection.
+    this.notifications
+      .pushPayment?.(user.id, dto.minutes, purchase.priceToman)
+      ?.catch((err: unknown) => this.logger.warn(`payment notification failed: ${(err as Error).message}`));
     return purchase;
   }
 
   @Post('purchases/subscription')
   @Roles(UserRole.CLIENT, UserRole.LAWYER_OWNER)
-  @ApiOperation({ summary: 'Subscribe to an AI feature (per-part pricing)' })
-  buySubscription(@CurrentUser() user: AuthenticatedUser, @Body() dto: BuySubscriptionDto) {
-    return this.billing.buySubscription(user.id, dto.feature, dto.months, dto.payWith ?? 'wallet');
+  @ApiOperation({ summary: 'Reserved: AI subscriptions are not sold to clients yet (409 SYSTEM_FEATURE_NOT_AVAILABLE)' })
+  buySubscription(@Body() _dto: BuySubscriptionDto): never {
+    // Never take money for something the portal cannot deliver.
+    throw new ConflictException({
+      code: 'SYSTEM_FEATURE_NOT_AVAILABLE',
+      message: 'اشتراک امکانات هوش مصنوعی هنوز برای موکلان فعال نیست.',
+    });
   }
 
   @Get('subscription-status/:feature')
@@ -148,22 +163,22 @@ export class ClientController {
   @Post('queue/join')
   @Roles(UserRole.CLIENT, UserRole.LAWYER_OWNER)
   @ApiOperation({ summary: 'Join the consultation line with a purchased slot' })
-  join(@CurrentUser() user: AuthenticatedUser, @Body() dto: JoinQueueDto) {
-    const ticket = this.queue.join(user.id, dto.phone, dto.purchaseId);
-    const pos = this.queue.position(user.id);
+  async join(@CurrentUser() user: AuthenticatedUser, @Body() dto: JoinQueueDto) {
+    const ticket = await this.queue.join(user.id, dto.phone, dto.purchaseId);
+    const pos = await this.queue.position(user.id);
     return { ticket, position: pos };
   }
 
   @Get('queue/me')
   @Roles(UserRole.CLIENT, UserRole.LAWYER_OWNER, UserRole.STAFF)
-  @ApiOperation({ summary: 'Where am I in line + honest ETA' })
-  myPosition(@CurrentUser() user: AuthenticatedUser) {
-    return { position: this.queue.position(user.id), telecoms: this.queue.telecomsState() };
+  @ApiOperation({ summary: 'My queue position and estimated wait' })
+  async myPosition(@CurrentUser() user: AuthenticatedUser) {
+    return { position: await this.queue.position(user.id), telecoms: await this.queue.telecomsState() };
   }
 
   @Post('queue/cancel/:ticketId')
   @Roles(UserRole.CLIENT, UserRole.LAWYER_OWNER)
-  @ApiOperation({ summary: 'Cancel my waiting ticket — money returns to wallet' })
+  @ApiOperation({ summary: 'Cancel my waiting ticket; the price is refunded to the wallet' })
   cancel(@CurrentUser() user: AuthenticatedUser, @Param('ticketId') ticketId: string) {
     return this.queue.cancel(user.id, ticketId);
   }
@@ -172,16 +187,16 @@ export class ClientController {
 
   @Get('notifications')
   @Roles(UserRole.CLIENT, UserRole.LAWYER_OWNER, UserRole.STAFF)
-  @ApiOperation({ summary: 'My notification inbox (in-app + SMS copy)' })
-  inbox(@CurrentUser() user: AuthenticatedUser, @Query('unread') unread?: string) {
-    return { notifications: this.notifications.list(user.id, unread === 'true') };
+  @ApiOperation({ summary: 'My notifications (in-app, with SMS delivery status)' })
+  async inbox(@CurrentUser() user: AuthenticatedUser, @Query('unread') unread?: string) {
+    return { notifications: await this.notifications.list(user.id, unread === 'true') };
   }
 
   @Post('notifications/read')
   @Roles(UserRole.CLIENT, UserRole.LAWYER_OWNER, UserRole.STAFF)
   @ApiOperation({ summary: 'Mark notifications read' })
-  read(@CurrentUser() user: AuthenticatedUser, @Body() dto: MarkReadDto) {
-    this.notifications.markRead(user.id, dto.notificationIds);
+  async read(@CurrentUser() user: AuthenticatedUser, @Body() dto: MarkReadDto) {
+    await this.notifications.markRead(user.id, dto.notificationIds);
     return { ok: true };
   }
 }

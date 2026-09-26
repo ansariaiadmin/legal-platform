@@ -5,7 +5,7 @@ import { Pool } from 'pg';
 import type { Response } from 'express';
 import { pingRedis } from './redis.ping';
 import { MetricsService } from './metrics.service';
-import { AlertingService } from './alerting.service';
+import { AlertingService, type Alert } from './alerting.service';
 
 type CheckStatus = 'up' | 'down' | 'skipped';
 
@@ -116,7 +116,7 @@ export class HealthController {
   }
 
   @Get('health/dashboard')
-  @ApiOperation({ summary: 'Custom HTML dashboard for monitoring' })
+  @ApiOperation({ summary: 'HTML monitoring page' })
   async dashboard(@Res() response: Response): Promise<void> {
     const health = await this.health(response);
     // Reset status code for dashboard HTML
@@ -185,7 +185,7 @@ export class HealthController {
     </div>
 
     <div class="card">
-      <h3>🤖 ایجنت‌ها</h3>
+      <h3>🤖 دستیاران</h3>
       <div class="metric"><span>اجراها</span><span>${stats.agents.executionsTotal}</span></div>
       <div class="metric"><span>خطاها</span><span>${stats.agents.failuresTotal}</span></div>
       <div class="metric"><span>بکاپ‌ها</span><span>${stats.backups.jobsTotal}</span></div>
@@ -219,12 +219,12 @@ export class HealthController {
 
   @Get('health/alerts')
   @ApiOperation({ summary: 'Recent alerts' })
-  async alerts(): Promise<{ alerts: Array<Record<string, unknown>> }> {
+  async alerts(): Promise<{ alerts: Alert[] }> {
     return { alerts: this.alerting.getRecentAlerts(50) };
   }
 
   @Get('health/stats')
-  @ApiOperation({ summary: 'Detailed metrics stats as JSON' })
+  @ApiOperation({ summary: 'Metrics as JSON' })
   async stats(): Promise<any> {
     return this.metrics.getStats();
   }

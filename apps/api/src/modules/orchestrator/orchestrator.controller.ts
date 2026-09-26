@@ -88,14 +88,14 @@ export class OrchestratorController {
 
   @Get('tree')
   @Roles(UserRole.LAWYER_OWNER, UserRole.STAFF, UserRole.OPERATOR)
-  @ApiOperation({ summary: 'The Expert Tree: legal fields and their agents' })
+  @ApiOperation({ summary: 'Legal fields and their expert assistants' })
   getTree() {
     return { tree: this.orchestrator.getTree(), inference: this.inferenceRouter.describe() };
   }
 
   @Get('events/recent')
   @Roles(UserRole.LAWYER_OWNER, UserRole.STAFF)
-  @ApiOperation({ summary: 'Ring buffer of recent agent events (dashboard initial paint)' })
+  @ApiOperation({ summary: 'Recent assistant events (for the first dashboard render)' })
   recentEvents() {
     return { events: this.bus.recent(100) };
   }
@@ -108,7 +108,7 @@ export class OrchestratorController {
    */
   @Post('events/stream-ticket')
   @Roles(UserRole.LAWYER_OWNER, UserRole.STAFF)
-  @ApiOperation({ summary: 'Mint a single-use 45s ticket for the SSE events stream' })
+  @ApiOperation({ summary: 'Issue a single-use 45-second ticket for the event stream' })
   streamTicket(@CurrentUser() user: AuthenticatedUser) {
     const { ticket, expiresInSec } = issueStreamTicket({
       sub: user.id,
@@ -120,7 +120,7 @@ export class OrchestratorController {
 
   @Get('fleet')
   @Roles(UserRole.LAWYER_OWNER, UserRole.STAFF)
-  @ApiOperation({ summary: 'Society registry: persona cards, skills, grant & health per agent' })
+  @ApiOperation({ summary: 'Assistant registry: role, skills, permissions and health of each assistant' })
   async fleet() {
     const [cards, grants] = await Promise.all([
       this.registry.describeFleet(),
@@ -141,7 +141,7 @@ export class OrchestratorController {
   @Get('insights')
   @Roles(UserRole.LAWYER_OWNER, UserRole.OPERATOR)
   @ApiOperation({
-    summary: 'Evaluator report: fleet metrics + ranked evolution suggestions (ADR-008)',
+    summary: 'Evaluator report: assistant metrics and ranked improvement suggestions',
   })
   insights() {
     const snapshot = this.metrics.snapshot();
@@ -151,7 +151,7 @@ export class OrchestratorController {
   @Post('spawn')
   @Roles(UserRole.LAWYER_OWNER)
   @ApiOperation({
-    summary: 'The Leader births a new society member — zero grants by default (ADR-009)',
+    summary: 'Create a custom assistant (no permissions by default)',
   })
   async spawn(@Body() dto: SpawnAgentDto, @CurrentUser() user: AuthenticatedUser) {
     const result = this.evolution.spawn({ ...dto, spawnedBy: user.id });
@@ -164,7 +164,7 @@ export class OrchestratorController {
 
   @Delete('spawn/:agentId')
   @Roles(UserRole.LAWYER_OWNER)
-  @ApiOperation({ summary: 'Retire a spawned member (core fleet members cannot retire)' })
+  @ApiOperation({ summary: 'Remove a custom assistant (built-in assistants cannot be removed)' })
   async retire(@Param('agentId') agentId: string, @CurrentUser() user: AuthenticatedUser) {
     const removed = this.evolution.retire(agentId, user.id);
     await this.auditSafe(user.id, 'orchestrator.evolution.retire', agentId, { removed });
@@ -176,7 +176,7 @@ export class OrchestratorController {
   @Get('models')
   @Roles(UserRole.LAWYER_OWNER, UserRole.STAFF, UserRole.OPERATOR)
   @ApiOperation({
-    summary: 'Model matrix: per-agent brain assignment; unassigned = Leader lends its API',
+    summary: 'Model assignment per assistant; unassigned assistants use the lead assistant’s provider',
   })
   async models() {
     const cards = await this.registry.describeFleet();
@@ -223,7 +223,7 @@ export class OrchestratorController {
 
   @Delete('models/:agentId')
   @Roles(UserRole.LAWYER_OWNER)
-  @ApiOperation({ summary: 'Unpin an agent — it falls back to the Leader lending its API' })
+  @ApiOperation({ summary: 'Remove a model assignment; the assistant falls back to the lead assistant’s provider' })
   async unassignModel(@Param('agentId') agentId: string, @CurrentUser() user: AuthenticatedUser) {
     const removed = this.modelAssignments.unassign(agentId);
     if (removed) {
@@ -242,7 +242,7 @@ export class OrchestratorController {
 
   @Sse('events/stream')
   @Roles(UserRole.LAWYER_OWNER, UserRole.STAFF)
-  @ApiOperation({ summary: 'Live SSE stream — watch the agents cook in real time' })
+  @ApiOperation({ summary: 'Live event stream (SSE) of assistant activity' })
   streamEvents(): Observable<MessageEvent> {
     return this.eventStream.pipe(map((data) => ({ data })));
   }
@@ -265,7 +265,7 @@ export class OrchestratorController {
 
   @Post('dispatch')
   @Roles(UserRole.LAWYER_OWNER, UserRole.STAFF)
-  @ApiOperation({ summary: 'Route + governance check + hybrid inference + execute' })
+  @ApiOperation({ summary: 'Route a request, check permissions and execute it' })
   async dispatch(
     @Body() dto: RouteQueryDto,
     @CurrentUser() user: AuthenticatedUser,
@@ -329,7 +329,7 @@ export class OrchestratorController {
 
   @Post('agents/:agentId/disable')
   @Roles(UserRole.LAWYER_OWNER)
-  @ApiOperation({ summary: 'Hard off-switch for a sub-agent (manual dashboard control)' })
+  @ApiOperation({ summary: 'Disable an assistant' })
   async disable(@Param('agentId') agentId: string, @CurrentUser() user: AuthenticatedUser) {
     this.governance.setDisabled(agentId, true);
     await this.auditSafe(user.id, 'orchestrator.agent.disable', agentId, {});
@@ -371,7 +371,7 @@ export class OrchestratorController {
 
   @Get('files')
   @Roles(UserRole.LAWYER_OWNER, UserRole.STAFF)
-  @ApiOperation({ summary: 'List the caller’s uploaded files (id, name, chars, needs-ocr) for corpus shelvers' })
+  @ApiOperation({ summary: 'List my uploaded files (id, name, length, OCR needed)' })
   listFiles(@CurrentUser() user: AuthenticatedUser) {
     return { files: this.files.listByUser(user.id) };
   }
@@ -379,7 +379,7 @@ export class OrchestratorController {
   @Post('files')
   @Roles(UserRole.LAWYER_OWNER, UserRole.STAFF)
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
-  @ApiOperation({ summary: 'Upload ANY file for the Leader: register + analyze first' })
+  @ApiOperation({ summary: 'Upload a file for the lead assistant; it is registered and analysed' })
   async uploadFile(
     @UploadedFile() file: UploadedFilePayload | undefined,
     @Body('sensitivity') sensitivity: 'privileged' | 'normal' | undefined,
@@ -400,21 +400,21 @@ export class OrchestratorController {
 
   @Post('leader/conversations')
   @Roles(UserRole.LAWYER_OWNER, UserRole.STAFF)
-  @ApiOperation({ summary: 'Open a continuous chat session with the Leader' })
+  @ApiOperation({ summary: 'Open a chat session with the lead assistant' })
   openConversation(@CurrentUser() user: AuthenticatedUser) {
     return this.conversations.open(user.id);
   }
 
   @Get('leader/conversations')
   @Roles(UserRole.LAWYER_OWNER, UserRole.STAFF)
-  @ApiOperation({ summary: 'List my conversations (leader chats never leave the owner)' })
+  @ApiOperation({ summary: 'List my conversations' })
   listConversations(@CurrentUser() user: AuthenticatedUser) {
     return { conversations: this.conversations.listByOwner(user.id) };
   }
 
   @Post('leader/chat')
   @Roles(UserRole.LAWYER_OWNER, UserRole.STAFF)
-  @ApiOperation({ summary: 'Chat with the Leader on text + attached files' })
+  @ApiOperation({ summary: 'Chat with the lead assistant using text and attached files' })
   async leaderChat(@Body() dto: LeaderChatDto, @CurrentUser() user: AuthenticatedUser) {
     const convId = dto.conversationId ?? this.conversations.open(user.id).conversationId;
     const reply = await this.conversations.chat(
@@ -435,7 +435,7 @@ export class OrchestratorController {
 
   @Post('leader/voice-chat')
   @Roles(UserRole.LAWYER_OWNER)
-  @ApiOperation({ summary: 'Voice turn: transcribe → chat → speak the Leader answer back' })
+  @ApiOperation({ summary: 'Voice turn: transcribe, answer and reply with speech' })
   async leaderVoiceChat(@Body() dto: LeaderVoiceChatDto, @CurrentUser() user: AuthenticatedUser) {
     const reply = await this.conversations.voiceChat(
       {
@@ -452,7 +452,7 @@ export class OrchestratorController {
 
   @Post('leader/config-proposals/:proposalId/accept')
   @Roles(UserRole.LAWYER_OWNER)
-  @ApiOperation({ summary: 'Green-button a config the Leader proposed in chat (ADR-014)' })
+  @ApiOperation({ summary: 'Approve a configuration change proposed by the lead assistant' })
   async acceptConfig(@Param('proposalId') proposalId: string, @CurrentUser() user: AuthenticatedUser) {
     const applied = await this.conversations.acceptProposal(proposalId, user.id);
     await this.auditSafe(user.id, 'orchestrator.leader.config', proposalId, applied);
@@ -463,7 +463,7 @@ export class OrchestratorController {
 
   @Post('voice/session')
   @Roles(UserRole.LAWYER_OWNER)
-  @ApiOperation({ summary: 'Open a voice session with the Leader' })
+  @ApiOperation({ summary: 'Open a voice session with the lead assistant' })
   openVoice() {
     return this.voice.openSession();
   }
@@ -471,7 +471,7 @@ export class OrchestratorController {
   @Post('voice/turn')
   @Roles(UserRole.LAWYER_OWNER)
   @ApiOperation({
-    summary: 'One voice turn: transcribe manager audio, route it, speak back',
+    summary: 'One voice turn: transcribe, route and reply with speech',
   })
   async voiceTurn(@Body() dto: VoiceTurnDto, @CurrentUser() user: AuthenticatedUser) {
     const manager = await this.voice.hear(dto.sessionId, Buffer.alloc(0), dto.transcriptHint);

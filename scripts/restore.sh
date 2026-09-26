@@ -311,10 +311,10 @@ DB_USER="${DB_USER:-${POSTGRES_USER:-postgres}}"
 DB_PASS=$(url_decode "$DB_PASS")
 DB_NAME="${DB_NAME:-${POSTGRES_DB:-legal_platform}}"
 
-# Stop api and worker before restore
-log_info "Stopping api and worker services..."
+# Stop the API so nothing writes during the restore
+log_info "Stopping the api service..."
 cd "$ROOT_DIR"
-docker compose stop api worker 2>/dev/null || docker-compose stop api worker 2>/dev/null || true
+docker compose stop api 2>/dev/null || docker-compose stop api 2>/dev/null || true
 
 # Restore database
 log_info "Restoring database..."
@@ -360,7 +360,7 @@ else
                 --if-exists \
                 < "$DB_RESTORE_FILE" || {
                 log_error "Database restore failed"
-                docker compose start api worker 2>/dev/null || docker-compose start api worker 2>/dev/null || true
+                docker compose start api 2>/dev/null || docker-compose start api 2>/dev/null || true
                 exit 1
             }
         fi
@@ -375,7 +375,7 @@ else
             log_info "Trying via docker compose exec psql..."
             docker compose exec -T postgres psql -U "${POSTGRES_USER:-legal}" -d "${POSTGRES_DB:-legal_platform}" < "$DB_RESTORE_FILE" || {
                 log_error "Database restore failed"
-                docker compose start api worker 2>/dev/null || true
+                docker compose start api 2>/dev/null || true
                 exit 1
             }
         fi
@@ -384,24 +384,31 @@ else
     log_success "Database restore OK"
 fi
 
-# Restore uploads
-log_info "Restoring uploads..."
+# Restore uploads. With STORAGE_DRIVER=local this volume also holds the
+# runtime state (legal library, purchases, queue, notifications, settings).
+# Writing through a one-off api container works for Docker named volumes (the
+# default) and bind mounts alike, and keeps file ownership correct.
+log_info "Restoring uploads and runtime state..."
 
-UPLOADS_RESTORE_FILE=$(ls "$TEMP_DIR"/storage-*.tar.gz 2>/dev/null | head -1 || ls "$TEMP_DIR"/uploads.tar 2>/dev/null | head -1 || echo "")
+UPLOADS_RESTORE_FILE=$(ls "$TEMP_DIR"/storage-*.tar.gz 2>/dev/null | head -1 || true)
+[[ -z "$UPLOADS_RESTORE_FILE" && -f "$TEMP_DIR/uploads.tar" ]] && UPLOADS_RESTORE_FILE="$TEMP_DIR/uploads.tar"
 
 if [[ -n "$UPLOADS_RESTORE_FILE" && -f "$UPLOADS_RESTORE_FILE" ]]; then
-    log_info "Using storage file: $UPLOADS_RESTORE_FILE"
-    if [[ -d "$ROOT_DIR/data/uploads" ]]; then
-        tar -xzf "$UPLOADS_RESTORE_FILE" -C "$ROOT_DIR/data" 2>/dev/null || tar -xf "$UPLOADS_RESTORE_FILE" -C "$ROOT_DIR/data" 2>/dev/null || true
-    elif [[ -d "$ROOT_DIR/uploads" ]]; then
-        tar -xzf "$UPLOADS_RESTORE_FILE" -C "$ROOT_DIR" 2>/dev/null || true
+    log_info "Using storage archive: $(basename "$UPLOADS_RESTORE_FILE")"
+    TAR_FLAGS="-x"
+    [[ "$UPLOADS_RESTORE_FILE" == *.gz ]] && TAR_FLAGS="-xz"
+    if docker compose run --rm --no-deps -T --entrypoint sh api -c \
+        "rm -rf /app/uploads/* /app/uploads/.[!.]* 2>/dev/null; tar -C /app $TAR_FLAGS -f -" \
+        < "$UPLOADS_RESTORE_FILE"; then
+        log_success "Uploads restore OK"
     else
-        mkdir -p "$ROOT_DIR/data/uploads"
-        tar -xzf "$UPLOADS_RESTORE_FILE" -C "$ROOT_DIR/data" 2>/dev/null || true
+        log_error "Uploads restore failed. The database was restored; restore the uploads archive manually:"
+        log_error "  docker compose run --rm --no-deps -T --entrypoint sh api -c 'tar -C /app $TAR_FLAGS -f -' < $UPLOADS_RESTORE_FILE"
+        docker compose start api 2>/dev/null || true
+        exit 1
     fi
-    log_success "Uploads restore OK"
 else
-    log_warn "No uploads archive found — skipping"
+    log_warn "No uploads archive found in the backup; uploads were not restored"
 fi
 
 # Restore Redis if present
@@ -415,7 +422,7 @@ fi
 log_info "Restarting services..."
 if docker compose version >/dev/null 2>&1; then
     if docker compose ps api 2>/dev/null | grep -q api; then
-        docker compose start api worker 2>/dev/null || log_info "compose start skipped"
+        docker compose start api 2>/dev/null || log_info "compose start skipped"
     else
         log_info "No compose stack present — skipping service restart (headless restore mode)"
     fi

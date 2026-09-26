@@ -12,11 +12,11 @@ import { RagController } from './rag.controller';
  * Phase 4 — the RAG pipeline (SPEC §9):
  *   retrieve (lexical + semantic) → rerank (configured weights) → draft with
  *   citations → await the LAWYER's review.
- * EmbeddingIndexService needs CorpusService (reads the shelf); drafting needs
- * the index + reranker + meter. Both live over the StorageProvider today,
- * pgvector/SQL tomorrow, same contract surface.
+ * The corpus lives in the storage provider; drafting needs the semantic
+ * index, the reranker and the usage meter.
  *
- * v3.2.2 — تاریکی روشن شد — pgvector واقعی — PgEmbeddingIndexService با document_chunks.embedding vector(1536) — با <=> cosine distance — IVFFLAT index — برای 100k سند سریع — fallback به JSON اگر PG نیست — سقف
+ * Semantic search uses pgvector (table rag_chunks) when available and the
+ * JSON index otherwise; see pickSemanticIndex().
  */
 @Module({
   imports: [forwardRef(() => CorpusModule), forwardRef(() => OrchestratorModule)],

@@ -1,75 +1,39 @@
-# Security Policy — سیاست امنیت — v3.1.2 — تاریکی روشن شد
+# Security Policy
 
-## Supported Versions — نسخه‌های پشتیبانی شده
+## Supported versions
 
 | Version | Supported |
-|---------|-----------|
-| v3.1.x  | ✅ |
-| v3.0.x  | ✅ |
-| < v3.0  | ❌ |
+|---|---|
+| 1.0.x | Yes |
 
-## Reporting a Vulnerability — گزارش آسیب‌پذیری
+Security fixes are released for the latest minor version.
 
-**لطفاً آسیب‌پذیری را عمومی نکنید — خصوصی گزارش دهید:**
+## Reporting a vulnerability
 
-- Email: security@ansariaiadmin.dev
-- GitHub: https://github.com/ansariaiadmin/legal-platform/security/advisories/new
-- Telegram: @ansariaiadmin — برای فوری
+Please report vulnerabilities privately. Do not open a public issue.
 
-**چی بگم؟**
-- توضیح آسیب‌پذیری — چیه؟ چرا خطرناکه؟
-- چطور بازتولید کنم؟ — steps to reproduce
-- نسخه — کدوم نسخه؟
-- تاثیر — چی می‌شه؟
+- **Preferred:** [GitHub private vulnerability reporting](https://github.com/ansariaiadmin/legal-platform/security/advisories/new)
+- **Alternative:** Telegram [@ansariaiadmin](https://t.me/ansariaiadmin)
 
-**چی می‌شه بعد؟**
-- 24 ساعت — تایید دریافت — "گرفتیم"
-- 72 ساعت — بررسی اولیه — "خطرناکه یا نه"
-- 7 روز — فیکس — patch
-- 14 روز — ریلیز — v3.1.x — با تشکر از شما — Hall of Fame
+Include a description of the issue and its impact, steps to reproduce, and the affected version or commit.
 
-## Security Best Practices — بهترین روش‌های امنیت — تاریکی روشن شد
+We aim to acknowledge reports within 3 working days and to agree on a fix and disclosure date with you. Reporters are credited in the release notes unless they prefer otherwise.
 
-### .env — کلید خونه — باید سر جاش باشه
-- `.env` permission 600 — فقط خودت می‌تونی بخونی — `chmod 600 .env` — تاریکی روشن شد
-- `.env` تو git نیست — `.gitignore` داره — امن
-- رمزها بانکی 32 کاراکتری — `openssl rand -base64 32` — جادوگر می‌سازه — امن — تاریکی روشن شد
-- No hardcoded secrets — هیچ رمز ثابتی تو کد نیست — همه از .env — secret scan 0
+## Security model
 
-### Docker — امن — تاریکی روشن شد
-- Non-root USER 1001 — نه root — امن‌تر
-- HEALTHCHECK — هر 30 ثانیه — اگر down restart
-- No secrets in image — همه از env_file .env
+- **Authentication:** one-time SMS codes (hashed with a per-installation pepper) and passkeys. Access tokens expire after 15 minutes; refresh tokens after 7 days and are rotated on every use. Reusing an old refresh token revokes the whole session.
+- **Authorization:** role-based. Clients only reach `/api/client/*`; the dashboard requires the `lawyer_owner`, `staff` or `operator` role. Sensitive dashboard areas can additionally require their own password.
+- **Data at rest:** provider keys and signature keys are encrypted with `ENCRYPTION_MASTER_KEY`. Signature private keys are also encrypted with the lawyer's password.
+- **Payments:** the wallet is credited only after the gateway verifies the payment, for the amount recorded when the payment started, and never twice for the same payment.
+- **HTTP:** security headers on every response, rate limiting, and a standard error format that does not leak stack traces.
+- **Containers:** application images run as a non-root user.
+- **Privacy:** data stays on the office's server unless a cloud AI provider is connected. Documents marked privileged are processed only by local models.
 
-### Admin — رمز امن — تاریکی روشن شد
-- رمز پیش‌فرض Admin@123 ناامنه — باید عوض کنی — جادوگر می‌پرسه — حداقل 12 کاراکتر — حرف بزرگ+کوچک+عدد+علامت
-- 2FA — به زودی — v4.0.0
+## Operator checklist
 
-### SMS + Telegram — امن — تاریکی روشن شد
-- SMS API Key تو .env — permission 600 — امن
-- Telegram Bot Token تو .env — permission 600 — امن — به کسی نده
-- Telegram Chat ID خصوصی — به کسی نده
-
-### Backup — encrypt — تاریکی روشن شد
-- بکاپ با AES-256 encrypt — `openssl enc -aes-256-cbc` — امن
-- کلید encrypt تو .env: BACKUP_ENCRYPTION_KEY — امن نگه دار
-- بکاپ شامل .env + DB + کلیدها — همه encrypt
-
-### Notification — throttling + fallback — تاریکی روشن شد
-- throttling — اگر 5 SMS در 1 دقیقه خلاصه — هزینه کنترل — spam جلوگیری
-- fallback — اگر SMS fail in_app+email — امن
-
-## Hall of Fame — تشکر
-
-از گزارش‌دهندگان تشکر — اسمشون اینجا — با اجازه
-
-## تاریخچه — Changelog
-
-- v3.1.2 — تاریکی روشن شد — logger import + web wizard — امن
-- v3.1.1 — تاریکی روشن شد — 18 باگ فیکس — امن
-- v3.1.0 — تاریکی روشن شد — 14 تاریکی روشن — امن
-- v3.0.0 — پشتیبانی صفر — امن
-- v2.0.0 — سقف 10/10 — امن
-
-**نویسنده:** Fleet 10/10 — امنیت سقف — تاریکی روشن شد
-**نسخه:** v3.1.2
+- Keep `.env` private (`chmod 600 .env`; the installer does this) and back it up securely. Losing `ENCRYPTION_MASTER_KEY` makes encrypted data unrecoverable.
+- Serve the platform over HTTPS in production; see `docs/SECURITY-HARDENING.md`.
+- Expose only the web gateway. PostgreSQL, Redis and the monitoring tools must not be reachable from the internet.
+- Configure real SMS and payment providers before going live; the `mock` providers are for development only.
+- Encrypt off-site backups (`scripts/backup-prod.sh --encrypt`) and test restores regularly (`scripts/restore.sh --test`).
+- Keep the host, Docker and the platform up to date.

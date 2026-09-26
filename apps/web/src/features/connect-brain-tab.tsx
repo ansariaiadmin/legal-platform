@@ -19,8 +19,8 @@ export function BrainTab({ brain, onChanged }: { brain: BrainView | null; onChan
       </div>
 
       <div className="card">
-        <h3>تیر ناوگان — یک لمس</h3>
-        <p className="hint">سه حالت آماده؛ بقیه‌اش را لیدر مدیریت می‌کند (گرنت‌ها، قرضِ مدل، سیاست).</p>
+        <h3>پیش‌تنظیم کیفیت و هزینه</h3>
+        <p className="hint">سه حالت آماده. مجوزها، مدل مشترک و سیاست استفاده خودکار تنظیم می‌شوند.</p>
         <div className="grid cols-3">
           {TIERS.map((tier) => (
             <TierCard key={tier.id} tier={tier} active={brain?.preset === tier.id} onChanged={onChanged} />
@@ -30,12 +30,12 @@ export function BrainTab({ brain, onChanged }: { brain: BrainView | null; onChan
 
       {brain && (
         <div className="card">
-          <h3>وضعیت فعلی مغز</h3>
+          <h3>وضعیت فعلی مدل</h3>
           <div className="kv"><b>محلی</b><span className="ltr">{brain.local.baseUrl ?? '—'} {brain.local.model ? `(${brain.local.model})` : ''}</span></div>
-          <div className="kv"><b>منشا محلی</b><span>{t(`brain.source.${brain.local.source}` as never)}</span></div>
+          <div className="kv"><b>منبع تنظیم محلی</b><span>{t(`brain.source.${brain.local.source}` as never)}</span></div>
           <div className="kv"><b>ابری</b><span className="ltr">{brain.cloud.apiKeyMasked ?? '—'} {brain.cloud.model ? `(${brain.cloud.model})` : ''}</span></div>
-          <div className="kv"><b>منشا ابری</b><span>{t(`brain.source.${brain.cloud.source}` as never)}</span></div>
-          <div className="kv"><b>سناریوی قرض</b><span>{brain.lendingScenario}</span></div>
+          <div className="kv"><b>منبع تنظیم ابری</b><span>{t(`brain.source.${brain.cloud.source}` as never)}</span></div>
+          <div className="kv"><b>مدل مشترک</b><span>{brain.lendingScenario}</span></div>
         </div>
       )}
 
@@ -69,10 +69,10 @@ function Connector({ kind, onChanged }: { kind: 'local' | 'cloud'; onChanged: ()
         { target: kind, baseUrl: baseUrl || undefined, apiKey: apiKey || undefined },
       );
       setStatus(r.ok
-        ? { tone: 'ok', text: `وصل شد ✅ (${r.latencyMs}ms)` }
-        : { tone: 'bad', text: `وصل نشد: ${r.error ?? 'نامشخص'}` });
+        ? { tone: 'ok', text: `اتصال برقرار شد (${r.latencyMs} میلی‌ثانیه)` }
+        : { tone: 'bad', text: `اتصال برقرار نشد: ${r.error ?? 'علت نامشخص'}` });
     } catch {
-      setStatus({ tone: 'bad', text: 'خطا در درخواست تست' });
+      setStatus({ tone: 'bad', text: 'آزمایش اتصال انجام نشد' });
     } finally {
       setBusy(false);
     }
@@ -87,7 +87,7 @@ function Connector({ kind, onChanged }: { kind: 'local' | 'cloud'; onChanged: ()
         model: model || undefined,
         apiKey: apiKey || undefined,
       });
-      setStatus({ tone: 'ok', text: 'ذخیره شد — مغز از همین حالا فعال است 🎉' });
+      setStatus({ tone: 'ok', text: 'ذخیره شد و مدل از همین حالا فعال است.' });
       await onChanged();
     } catch (e) {
       setStatus({ tone: 'bad', text: (e as Error).message });

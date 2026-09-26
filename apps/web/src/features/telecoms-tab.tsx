@@ -75,18 +75,18 @@ export function TelecomsTab() {
       <div className="grid cols-2">
         <div className="card" style={{ textAlign: 'center' }}>
           <h3 style={{ marginTop: 0 }}>{state?.telecoms.online ? '🟢 آنلاین' : '⚫ آفلاین'}</h3>
-          <p className="hint">چراغ مشاورهٔ تلفنی تو — خاموشش کنی ملت نمی‌تونن وارد صف بشن.</p>
+          <p className="hint">وضعیت مشاورهٔ تلفنی شما. وقتی آفلاین باشید، مراجعان نمی‌توانند وارد صف شوند.</p>
           <button
             className={`btn big ${state?.telecoms.online ? '' : 'primary'}`}
             disabled={busy}
             onClick={() => act('/online', { online: !state?.telecoms.online })}
           >
-            {state?.telecoms.online ? 'برم آفلاین' : 'بیا آنلاین'}
+            {state?.telecoms.online ? 'آفلاین شوم' : 'آنلاین شوم'}
           </button>
         </div>
         <div className="card" style={{ textAlign: 'center' }}>
           <h3 style={{ marginTop: 0 }}>{state?.telecoms.queueOpen ? '🚪 صف باز' : '🔒 صف بسته'}</h3>
-          <p className="hint">{state?.telecoms.closeReason ?? 'هر وقت خواستی ببندش — ملت علتش را می‌بینند.'}</p>
+          <p className="hint">{state?.telecoms.closeReason ?? 'هر زمان بخواهید می‌توانید صف را ببندید؛ علت آن به مراجعان نمایش داده می‌شود.'}</p>
           <button
             className={`btn big ${state?.telecoms.queueOpen ? '' : 'primary'}`}
             disabled={busy}
@@ -102,17 +102,17 @@ export function TelecomsTab() {
       <div className="card">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h3 style={{ margin: 0 }}>صف: {board?.waiting.length ?? 0} نفر در انتظار</h3>
-          <button className="btn primary" disabled={busy} onClick={() => act('/queue/next')}>📞 نفر بعد</button>
+          <button className="btn primary" disabled={busy} onClick={() => act('/queue/next')}>📞 نفر بعدی</button>
         </div>
-        {!board?.waiting.length && <p className="hint">هیچ‌کس توی صف نیست.</p>}
+        {!board?.waiting.length && <p className="hint">کسی در صف نیست.</p>}
         {board?.waiting.map((t, i) => (
           <div key={t.ticketId} className="kv">
-            <b>{(i + 1).toLocaleString('fa-IR')}. {t.phone} — {t.minutes} دقیقه {t.status === 'up_next' && '🔔 صدا زده شد'}</b>
+            <b>{(i + 1).toLocaleString('fa-IR')}. {t.phone} — {t.minutes} دقیقه {t.status === 'up_next' && '🔔 اطلاع داده شد'}</b>
             <div style={{ display: 'flex', gap: 6 }}>
               {t.status === 'up_next' && (
                 <button className="btn" disabled={busy} onClick={() => act(`/queue/call/${t.ticketId}`)}>شروع تماس</button>
               )}
-              <button className="btn ghost" disabled={busy} onClick={() => act(`/queue/skip/${t.ticketId}`)}>بفرست ته صف</button>
+              <button className="btn ghost" disabled={busy} onClick={() => act(`/queue/skip/${t.ticketId}`)}>انتقال به انتهای صف</button>
             </div>
           </div>
         ))}
@@ -123,20 +123,20 @@ export function TelecomsTab() {
               <div key={t.ticketId} className="kv">
                 <b>☎️ {t.phone} ({t.minutes} دقیقه)</b>
                 <div style={{ display: 'flex', gap: 6 }}>
-                  <button className="btn" disabled={busy} onClick={() => act(`/queue/end/${t.ticketId}`, { endAs: 'done' })}>✅ تمام شد</button>
-                  <button className="btn ghost" disabled={busy} onClick={() => act(`/queue/end/${t.ticketId}`, { endAs: 'no_show' })}>نیامد</button>
+                  <button className="btn" disabled={busy} onClick={() => act(`/queue/end/${t.ticketId}`, { endAs: 'done' })}>✅ پایان مشاوره</button>
+                  <button className="btn ghost" disabled={busy} onClick={() => act(`/queue/end/${t.ticketId}`, { endAs: 'no_show' })}>حاضر نشد</button>
                 </div>
               </div>
             ))}
           </>
         )}
-        <p className="hint" style={{ marginTop: 10, fontSize: 11 }}>امروز: {board?.doneToday ?? 0} مشاورهٔ موفق · {board?.states.noShow ?? 0}غایب · {board?.states.cancelled ?? 0} انصراف</p>
+        <p className="hint" style={{ marginTop: 10, fontSize: 11 }}>امروز: {board?.doneToday ?? 0} مشاورهٔ انجام‌شده · {board?.states.noShow ?? 0} غایب · {board?.states.cancelled ?? 0} انصراف</p>
       </div>
 
       {/* — plans pricing — */}
       <div className="card">
-        <h3>پلن‌ها (۱۰/۲۰/۳۰ دقیقه)</h3>
-        <p className="hint">قیمت تومانیِ هر پلن دست خودته — ذخیره که کنی فروشگاهِ ملت همان لحظه آپدیت می‌شود.</p>
+        <h3>طرح‌های مشاوره (۱۰، ۲۰ و ۳۰ دقیقه)</h3>
+        <p className="hint">قیمت هر طرح را به تومان تعیین کنید. پس از ذخیره، قیمت برای مراجعان بلافاصله به‌روز می‌شود.</p>
         {state?.plans.map((p) => (
           <div key={p.minutes} className="kv">
             <b>{p.minutes} دقیقه</b>
@@ -193,7 +193,7 @@ function CommsPanels({ comms, refresh }: { comms: CommsView | null; refresh: () 
     setBusy(true); setSmsMsg(null);
     try {
       await api.post('/dashboard/comms/sms', { provider: 'kavenegar', baseUrl: smsUrl, apiKey: smsKey, senderLine: smsSender || undefined });
-      setSmsMsg('پنل پیامکی وصل شد ✅ کلید ذخیره شد و دیگر کامل نشان داده نمی‌شود.');
+      setSmsMsg('پنل پیامک متصل شد. کلید ذخیره شد و از این پس به‌صورت کامل نمایش داده نمی‌شود.');
       setSmsKey('');
       await refresh();
     } catch (e) { setSmsMsg((e as Error).message); } finally { setBusy(false); }
@@ -203,7 +203,7 @@ function CommsPanels({ comms, refresh }: { comms: CommsView | null; refresh: () 
     setBusy(true); setSmsMsg(null);
     try {
       const r = await api.post<{ ok: boolean; latencyMs: number; error?: string }>('/dashboard/comms/sms/test', { to: smsTestTo });
-      setSmsMsg(r.ok ? `پیامک واقعی پرید ✅ (${r.latencyMs}ms)` : `❌ ${r.error}`);
+      setSmsMsg(r.ok ? `پیامک آزمایشی ارسال شد (${r.latencyMs} میلی‌ثانیه)` : `❌ ${r.error}`);
     } catch (e) { setSmsMsg((e as Error).message); } finally { setBusy(false); }
   }
 
@@ -211,7 +211,7 @@ function CommsPanels({ comms, refresh }: { comms: CommsView | null; refresh: () 
     setBusy(true); setCallMsg(null);
     try {
       await api.post('/dashboard/comms/call', { baseUrl: callUrl, accountId: callAccount, authToken: callToken, fromNumber: callFrom });
-      setCallMsg('پنل تماس وصل شد ✅ نوبت‌ها بالاخره «واقعاً زنگ می‌زنند».');
+      setCallMsg('پنل تماس متصل شد. از این پس نوبت‌ها با تماس تلفنی اطلاع داده می‌شوند.');
       setCallToken('');
       await refresh();
     } catch (e) { setCallMsg((e as Error).message); } finally { setBusy(false); }
@@ -221,42 +221,42 @@ function CommsPanels({ comms, refresh }: { comms: CommsView | null; refresh: () 
     setBusy(true); setCallMsg(null);
     try {
       const r = await api.post<{ ok: boolean; latencyMs: number; error?: string }>('/dashboard/comms/call/test', { to: callTestTo });
-      setCallMsg(r.ok ? `تماس تستی پا شد ✅ (${r.latencyMs}ms)` : `❌ ${r.error}`);
+      setCallMsg(r.ok ? `تماس آزمایشی برقرار شد (${r.latencyMs} میلی‌ثانیه)` : `❌ ${r.error}`);
     } catch (e) { setCallMsg((e as Error).message); } finally { setBusy(false); }
   }
 
   return (
     <div className="grid cols-2">
       <div className="card">
-        <h3>📨 پنل پیامکی {comms?.sms.configured && <span className="pill ok">وصل {comms.sms.apiKeyMasked}</span>}</h3>
-        <p className="hint">Kavenegar، قاصدک، SMS.ir یا هر URL سفارشی — مشتری‌ها نوبتشان را با SMS هم می‌فهمند.</p>
-        <div className="field"><label>آدرس پنل</label><input dir="ltr" value={smsUrl} onChange={(e) => setSmsUrl(e.target.value)} /></div>
-        <div className="field"><label>کلید API</label><input dir="ltr" type="password" value={smsKey} onChange={(e) => setSmsKey(e.target.value)} placeholder="حتماً محرمانه‌ات ذخیره می‌شود" /></div>
+        <h3>📨 پنل پیامک {comms?.sms.configured && <span className="pill ok">متصل {comms.sms.apiKeyMasked}</span>}</h3>
+        <p className="hint">کاوه‌نگار، قاصدک، SMS.ir یا هر نشانی سفارشی. مراجعان نوبت خود را با پیامک هم دریافت می‌کنند.</p>
+        <div className="field"><label>نشانی پنل</label><input dir="ltr" value={smsUrl} onChange={(e) => setSmsUrl(e.target.value)} /></div>
+        <div className="field"><label>کلید API</label><input dir="ltr" type="password" value={smsKey} onChange={(e) => setSmsKey(e.target.value)} placeholder="به‌صورت رمزنگاری‌شده ذخیره می‌شود" /></div>
         <div className="field"><label>خط ارسال (اختیاری)</label><input dir="ltr" value={smsSender} onChange={(e) => setSmsSender(e.target.value)} /></div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn primary" disabled={busy || !smsUrl || !smsKey} onClick={wireSms}>وصل کن</button>
+          <button className="btn primary" disabled={busy || !smsUrl || !smsKey} onClick={wireSms}>اتصال</button>
         </div>
         {comms?.sms.configured && (
           <>
-            <div className="field" style={{ marginTop: 10 }}><label>تست پیامک به:</label><input dir="ltr" value={smsTestTo} onChange={(e) => setSmsTestTo(e.target.value.replace(/[^0-9]/g, ''))} placeholder="0912…" /></div>
-            <button className="btn" disabled={busy || !smsTestTo} onClick={testSms}>تست واقعی بزن</button>
+            <div className="field" style={{ marginTop: 10 }}><label>ارسال پیامک آزمایشی به:</label><input dir="ltr" value={smsTestTo} onChange={(e) => setSmsTestTo(e.target.value.replace(/[^0-9]/g, ''))} placeholder="0912…" /></div>
+            <button className="btn" disabled={busy || !smsTestTo} onClick={testSms}>ارسال آزمایشی</button>
           </>
         )}
         {smsMsg && <p className="hint" style={{ marginTop: 8 }}>{smsMsg}</p>}
       </div>
 
       <div className="card">
-        <h3>📞 پنل تماس {comms?.call.configured && <span className="pill ok">وصل — خط {comms.call.fromNumber}</span>}</h3>
-        <p className="hint">سرور تماس خودت — وقت نوبت کسی برسد، ملت را با این خط صدا می‌کنیم.</p>
-        <div className="field"><label>آدرس سرور تماس</label><input dir="ltr" value={callUrl} onChange={(e) => setCallUrl(e.target.value)} placeholder="https://my-callbox/api" /></div>
+        <h3>📞 پنل تماس {comms?.call.configured && <span className="pill ok">متصل، خط {comms.call.fromNumber}</span>}</h3>
+        <p className="hint">سرور تماس دفتر. وقتی نوبت مراجعی برسد، با این خط با او تماس گرفته می‌شود.</p>
+        <div className="field"><label>نشانی سرور تماس</label><input dir="ltr" value={callUrl} onChange={(e) => setCallUrl(e.target.value)} placeholder="https://my-callbox/api" /></div>
         <div className="field"><label>Account ID</label><input dir="ltr" value={callAccount} onChange={(e) => setCallAccount(e.target.value)} /></div>
         <div className="field"><label>Auth Token</label><input dir="ltr" type="password" value={callToken} onChange={(e) => setCallToken(e.target.value)} /></div>
         <div className="field"><label>شماره نمایشی</label><input dir="ltr" value={callFrom} onChange={(e) => setCallFrom(e.target.value)} placeholder="021…" /></div>
-        <button className="btn primary" disabled={busy || !callUrl || !callAccount || !callToken || !callFrom} onClick={wireCall}>وصل کن</button>
+        <button className="btn primary" disabled={busy || !callUrl || !callAccount || !callToken || !callFrom} onClick={wireCall}>اتصال</button>
         {comms?.call.configured && (
           <>
-            <div className="field" style={{ marginTop: 10 }}><label>تست تماس به:</label><input dir="ltr" value={callTestTo} onChange={(e) => setCallTestTo(e.target.value.replace(/[^0-9]/g, ''))} placeholder="0912…" /></div>
-            <button className="btn" disabled={busy || !callTestTo} onClick={testCall}>تماس تستی بده</button>
+            <div className="field" style={{ marginTop: 10 }}><label>تماس آزمایشی با:</label><input dir="ltr" value={callTestTo} onChange={(e) => setCallTestTo(e.target.value.replace(/[^0-9]/g, ''))} placeholder="0912…" /></div>
+            <button className="btn" disabled={busy || !callTestTo} onClick={testCall}>تماس آزمایشی</button>
           </>
         )}
         {callMsg && <p className="hint" style={{ marginTop: 8 }}>{callMsg}</p>}

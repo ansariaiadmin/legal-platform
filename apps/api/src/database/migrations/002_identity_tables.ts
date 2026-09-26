@@ -17,9 +17,6 @@ import type { MigrationBuilder } from 'node-pg-migrate' with { 'resolution-mode'
  * `invalid input syntax for type uuid`. node-pg-migrate's PgLiteral would
  * fix that, but it is a value import from an ESM-only package, which
  * Node16 module resolution rejects.
- * string is emitted as a quoted literal, so `default: 'gen_random_uuid()'`
- * produced `DEFAULT 'gen_random_uuid()'` and PostgreSQL failed with
- * `invalid input syntax for type uuid`.
  */
 
 export const up = (pgm: MigrationBuilder) => {

@@ -36,7 +36,7 @@ export class OpsController {
   @Get('backup')
   @AreaLocked('ops')
   @Roles(UserRole.LAWYER_OWNER)
-  @ApiOperation({ summary: 'export all StorageProvider-backed runtime state as one portable JSON bundle (SQL NOT included — the bundle says so)' })
+  @ApiOperation({ summary: 'Export runtime state as a JSON bundle (the SQL database is not included)' })
   download() {
     return this.backup.createBundle();
   }
@@ -44,14 +44,14 @@ export class OpsController {
   @Post('backup/restore')
   @AreaLocked('ops')
   @Roles(UserRole.LAWYER_OWNER)
-  @ApiOperation({ summary: 'restore a bundle; wrong schema rejected, per-key failures are skipped and REPORTED, never silently half-written' })
+  @ApiOperation({ summary: 'Restore a bundle; invalid schemas are rejected and per-key failures are reported' })
   restore(@Body() body: unknown) {
     return this.backup.restore(body);
   }
 
   @Get('deployment')
   @Roles(UserRole.LAWYER_OWNER, UserRole.STAFF)
-  @ApiOperation({ summary: 'deployment mode readout: single (default, batteries included) vs multi (claims honoured ONLY with Redis backing)' })
+  @ApiOperation({ summary: 'Deployment mode: single (default) or multi (requires Redis)' })
   deployment() {
     const mode = (this.config.get<string>('DEPLOYMENT_MODE') || 'single') as 'single' | 'multi';
     const redisConfigured = Boolean(this.config.get<string>('REDIS_URL'));
@@ -81,7 +81,7 @@ export class OpsController {
 
   @Get('backup/scope')
   @Roles(UserRole.LAWYER_OWNER, UserRole.STAFF)
-  @ApiOperation({ summary: 'what the backup does and does NOT cover, in writing' })
+  @ApiOperation({ summary: 'What the backup covers and what it does not' })
   scope() {
     return {
       included: 'StorageProvider runtime keys (drafts, tokens, config, usage, security reports, …)',

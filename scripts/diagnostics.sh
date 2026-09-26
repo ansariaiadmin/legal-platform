@@ -15,12 +15,12 @@ FAIL_COUNT=0
 
 check_pass() {
     echo "✓ PASS: $1"
-    ((PASS_COUNT++))
+    PASS_COUNT=$((PASS_COUNT + 1))
 }
 
 check_fail() {
     echo "✗ FAIL: $1"
-    ((FAIL_COUNT++))
+    FAIL_COUNT=$((FAIL_COUNT + 1))
 }
 
 echo "=========================================="

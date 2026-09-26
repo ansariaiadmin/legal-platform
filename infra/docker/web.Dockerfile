@@ -1,4 +1,4 @@
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
@@ -27,7 +27,7 @@ COPY apps/web apps/web
 
 RUN npm run build:packages && npm run build -w @legal-platform/web
 
-FROM node:20-alpine AS runner
+FROM node:22-alpine AS runner
 
 WORKDIR /app
 

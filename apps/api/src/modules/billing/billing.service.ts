@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Logger, OnModuleInit, Optional } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import {
   DEFAULT_CONSULTATION_PLANS,
@@ -7,6 +7,17 @@ import {
   type ConsultationPlan,
 } from '@legal-platform/domain';
 import { WalletService } from './wallet.service';
+import { STORAGE_PROVIDER } from '../../providers/provider.tokens';
+import type { StorageProvider } from '../../providers/storage/storage.provider';
+
+/** Storage key for plans, purchases and subscriptions (Postgres-backed in production). */
+const BILLING_STATE_KEY = 'runtime/billing/state.json';
+
+interface BillingState {
+  plans: ConsultationPlan[];
+  purchases: PurchaseRecord[];
+  subscriptions: Array<[string, SubscriptionRecord[]]>;
+}
 
 /**
  * The sales room (P2a): the public site's money brain. Prices are presented
@@ -39,7 +50,7 @@ export interface PurchaseRecord {
   refunded?: boolean;
 }
 
-/** AI subscriptions, per feature of the app — the "هر قسمت یه اشتراک" rule. */
+/** AI subscription prices, one subscription per feature (toman for 1, 3 and 12 months). */
 const SUBSCRIPTION_PRICES: Record<SubscriptionFeature, { 1: number; 3: number; 12: number }> = {
   [SubscriptionFeature.AI_CHAT]: { 1: 120_000, 3: 310_000, 12: 1_100_000 },
   [SubscriptionFeature.AI_FILE_LAB]: { 1: 190_000, 3: 500_000, 12: 1_700_000 },
@@ -47,14 +58,65 @@ const SUBSCRIPTION_PRICES: Record<SubscriptionFeature, { 1: number; 3: number; 1
   [SubscriptionFeature.AI_VOICE]: { 1: 150_000, 3: 400_000, 12: 1_400_000 },
 };
 
+/**
+ * Plans, purchases and subscriptions are kept in memory for fast reads and
+ * written through to the StorageProvider on every change, so a restart never
+ * loses a paid purchase or the lawyer's prices. State is loaded before the
+ * application starts accepting requests (onModuleInit).
+ */
 @Injectable()
-export class BillingService {
+export class BillingService implements OnModuleInit {
   private readonly logger = new Logger(BillingService.name);
   private plans: ConsultationPlan[] = [...DEFAULT_CONSULTATION_PLANS];
   private readonly subscriptions = new Map<string, SubscriptionRecord[]>();
   private readonly purchases = new Map<string, PurchaseRecord>();
+  private writeChain: Promise<void> = Promise.resolve();
 
-  constructor(private readonly wallet: WalletService) {}
+  constructor(
+    private readonly wallet: WalletService,
+    @Optional() @Inject(STORAGE_PROVIDER) private readonly storage?: StorageProvider,
+  ) {}
+
+  async onModuleInit(): Promise<void> {
+    if (!this.storage) return;
+    let raw: Buffer;
+    try {
+      raw = await this.storage.get(BILLING_STATE_KEY);
+    } catch {
+      return; // first boot: defaults
+    }
+    const state = JSON.parse(raw.toString('utf8')) as Partial<BillingState>;
+    if (Array.isArray(state.plans) && state.plans.length) this.plans = state.plans;
+    for (const p of state.purchases ?? []) this.purchases.set(p.id, p);
+    for (const [userId, list] of state.subscriptions ?? []) this.subscriptions.set(userId, list);
+    this.logger.log(`billing state loaded: ${this.purchases.size} purchases`);
+  }
+
+  /** Queue a write of the full state. Writes are serialised so none is lost. */
+  private persist(): Promise<void> {
+    if (!this.storage) return Promise.resolve();
+    const storage = this.storage;
+    const snapshot: BillingState = {
+      plans: this.plans,
+      purchases: [...this.purchases.values()],
+      subscriptions: [...this.subscriptions.entries()],
+    };
+    const content = Buffer.from(JSON.stringify(snapshot));
+    this.writeChain = this.writeChain
+      .catch(() => undefined)
+      .then(() =>
+        storage
+          .put({ key: BILLING_STATE_KEY, content, contentType: 'application/json', metadata: { kind: 'billing-state' } })
+          .then(() => undefined),
+      );
+    this.writeChain.catch((err: unknown) => this.logger.error(`billing state write failed: ${(err as Error).message}`));
+    return this.writeChain;
+  }
+
+  /** Resolves when every pending state write has finished. */
+  async flush(): Promise<void> {
+    await this.writeChain;
+  }
 
   // ---- catalog ------------------------------------------------------------
 
@@ -73,11 +135,12 @@ export class BillingService {
       if (![10, 20, 30].includes(p.minutes)) {
         throw new BadRequestException({
           code: 'VALIDATION_INVALID_INPUT',
-          message: 'فقط پلن‌های ۱۰/۲۰/۳۰ دقیقه مجازند',
+          message: 'فقط پلن‌های ۱۰، ۲۰ و ۳۰ دقیقه‌ای مجاز است.',
         });
       }
     }
     this.plans = plans.map((p) => ({ ...p }));
+    void this.persist().catch(() => undefined);
   }
 
   getPlans(): ConsultationPlan[] {
@@ -93,7 +156,7 @@ export class BillingService {
   ): Promise<PurchaseRecord & { paymentRedirect?: string }> {
     const plan = this.plans.find((p) => p.minutes === minutes && p.active);
     if (!plan) {
-      throw new BadRequestException({ code: 'VALIDATION_INVALID_INPUT', message: `پلن ${minutes} دقیقه ‌فعال نیست` });
+      throw new BadRequestException({ code: 'VALIDATION_INVALID_INPUT', message: `پلن ${minutes} دقیقه‌ای فعال نیست.` });
     }
     return this.record(userId, {
       kind: 'consultation',
@@ -112,15 +175,15 @@ export class BillingService {
   ): Promise<SubscriptionRecord & { paymentRedirect?: string }> {
     const prices = SUBSCRIPTION_PRICES[feature];
     if (!prices) {
-      throw new BadRequestException({ code: 'VALIDATION_INVALID_INPUT', message: 'اشتراک نامعتبر' });
+      throw new BadRequestException({ code: 'VALIDATION_INVALID_INPUT', message: 'نوع اشتراک معتبر نیست.' });
     }
     const price = (prices as Record<number, number>)[months];
     if (!price) {
-      throw new BadRequestException({ code: 'VALIDATION_INVALID_INPUT', message: 'مدت اشتراک باید ۱/۳/۱۲ ماه باشد' });
+      throw new BadRequestException({ code: 'VALIDATION_INVALID_INPUT', message: 'مدت اشتراک باید ۱، ۳ یا ۱۲ ماه باشد.' });
     }
     const dup = (this.subscriptions.get(userId) ?? []).find((s) => s.feature === feature && s.active && new Date(s.expiresAt) > new Date());
     if (dup) {
-      const err = new Error('این اشتراک همین حالا هم فعال است.');
+      const err = new Error('این اشتراک هم‌اکنون فعال است.');
       (err as Error & { code: string }).code = 'SUBSCRIPTION_ACTIVE';
       throw err;
     }
@@ -136,7 +199,7 @@ export class BillingService {
   ): Promise<SubscriptionRecord & { paymentRedirect?: string }> {
     let redirect: string | undefined;
     if (payWith === 'wallet') {
-      await this.wallet.debit(userId, priceToman, 'subscription', `اشتراک ${months}-ماههٔ ${feature}`);
+      await this.wallet.debit(userId, priceToman, 'subscription', `اشتراک ${months} ماههٔ ${feature}`);
     } else {
       redirect = `/client/mock-gate?amount=${priceToman}&purpose=subscription:${feature}:${months}`; // honest dev redirect
     }
@@ -153,6 +216,7 @@ export class BillingService {
     const list = this.subscriptions.get(userId) ?? [];
     list.push(rec);
     this.subscriptions.set(userId, list);
+    await this.persist();
     this.logger.log(`subscription ${feature} x${months}m for ${userId} via ${payWith}`);
     return { ...rec, paymentRedirect: redirect };
   }
@@ -163,7 +227,7 @@ export class BillingService {
   ): Promise<PurchaseRecord & { paymentRedirect?: string }> {
     let redirect: string | undefined;
     if (input.payWith === 'wallet') {
-      await this.wallet.debit(userId, input.priceToman, 'purchase', `خرید ${input.minutes} دقیقه مشاوره`);
+      await this.wallet.debit(userId, input.priceToman, 'purchase', `خرید مشاورهٔ ${input.minutes} دقیقه‌ای`);
     } else {
       redirect = `/client/mock-gate?amount=${input.priceToman}&purpose=consultation:${input.minutes}`;
     }
@@ -180,6 +244,7 @@ export class BillingService {
       consumed: false,
     };
     this.purchases.set(rec.id, rec);
+    await this.persist();
     return { ...rec, paymentRedirect: redirect };
   }
 
@@ -193,7 +258,9 @@ export class BillingService {
 
   markConsumed(purchaseId: string): void {
     const p = this.purchases.get(purchaseId);
-    if (p) p.consumed = true;
+    if (!p) return;
+    p.consumed = true;
+    void this.persist().catch(() => undefined);
   }
 
   subscriptionsOf(userId: string): SubscriptionRecord[] {
@@ -213,6 +280,7 @@ export class BillingService {
     if (!p || p.userId !== userId || p.refunded) return;
     p.refunded = true;
     await this.wallet.refund(userId, p.priceToman, note, purchaseId);
+    await this.persist();
     this.logger.log(`refunded purchase ${purchaseId} to ${userId}`);
   }
 }

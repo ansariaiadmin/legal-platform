@@ -1,56 +1,18 @@
 {
-  "name": "Ansari Law OS — سیستم عامل حقوقی انصاری",
-  "short_name": "AnsariLawOS",
-  "description": "Ansari Law OS — سیستم عامل حقوقی انصاری — برای وکلای ایرانی — Matter Dashboard — Client Portal — Billing — Time Tracking — Document Management — Calendar — Tasks — Reports — ساخته شده توسط ansariai.ir",
-  "start_url": "/app.html",
+  "name": "پلتفرم حقوقی",
+  "short_name": "پلتفرم حقوقی",
+  "description": "دفتر کار هوشمند وکیل: پرونده‌ها، پیش‌نویس با استناد، مشاورهٔ آنلاین و پرداخت — قابل نصب روی سرور خودتان.",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#111827",
-  "orientation": "any",
+  "theme_color": "#1e3a8a",
   "dir": "rtl",
   "lang": "fa-IR",
   "icons": [
-    {
-      "src": "/logo-ansardad.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/logo-ansardad.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
-    }
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
   ],
-  "screenshots": [
-    {
-      "src": "/setup-guides/step1-system.png",
-      "sizes": "1280x720",
-      "type": "image/png",
-      "form_factor": "wide",
-      "label": "Ansari Law OS — Dashboard"
-    }
-  ],
-  "shortcuts": [
-    {
-      "name": "Dashboard",
-      "short_name": "Dashboard",
-      "description": "Ansari Law OS — Dashboard",
-      "url": "/app.html",
-      "icons": [{ "src": "/logo-ansardad.png", "sizes": "192x192" }]
-    },
-    {
-      "name": "Matters",
-      "short_name": "Matters",
-      "description": "پرونده‌ها",
-      "url": "/app.html#matters",
-      "icons": [{ "src": "/logo-ansardad.png", "sizes": "192x192" }]
-    }
-  ],
-  "builder": {
-    "name": "انصار هوش مصنوعی",
-    "website": "https://ansariai.ir"
-  },
   "categories": ["business", "productivity"]
 }

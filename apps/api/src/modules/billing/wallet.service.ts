@@ -56,7 +56,7 @@ export async function verifyTopupPayment(
 }
 
 /**
- * کیف پول (P2a). Balances persist through the StorageProvider port (same
+ * Wallet (P2a). Balances persist through the StorageProvider port (same
  * durability story as ConfigHub); the Postgres migration lands with the P2
  * data-lifecycle phase — the SERVICE stays agnostic (ADR-015).
  */
@@ -106,7 +106,7 @@ export class WalletService {
     if (!Number.isFinite(amountToman) || amountToman < 10_000) {
       throw new BadRequestException({
         code: 'VALIDATION_INVALID_INPUT',
-        message: 'حداقل شارژ ۱۰٬۰۰۰ تومان است',
+        message: 'حداقل مبلغ شارژ ۱۰٬۰۰۰ تومان است.',
       });
     }
     const session = await this.payment.createPaymentSession({
@@ -123,7 +123,7 @@ export class WalletService {
         kind: 'topup',
         amountToman: 0, // credited on VERIFY only — never trust a start
         at: new Date().toISOString(),
-        note: `آغاز شارژ ${amountToman.toLocaleString('fa-IR')} تومانی`,
+        note: `درخواست شارژ ${amountToman.toLocaleString('fa-IR')} تومان`,
         externalRef: session.sessionId,
         expectedAmountToman: amountToman,
       });
@@ -154,7 +154,7 @@ export class WalletService {
       if (!intent?.expectedAmountToman) {
         throw new BadRequestException({
           code: 'VALIDATION_INVALID_INPUT',
-          message: 'جلسه‌ی شارژی با این شناسه برای این کیف پول ثبت نشده است.',
+          message: 'درخواست شارژی با این شناسه برای این کیف پول ثبت نشده است.',
         });
       }
       return { done: false as const, expected: intent.expectedAmountToman, balance: s.balanceToman };
@@ -172,7 +172,7 @@ export class WalletService {
       );
       throw new BadRequestException({
         code: 'WALLET_TOPUP_AMOUNT_MISMATCH',
-        message: 'مبلغ تأییدشده‌ی درگاه با شارژ درخواستی یکی نیست — نه شارژ می‌کنیم نه حدس می‌زنیم.',
+        message: 'مبلغ تأییدشده از سوی درگاه با مبلغ درخواستی برابر نیست؛ کیف پول شارژ نشد. با پشتیبانی تماس بگیرید.',
       });
     }
 
@@ -200,7 +200,7 @@ export class WalletService {
     await this.exclusive(userId, async () => {
       const s = await this.state(userId);
       if (s.balanceToman < amountToman) {
-        const err = new Error('موجودی کیف پول کافی نیست — اول شارژش کن.');
+        const err = new Error('موجودی کیف پول کافی نیست. ابتدا کیف پول را شارژ کنید.');
         (err as Error & { code: string }).code = 'WALLET_INSUFFICIENT_FUNDS';
         throw err;
       }

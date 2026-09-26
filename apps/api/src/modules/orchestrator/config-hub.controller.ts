@@ -54,14 +54,14 @@ export class ConfigHubController {
 
   @Get('brain')
   @Roles(UserRole.LAWYER_OWNER, UserRole.STAFF)
-  @ApiOperation({ summary: 'Effective brain: env ∩ runtime overrides, secrets masked' })
+  @ApiOperation({ summary: 'Effective AI configuration (environment plus runtime overrides, secrets masked)' })
   brainView() {
     return this.hub.view();
   }
 
   @Post('brain')
   @Roles(UserRole.LAWYER_OWNER)
-  @ApiOperation({ summary: 'Connect a brain: paste URL or API key — effective immediately' })
+  @ApiOperation({ summary: 'Connect an AI provider by URL or API key (takes effect immediately)' })
   connectBrain(@Body() dto: BrainPatchDto, @CurrentUser() user: AuthenticatedUser) {
     return this.hub.setBrain(
       { target: dto.target, baseUrl: dto.baseUrl, model: dto.model, apiKey: dto.apiKey },
@@ -71,28 +71,28 @@ export class ConfigHubController {
 
   @Post('brain/test')
   @Roles(UserRole.LAWYER_OWNER, UserRole.STAFF)
-  @ApiOperation({ summary: 'Probe the candidate endpoint honestly — green only if it answers' })
+  @ApiOperation({ summary: 'Test a candidate AI endpoint; succeeds only if it answers' })
   testBrain(@Body() dto: TestConnectionDto) {
     return this.hub.testConnection(dto);
   }
 
   @Get('profile')
   @Roles(UserRole.LAWYER_OWNER, UserRole.STAFF)
-  @ApiOperation({ summary: 'P7 deployment profile: locale/country/currency/timezone/legalSystem (Iran defaults)' })
+  @ApiOperation({ summary: 'Deployment profile: locale, country, currency, time zone and legal system (Iran by default)' })
   getProfile() {
     return this.hub.getProfile();
   }
 
   @Post('profile')
   @Roles(UserRole.LAWYER_OWNER)
-  @ApiOperation({ summary: 'P7 re-skin the deployment for any country — one patch, no redeploy' })
+  @ApiOperation({ summary: 'Update the deployment profile without redeploying' })
   setProfile(@Body() dto: Partial<import('./config-hub.service').DeploymentProfile>, @CurrentUser() user: AuthenticatedUser) {
     return this.hub.setProfile(dto, user.id);
   }
 
   @Post('preset')
   @Roles(UserRole.LAWYER_OWNER)
-  @ApiOperation({ summary: 'Pick a fleet preset: spartan / counsel / senator' })
+  @ApiOperation({ summary: 'Choose an assistant preset: spartan, counsel or senator' })
   setPreset(@Body() dto: PresetDto, @CurrentUser() user: AuthenticatedUser) {
     return this.hub.setPreset(dto.preset, user.id);
   }

@@ -18,9 +18,10 @@ export class ZodValidationPipe implements PipeTransform {
     if (this.schema.safeParse) {
       const result = this.schema.safeParse(value);
       if (!result.success) {
+        const err = result.error as { errors?: unknown; issues?: unknown } | undefined;
         throw new BadRequestException({
           message: 'Validation failed',
-          errors: result.error?.errors || result.error?.issues || result.error,
+          errors: err?.errors || err?.issues || result.error,
         });
       }
       return result.data;
@@ -30,9 +31,10 @@ export class ZodValidationPipe implements PipeTransform {
       try {
         return this.schema.parse(value);
       } catch (error: unknown) {
+        const err = error as { errors?: unknown; issues?: unknown; message?: string };
         throw new BadRequestException({
           message: 'Validation failed',
-          errors: error.errors || error.issues || error.message,
+          errors: err?.errors || err?.issues || err?.message,
         });
       }
     }
@@ -84,11 +86,19 @@ export function sanitizeInput(input: string): string {
     .trim();
 }
 
+/** Reads `data[key]` when `data` is an object, otherwise returns `data` itself. */
+function pick(data: unknown, key: string): unknown {
+  if (data && typeof data === 'object' && key in data) {
+    return (data as Record<string, unknown>)[key];
+  }
+  return data;
+}
+
 // Zod-like schemas using regex fallback
 export const AuthSchemas = {
   phone: {
     safeParse: (data: unknown) => {
-      const phone = data?.phone || data;
+      const phone = pick(data, 'phone');
       if (typeof phone !== 'string' || !PersianValidation.phone.test(phone)) {
         return { success: false, error: { message: 'Invalid phone format' } };
       }
@@ -97,7 +107,7 @@ export const AuthSchemas = {
   },
   otp: {
     safeParse: (data: unknown) => {
-      const code = data?.code || data;
+      const code = pick(data, 'code');
       if (typeof code !== 'string' || !PersianValidation.otpCode.test(code)) {
         return { success: false, error: { message: 'Invalid OTP format' } };
       }
@@ -106,7 +116,7 @@ export const AuthSchemas = {
   },
   email: {
     safeParse: (data: unknown) => {
-      const email = data?.email || data;
+      const email = pick(data, 'email');
       if (typeof email !== 'string' || !PersianValidation.email.test(email)) {
         return { success: false, error: { message: 'Invalid email format' } };
       }

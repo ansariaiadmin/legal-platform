@@ -32,14 +32,14 @@ export class VaultController {
 
   @Get('areas')
   @Roles(UserRole.LAWYER_OWNER, UserRole.STAFF)
-  @ApiOperation({ summary: 'lock status of each protected area' })
+  @ApiOperation({ summary: 'Lock status of each protected area' })
   areas() {
     return this.locks.status();
   }
 
   @Post('areas/:area/password')
   @Roles(UserRole.LAWYER_OWNER)
-  @ApiOperation({ summary: 'set/rotate an area password (scrypt; min 8 chars; old tickets die via epoch bump)' })
+  @ApiOperation({ summary: 'Set or change an area password (at least 8 characters; existing tickets are revoked)' })
   setAreaPassword(
     @Param('area') area: string,
     @Body() body: { password: string },
@@ -50,14 +50,14 @@ export class VaultController {
 
   @Post('areas/:area/disable')
   @Roles(UserRole.LAWYER_OWNER)
-  @ApiOperation({ summary: 'unlock an area (existing tickets die too — epoch bump)' })
+  @ApiOperation({ summary: 'Remove an area lock (existing tickets are revoked)' })
   disableArea(@Param('area') area: string, @CurrentUser() user: AuthenticatedUser) {
     return this.locks.disable(assertArea(area), user.id);
   }
 
   @Post('areas/:area/unlock')
   @Roles(UserRole.LAWYER_OWNER, UserRole.STAFF)
-  @ApiOperation({ summary: 'trade the area password for a 12h HMAC ticket (rate-limited, one-shot locks on abuse)' })
+  @ApiOperation({ summary: 'Exchange the area password for a 12-hour ticket (rate-limited)' })
   unlock(@Param('area') area: string, @Body() body: { password: string }, @Ip() ip: string) {
     return this.locks.unlock(assertArea(area), body?.password ?? '', ip);
   }
@@ -66,14 +66,14 @@ export class VaultController {
 
   @Post('passkeys/register/begin')
   @Roles(UserRole.LAWYER_OWNER)
-  @ApiOperation({ summary: 'WebAuthn registration ceremony: server challenge (5min, one-shot)' })
+  @ApiOperation({ summary: 'Start passkey registration (single-use challenge, valid 5 minutes)' })
   beginRegister(@CurrentUser() user: AuthenticatedUser) {
     return this.passkeys.begin(user.id, 'register');
   }
 
   @Post('passkeys/register/finish')
   @Roles(UserRole.LAWYER_OWNER)
-  @ApiOperation({ summary: 'finish passkey registration: one-shot challenge + validated P-256 public key persisted' })
+  @ApiOperation({ summary: 'Finish passkey registration and store the validated P-256 public key' })
   finishRegister(
     @Body() body: { challengeId: string; credentialId: string; publicKeyB64: string; deviceLabel?: string },
   ) {
@@ -118,7 +118,7 @@ export class VaultController {
 
   @Get('rotation/advice')
   @Roles(UserRole.LAWYER_OWNER, UserRole.STAFF)
-  @ApiOperation({ summary: 'staleness per secret class with Persian hints — the reminder robot' })
+  @ApiOperation({ summary: 'Age of each secret class, with rotation reminders' })
   advice() {
     return this.rotation.advice();
   }
@@ -126,7 +126,7 @@ export class VaultController {
   @Post('rotation/rotate-all')
   @AreaLocked('vault')
   @Roles(UserRole.LAWYER_OWNER)
-  @ApiOperation({ summary: 'ONE button: rotate every platform-owned credential; returns the ONE-SHOT credentials file' })
+  @ApiOperation({ summary: 'Rotate every platform-owned credential; returns the new credentials once' })
   rotateAll(@CurrentUser() user: AuthenticatedUser) {
     return this.rotation.rotateAll(user.id);
   }
@@ -134,7 +134,7 @@ export class VaultController {
   @Post('rotation/rotate-all/download')
   @AreaLocked('vault')
   @Roles(UserRole.LAWYER_OWNER)
-  @ApiOperation({ summary: 'rotate-all AND download the credentials file as an attachment, in one move' })
+  @ApiOperation({ summary: 'Rotate all credentials and download the credentials file' })
   async rotateAllAndDownload(@CurrentUser() user: AuthenticatedUser, @Res() res: Response) {
     const result = await this.rotation.rotateAll(user.id);
     res

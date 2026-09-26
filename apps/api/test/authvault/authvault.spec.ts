@@ -51,7 +51,8 @@ describe('P8 area locks — second-factor gates on dangerous surfaces', () => {
     expect(ticket.startsWith('alt_config_')).toBe(true);
     expect(Date.parse(expiresAt)).toBeGreaterThan(Date.now());
     expect(await svc.verifyTicket('config', ticket)).toBe(true);
-    expect(await svc.verifyTicket('config', ticket.replace(/.$/, '0'))).toBe(false); // tampered sig
+    const tampered = ticket.slice(0, -1) + (ticket.endsWith('0') ? '1' : '0');
+    expect(await svc.verifyTicket('config', tampered)).toBe(false); // tampered sig
 
     // password rotation → old tickets die immediately even before expiry
     await svc.setPassword('config', 'a-brand-new-pass', 'owner-1');

@@ -1,6 +1,9 @@
 {
   "name": "@legal-platform/domain",
   "version": "1.0.0",
+  "description": "Domain model and enums",
+  "license": "AGPL-3.0-or-later",
+  "author": "Mohammad Ansari (https://ansariai.ir)",
   "private": true,
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

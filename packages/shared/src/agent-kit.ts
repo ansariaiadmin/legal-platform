@@ -85,13 +85,15 @@ export function createExpertAgent(spec: ExpertAgentSpec): IExpertAgent {
       if (spec.customExecute) {
         try {
           const result = await spec.customExecute(task, routed);
-          // Enforce invariants: requiresReview always true, grounded false unless RAG
+          // Enforce invariants: requiresReview is always true, and an answer
+          // may only claim `grounded` when it actually carries citations.
+          const hasCitations = Array.isArray(result.citations) && result.citations.length > 0;
           return {
             ...result,
             meta: {
               ...result.meta,
               requiresReview: true,
-              grounded: result.meta?.grounded ?? false,
+              grounded: Boolean(result.meta?.grounded) && hasCitations,
               routedSkillId: routed?.skillId ?? null,
               score: routed?.score ?? 0,
               persona: spec.persona.displayName,

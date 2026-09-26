@@ -16,7 +16,7 @@ export class ExtPingController {
   @UseGuards(MachineTokenGuard)
   @MachineScope('client:read')
   @MachineOnly()
-  @ApiOperation({ summary: 'machine-token health ping: who am I with this token?' })
+  @ApiOperation({ summary: 'Identify the caller of a machine token' })
   ping(@MachineTokenInfo() token: MachineToken | undefined) {
     return {
       ok: true,

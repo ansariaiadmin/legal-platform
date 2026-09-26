@@ -15,13 +15,13 @@ export function metricsMiddleware(metrics: MetricsService) {
 
     const originalEnd = res.end.bind(res);
 
-    // @ts-ignore — monkey patch end to capture status
-    res.end = function (...args: unknown[]) {
+    // Wrap res.end so the final status code is recorded once the response is sent.
+    res.end = ((...args: Parameters<Response['end']>) => {
       const duration = Date.now() - start;
       const route = req.route?.path || req.path || 'unknown';
       metrics.recordHttpRequest(req.method, route, res.statusCode, duration);
-      return originalEnd(...args);
-    } as any;
+      return (originalEnd as (...a: Parameters<Response['end']>) => Response)(...args);
+    }) as Response['end'];
 
     next();
   };

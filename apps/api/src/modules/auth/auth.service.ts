@@ -14,6 +14,8 @@ import * as crypto from 'crypto';
 import { ERROR_CODES } from '@legal-platform/contracts';
 import { UserRole } from '@legal-platform/domain';
 import { normalizeEmail, normalizeIranPhone } from '@legal-platform/shared';
+import { MockSmsAdapter } from '../../providers/sms/mock-sms.adapter';
+import { MockEmailAdapter } from '../../providers/email/mock-email.adapter';
 import { AuditService } from '../audit/audit.service';
 import { SmsProvider } from '../../providers/sms/sms.provider';
 import { EMAIL_PROVIDER, SMS_PROVIDER } from '../../providers/provider.tokens';
@@ -99,7 +101,7 @@ export class AuthService {
     this.otpTtlSeconds = Number(this.configService.get<string>('OTP_TTL_SECONDS')) || 120;
   }
 
-  async requestOtp(phone: string, ip?: string): Promise<{ challengeId: string }> {
+  async requestOtp(phone: string, ip?: string): Promise<{ challengeId: string; devCode?: string }> {
     const normalizedPhone = normalizeIranPhone(phone);
     if (!normalizedPhone) {
       throw new BadRequestException(ERROR_CODES.VALIDATION_INVALID_PHONE);
@@ -150,12 +152,27 @@ export class AuthService {
       [challengeId, normalizedPhone, codeHash, expiresAt],
     ));
 
-    // Only log the code when the mock adapter is in play (development).
     const message = `کد تأیید شما: ${code}`;
-    const smsResult = await this.smsProvider.sendSms({ phone: normalizedPhone, message });
+    let smsResult: { success: boolean };
+    try {
+      smsResult = await this.smsProvider.sendSms({ phone: normalizedPhone, message });
+    } catch (error) {
+      // An unconfigured or unreachable gateway throws; treat it as a failed delivery.
+      this.logger.warn(`SMS gateway error: ${(error as Error).message}`);
+      smsResult = { success: false };
+    }
 
+    const isOwner = normalizedPhone === normalizeIranPhone(this.configService.get<string>('OWNER_PHONE') ?? '');
     if (!smsResult.success) {
-      this.logger.warn(`SMS delivery failed for ${normalizedPhone}`);
+      this.logger.warn(`SMS delivery failed for ${maskDestination(normalizedPhone)}`);
+      // First sign-in before an SMS gateway is configured: the office owner
+      // reads the code from the server console (docker compose logs api).
+      // Reading those logs already requires control of the server.
+      if (isOwner) {
+        this.logger.warn(
+          `SMS gateway unavailable; owner sign-in OTP: ${code} (valid ${this.otpTtlSeconds} seconds)`,
+        );
+      }
     }
 
     await this.auditService.log({
@@ -165,10 +182,16 @@ export class AuthService {
       entityId: challengeId,
       metadata: { destination: maskDestination(normalizedPhone), smsSuccess: smsResult.success },
       ip,
-      result: 'success',
+      result: smsResult.success || isOwner ? 'success' : 'failure',
     });
 
-    return { challengeId };
+    if (!smsResult.success && !isOwner) {
+      // Tell the user now instead of letting them wait for a message that
+      // will never arrive.
+      throw new ServiceUnavailableException(ERROR_CODES.PROVIDER_UNAVAILABLE);
+    }
+
+    return { challengeId, ...this.devCodeFor(this.smsProvider, code) };
   }
 
   async verifyOtp(phone: string, code: string, ip?: string): Promise<AuthTokens & { user: PublicUser }> {
@@ -275,7 +298,7 @@ export class AuthService {
    * TTL/lockout, same audit trail. The destination column just holds an
    * email now; purpose 'login' keeps ONE validation path for both channels.
    */
-  async requestEmailOtp(email: string, ip?: string): Promise<{ challengeId: string }> {
+  async requestEmailOtp(email: string, ip?: string): Promise<{ challengeId: string; devCode?: string }> {
     const normalized = normalizeEmail(email);
     if (!normalized) {
       throw new BadRequestException(ERROR_CODES.VALIDATION_INVALID_INPUT);
@@ -326,7 +349,7 @@ export class AuthService {
     const mail = await this.emailProvider.sendMail({
       to: normalized,
       subject: 'کد ورود شما به پلتفرم حقوقی',
-      text: `کد تأیید شما: ${code}\n\nاین کد ${Math.round(this.otpTtlSeconds / 60)} دقیقه معتبر است. اگر شما آن را نخواسته‌اید، همین را نادیده بگیرید.`,
+      text: `کد تأیید شما: ${code}\n\nاین کد ${Math.round(this.otpTtlSeconds / 60)} دقیقه معتبر است. اگر این کد را درخواست نکرده‌اید، این پیام را نادیده بگیرید.`,
     });
     if (!mail.success) {
       this.logger.warn(`Email delivery failed for ${normalized}`);
@@ -341,7 +364,7 @@ export class AuthService {
       ip,
       result: 'success',
     });
-    return { challengeId };
+    return { challengeId, ...this.devCodeFor(this.emailProvider, code) };
   }
 
   async verifyEmailOtp(email: string, code: string, ip?: string): Promise<AuthTokens & { user: PublicUser }> {
@@ -573,48 +596,63 @@ export class AuthService {
     return this.toPublicUser(result.rows[0]);
   }
 
-  private async findOrCreateUser(normalizedPhone: string): Promise<PublicUser> {
+  private findOrCreateUser(normalizedPhone: string): Promise<PublicUser> {
+    return this.findOrCreate('phone', normalizedPhone);
+  }
+
+  /** Email-channel twin of findOrCreateUser (P10). */
+  private findOrCreateEmailUser(normalized: string): Promise<PublicUser> {
+    return this.findOrCreate('email', normalized);
+  }
+
+  /**
+   * Find the user for a verified phone or email, creating it with the client
+   * role on first sign-in. The pooled connection is released before the
+   * audit write and the profile read, which use the pool themselves: holding
+   * it would deadlock once concurrent sign-ins reach the pool size.
+   */
+  private async findOrCreate(channel: 'phone' | 'email', normalized: string): Promise<PublicUser> {
+    const { userId, promoted } = await this.upsertUserTx(channel, normalized);
+    if (promoted) await this.auditOwnerBootstrap(userId, channel, normalized);
+    return this.loadUser(userId);
+  }
+
+  private async upsertUserTx(channel: 'phone' | 'email', normalized: string): Promise<{ userId: string; promoted: boolean }> {
+    const column = channel === 'phone' ? 'phone_normalized' : 'email';
     const client: PoolClient = await this.pool.connect();
     try {
       await client.query('BEGIN');
 
-      // Take an advisory lock keyed on the phone so two concurrent verifications
+      // Advisory lock keyed on the identifier so two concurrent verifications
       // cannot both insert the same user.
-      const lockKey = BigInt(`0x${crypto.createHash('sha256').update(normalizedPhone).digest('hex').slice(0, 15)}`);
+      const lockSeed = channel === 'phone' ? normalized : `email:${normalized}`;
+      const lockKey = BigInt(`0x${crypto.createHash('sha256').update(lockSeed).digest('hex').slice(0, 15)}`);
       await client.query('SELECT pg_advisory_xact_lock($1)', [lockKey.toString()]);
 
       const existing = await client.query<UserRow>(
-        `SELECT id, phone_normalized, email, display_name, status
-           FROM users
-          WHERE phone_normalized = $1`,
-        [normalizedPhone],
+        `SELECT id, phone_normalized, email, display_name, status FROM users WHERE ${column} = $1`,
+        [normalized],
       );
 
+      let userId: string;
       if (existing.rows.length > 0) {
-        await client.query('COMMIT');
-        return this.loadUser(existing.rows[0].id);
+        userId = existing.rows[0].id;
+      } else {
+        const clientRole = await client.query<{ id: string }>(`SELECT id FROM roles WHERE key = $1`, [UserRole.CLIENT]);
+        if (clientRole.rows.length === 0) {
+          throw new Error(`Role '${UserRole.CLIENT}' is missing - run migrations`);
+        }
+        userId = crypto.randomUUID();
+        await client.query(`INSERT INTO users (id, ${column}, status) VALUES ($1, $2, 'active')`, [userId, normalized]);
+        await client.query(`INSERT INTO role_assignments (id, user_id, role_id) VALUES ($1, $2, $3)`, [
+          crypto.randomUUID(),
+          userId,
+          clientRole.rows[0].id,
+        ]);
       }
-
-      const clientRole = await client.query<{ id: string }>(
-        `SELECT id FROM roles WHERE key = $1`,
-        [UserRole.CLIENT],
-      );
-      if (clientRole.rows.length === 0) {
-        throw new Error(`Role '${UserRole.CLIENT}' is missing - run migrations`);
-      }
-
-      const userId = crypto.randomUUID();
-      await client.query(
-        `INSERT INTO users (id, phone_normalized, status) VALUES ($1, $2, 'active')`,
-        [userId, normalizedPhone],
-      );
-      await client.query(
-        `INSERT INTO role_assignments (id, user_id, role_id) VALUES ($1, $2, $3)`,
-        [crypto.randomUUID(), userId, clientRole.rows[0].id],
-      );
-
+      const promoted = await this.grantOwnerIfConfigured(client, userId, channel, normalized);
       await client.query('COMMIT');
-      return this.loadUser(userId);
+      return { userId, promoted };
     } catch (error) {
       await client.query('ROLLBACK').catch(() => undefined);
       throw error;
@@ -623,43 +661,56 @@ export class AuthService {
     }
   }
 
-  /** Email-channel twin of findOrCreateUser: match on the email column,
-   * same advisory lock + client role bootstrap discipline (P10). */
-  private async findOrCreateEmailUser(normalized: string): Promise<PublicUser> {
-    const client: PoolClient = await this.pool.connect();
-    try {
-      await client.query('BEGIN');
-      const lockKey = BigInt(`0x${crypto.createHash('sha256').update(`email:${normalized}`).digest('hex').slice(0, 15)}`);
-      await client.query('SELECT pg_advisory_xact_lock($1)', [lockKey.toString()]);
+  /**
+   * Owner bootstrap. A fresh installation has no office owner, and every
+   * account created by sign-in is a client. The phone number in OWNER_PHONE
+   * (or the address in OWNER_EMAIL) receives the lawyer_owner role on a
+   * successful OTP sign-in; the one-time code is the proof of possession.
+   * Runs inside the caller's transaction and is idempotent.
+   */
+  /**
+   * Development convenience: with a mock SMS or email adapter nothing is
+   * delivered, so the code is returned to the caller for local testing.
+   * Never in production, and never with a real gateway.
+   */
+  private devCodeFor(provider: object, code: string): { devCode?: string } {
+    const isProd = (this.configService.get<string>('NODE_ENV') ?? process.env.NODE_ENV) === 'production';
+    const isMock = provider instanceof MockSmsAdapter || provider instanceof MockEmailAdapter;
+    return !isProd && isMock ? { devCode: code } : {};
+  }
 
-      const existing = await client.query<UserRow>(
-        `SELECT id, phone_normalized, email, display_name, status FROM users WHERE email = $1`,
-        [normalized],
-      );
-      if (existing.rows.length > 0) {
-        await client.query('COMMIT');
-        return this.loadUser(existing.rows[0].id);
-      }
+  private async grantOwnerIfConfigured(
+    client: PoolClient,
+    userId: string,
+    channel: 'phone' | 'email',
+    normalizedIdentifier: string,
+  ): Promise<boolean> {
+    const configured =
+      channel === 'phone'
+        ? normalizeIranPhone(this.configService.get<string>('OWNER_PHONE') ?? '')
+        : normalizeEmail(this.configService.get<string>('OWNER_EMAIL') ?? '');
+    if (!configured || configured !== normalizedIdentifier) return false;
 
-      const clientRole = await client.query<{ id: string }>(`SELECT id FROM roles WHERE key = $1`, [UserRole.CLIENT]);
-      if (clientRole.rows.length === 0) {
-        throw new Error(`Role '${UserRole.CLIENT}' is missing - run migrations`);
-      }
+    const granted = await client.query(
+      `INSERT INTO role_assignments (id, user_id, role_id)
+       SELECT $1, $2, r.id FROM roles r WHERE r.key = $3
+       ON CONFLICT (user_id, role_id) DO NOTHING`,
+      [crypto.randomUUID(), userId, UserRole.LAWYER_OWNER],
+    );
+    return (granted.rowCount ?? 0) > 0;
+  }
 
-      const userId = crypto.randomUUID();
-      await client.query(`INSERT INTO users (id, email, status) VALUES ($1, $2, 'active')`, [userId, normalized]);
-      await client.query(
-        `INSERT INTO role_assignments (id, user_id, role_id) VALUES ($1, $2, $3)`,
-        [crypto.randomUUID(), userId, clientRole.rows[0].id],
-      );
-      await client.query('COMMIT');
-      return this.loadUser(userId);
-    } catch (error) {
-      await client.query('ROLLBACK').catch(() => undefined);
-      throw error;
-    } finally {
-      client.release();
-    }
+  private async auditOwnerBootstrap(userId: string, channel: 'phone' | 'email', identifier: string): Promise<void> {
+    this.logger.log(`office owner role granted to the configured ${channel}`);
+    await this.auditService.log({
+      actorId: userId,
+      module: 'auth',
+      action: 'owner.bootstrap',
+      entityType: 'user',
+      entityId: userId,
+      metadata: { channel, destination: maskDestination(identifier) },
+      result: 'success',
+    });
   }
 
   private async createSession(

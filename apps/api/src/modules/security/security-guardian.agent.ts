@@ -21,7 +21,7 @@ const SECURITY_KEYWORDS = [
 
 /**
  * The Security Guardian (P6-S3). A permanent fleet member whose single duty
- * is keeping the platform's security posture at 10/10 — it re-runs the
+ * is keeping the platform's security posture healthy — it re-runs the
  * standards probes, notices regressions vs. the previous report by reading
  * the persisted history, and REPORTS TO THE LEADER through the shared event
  * bus (kind 'security.scanned'), which the leader cockpit already streams.

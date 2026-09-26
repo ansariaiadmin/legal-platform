@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { t } from '@/i18n';
-import { api, getToken, passkeyLogin, setToken, type BrainView } from '@/lib/api';
+import { api, ApiError, getToken, passkeyLogin, setToken, signOut, SIGNED_OUT_EVENT, type BrainView } from '@/lib/api';
 import { HomeTab } from '@/features/home-tab';
 import { BrainTab } from '@/features/connect-brain-tab';
 import { FleetTab } from '@/features/fleet-tab';
@@ -16,11 +16,12 @@ import { SecurityTab } from '@/features/security-tab';
 import { Tour } from '@/features/tour';
 import { UiPrefsBar } from '@/features/ui-prefs-bar';
 import { SetupWizardOverlay } from '@/features/setup-wizard';
+import { AboutPanel, LegalFooter } from '@/features/about-panel';
 
 type TabId = 'home' | 'brain' | 'fleet' | 'chat' | 'files' | 'kitchen' | 'telecoms' | 'library' | 'drafts' | 'security';
 
 // P10 (Hick's Law): the bar shows the five DAILY desks; everything else sits
-// one tap behind «بیشتر» — decision time drops, zero powers removed.
+  // Less frequent sections live under «بیشتر» (More).
 const PRIMARY_TABS: Array<{ id: TabId; icon: string }> = [
   { id: 'home', icon: '🏠' },
   { id: 'chat', icon: '💬' },
@@ -46,6 +47,7 @@ export default function Dashboard() {
   const [token, setTokenState] = useState<string | null>(null);
   const [brain, setBrain] = useState<BrainView | null>(null);
   const [booting, setBooting] = useState(true);
+  const [aboutOpen, setAboutOpen] = useState(false);
 
   // close the overflow menu on outside tap / Escape — invisible focus traps
   // are the quiet killer of trust
@@ -71,6 +73,8 @@ export default function Dashboard() {
   useEffect(() => {
     const existing = getToken();
     setTokenState(existing);
+    const onSignedOut = () => setTokenState(null);
+    window.addEventListener(SIGNED_OUT_EVENT, onSignedOut);
     if (existing) {
       void refreshBrain();
       // P8: first login ever → step into the wizard (server marks it idempotent)
@@ -82,6 +86,7 @@ export default function Dashboard() {
         .catch(() => undefined);
     }
     setBooting(false);
+    return () => window.removeEventListener(SIGNED_OUT_EVENT, onSignedOut);
   }, [refreshBrain]);
 
   const signedOut = !booting && !token;
@@ -91,7 +96,7 @@ export default function Dashboard() {
       <header className="topbar">
         <UiPrefsBar />
         <div className="brand">
-          <div className="logo">⚖️</div>
+          <img className="logo" src="/icon.svg" alt="" width={40} height={40} />
           <div>
             <h1>{t('app.name')}</h1>
             <small>{t('app.tagline')}</small>
@@ -101,11 +106,11 @@ export default function Dashboard() {
           <button
             className="btn ghost"
             onClick={() => {
-              setToken(null);
+              void signOut();
               setTokenState(null);
             }}
           >
-            خروج
+            {t('chrome.logout')}
           </button>
         )}
       </header>
@@ -167,9 +172,13 @@ export default function Dashboard() {
           <Tour activeTab={tab} onNavigate={(id) => setTab(id as TabId)} />
         </>
       )}
+      <LegalFooter onAbout={() => setAboutOpen(true)} />
+      {aboutOpen && <AboutPanel onClose={() => setAboutOpen(false)} />}
     </div>
   );
 }
+
+const OFFICE_ROLES = ['lawyer_owner', 'staff', 'operator'];
 
 function LoginCard({ onDone }: { onDone: (token: string) => void }) {
   const [channel, setChannel] = useState<'phone' | 'email'>('phone');
@@ -177,6 +186,7 @@ function LoginCard({ onDone }: { onDone: (token: string) => void }) {
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [challengeSent, setChallengeSent] = useState(false);
+  const [devCode, setDevCode] = useState<string | null>(null);
   const [devToken, setDevToken] = useState('');
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -184,8 +194,11 @@ function LoginCard({ onDone }: { onDone: (token: string) => void }) {
   async function requestOtp() {
     setBusy(true); setErr(null);
     try {
-      // P10: one honest switch — same 6-digit math, either channel
-      await api.post(channel === 'email' ? '/auth/email-otp/request' : '/auth/otp/request', channel === 'email' ? { email } : { phone });
+      const r = await api.post<{ challengeId: string; devCode?: string }>(
+        channel === 'email' ? '/auth/email-otp/request' : '/auth/otp/request',
+        channel === 'email' ? { email } : { phone },
+      );
+      setDevCode(r.devCode ?? null);
       setChallengeSent(true);
     } catch (e) {
       setErr(errText(e));
@@ -198,8 +211,14 @@ function LoginCard({ onDone }: { onDone: (token: string) => void }) {
     setBusy(true); setErr(null);
     try {
       const body = channel === 'email' ? { email, code } : { phone, code };
-      const r = await api.post<{ accessToken: string }>(channel === 'email' ? '/auth/email-otp/verify' : '/auth/otp/verify', body);
-      setToken(r.accessToken);
+      const r = await api.post<{ accessToken: string; refreshToken?: string; user?: { roles?: string[] } }>(channel === 'email' ? '/auth/email-otp/verify' : '/auth/otp/verify', body);
+      // The dashboard is for the office; client accounts use the client portal.
+      const roles = r.user?.roles ?? [];
+      if (!roles.some((role) => OFFICE_ROLES.includes(role))) {
+        setErr(t('auth.notOffice'));
+        return;
+      }
+      setToken(r.accessToken, r.refreshToken);
       onDone(r.accessToken);
     } catch (e) {
       setErr(errText(e));
@@ -218,7 +237,7 @@ function LoginCard({ onDone }: { onDone: (token: string) => void }) {
     <div className="auth-wrap">
       <div className="card">
         <h3>{t('auth.title')}</h3>
-        <p className="hint">با موبایل وارد شو — در محیط سندباکس از توکن توسعه‌گر استفاده کن.</p>
+        <p className="hint">{t('auth.hint')}</p>
         <div style={{ display: 'flex', gap: 6, marginBottom: 14 }} role="tablist" aria-label="login channel">
           {(['phone', 'email'] as const).map((c) => (
             <button
@@ -258,7 +277,12 @@ function LoginCard({ onDone }: { onDone: (token: string) => void }) {
         {challengeSent && (
           <div className="field">
             <label>{t('auth.otp')}</label>
-            <input value={code} onChange={(e) => setCode(e.target.value)} dir="ltr" />
+            <input value={code} onChange={(e) => setCode(e.target.value)} dir="ltr" inputMode="numeric" autoComplete="one-time-code" />
+            {devCode && (
+              <p className="hint">
+                {t('auth.devCode')} <b dir="ltr">{devCode}</b>
+              </p>
+            )}
           </div>
         )}
         {err && <p className="hint" style={{ color: 'var(--bad)' }}>{err}</p>}
@@ -274,7 +298,7 @@ function LoginCard({ onDone }: { onDone: (token: string) => void }) {
           )}
         </div>
 
-        {/* P12-i: پس‌کی به‌عنوان مرز اصلی — لمس/چهره به‌جای پیامک */}
+        {/* Passkey sign-in (fingerprint or face instead of a text message) */}
         <button
           className="btn big"
           style={{ width: '100%', marginTop: 10, borderColor: 'var(--brand)' }}
@@ -292,8 +316,9 @@ function LoginCard({ onDone }: { onDone: (token: string) => void }) {
             }
           }}
         >
-          🔑 ورود با اثر انگشت (پس‌کی)
+          🔑 {t('auth.passkey')}
         </button>
+        {process.env.NODE_ENV !== 'production' && (
         <div className="dev-notice">
           {t('auth.devToken')}
           <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
@@ -306,12 +331,13 @@ function LoginCard({ onDone }: { onDone: (token: string) => void }) {
             <button className="btn" onClick={devLogin}>{t('auth.devLogin')}</button>
           </div>
         </div>
+        )}
       </div>
     </div>
   );
 }
 
 function errText(e: unknown): string {
-  const b = (e as { body?: { message?: string } }).body?.message;
-  return typeof b === 'string' ? b : 'خطا در اتصال — آیا API بالاست؟';
+  // ApiError already carries a translated message; anything else is a network failure.
+  return e instanceof ApiError ? e.message : t('auth.connError');
 }

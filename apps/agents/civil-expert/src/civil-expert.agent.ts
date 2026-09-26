@@ -315,6 +315,8 @@ export const civilExpert = createExpertAgent({
   persona: {
     displayName: 'کارشناس ارشد امور مدنی',
     motto: 'قانون مدنی را ماده‌به‌ماده پاس می‌دارد؛ هر بند قرارداد یک مسئولیت است.',
+    displayNameEn: 'Senior Civil Law Specialist',
+    mottoEn: "Every contract clause is a responsibility.",
   },
   customExecute: civilExpertExecutor,
 });

@@ -32,21 +32,21 @@ export class CorpusController {
 
   
   @Get('stats')
-  @ApiOperation({ summary: 'shelf vitals for the dashboard' })
+  @ApiOperation({ summary: 'Library statistics for the dashboard' })
   async stats() {
     return this.corpus.statsForDashboard();
   }
 
   
   @Get('sources')
-  @ApiOperation({ summary: 'list registered knowledge sources' })
+  @ApiOperation({ summary: 'List registered knowledge sources' })
   async sources() {
     return this.corpus.listSources();
   }
 
   
   @Post('sources')
-  @ApiOperation({ summary: 'register a source with its trust tier' })
+  @ApiOperation({ summary: 'Register a source with its trust tier' })
   async registerSource(
     @Body() body: { sourceKey: string; displayName: string; trustTier: 1 | 2 | 3; baseUrl?: string },
   ) {
@@ -55,7 +55,7 @@ export class CorpusController {
 
   
   @Get('documents')
-  @ApiOperation({ summary: 'list shelf documents (verified-first filters)' })
+  @ApiOperation({ summary: 'List library documents (verified first)' })
   async documents(@Query('tier') tier?: string, @Query('verifiedOnly') verifiedOnly?: string) {
     return this.corpus.list({
       trustTier: tier ? (Number(tier) as 1 | 2 | 3) : undefined,
@@ -65,7 +65,7 @@ export class CorpusController {
 
   
   @Get('documents/:id')
-  @ApiOperation({ summary: 'fetch one document' })
+  @ApiOperation({ summary: 'Fetch one document' })
   async document(@Param('id') id: string) {
     const doc = (await this.corpus.list()).find((d) => d.documentId === id);
     if (!doc) return { found: false };
@@ -75,7 +75,7 @@ export class CorpusController {
   /** Paste a raw law text — lands pending validation, never pre-verified. */
   
   @Post('documents/ingest')
-  @ApiOperation({ summary: 'paste raw law text → pending validation' })
+  @ApiOperation({ summary: 'Submit raw legal text for validation' })
   async ingest(
     @CurrentUser() user: AuthenticatedUser,
     @Body() body: { canonicalTitle: string; bodyRaw: string; sourceKey?: string; trustTier?: 1 | 2 | 3 },
@@ -97,7 +97,7 @@ export class CorpusController {
    */
   
   @Post('documents/ingest-from-file')
-  @ApiOperation({ summary: 'ingest an uploaded office file in FULL (honest needs-ocr flags)' })
+  @ApiOperation({ summary: 'Ingest an uploaded office file in full (flags pages that need OCR)' })
   async ingestFromFile(@Body() body: { fileId: string; canonicalTitle?: string; trustTier?: 1 | 2 | 3 }) {
     const found = this.files.probe(body.fileId);
     if (!found) return { ingested: false, reason: 'فایل یافت نشد' };
@@ -122,7 +122,7 @@ export class CorpusController {
    */
   
   @Post('documents/:id/verify')
-  @ApiOperation({ summary: 'the green tick — validator-gated, reasons on rejection, no bypass' })
+  @ApiOperation({ summary: 'Verify a document (validator must pass; rejection reasons are returned)' })
   async verify(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     const doc = (await this.corpus.list()).find((d) => d.documentId === id);
     if (!doc) return { verified: false, reasons: ['سند یافت نشد'] };
@@ -143,7 +143,7 @@ export class CorpusController {
   /** Temporal update: text arrives for a title already shelved. */
   
   @Post('documents/update')
-  @ApiOperation({ summary: 'temporal update: new text supersedes the old row, history kept' })
+  @ApiOperation({ summary: 'Supersede a document with new text (history is kept)' })
   async update(@Body() body: { canonicalTitle: string; bodyRaw: string; sourceKey?: string }) {
     return this.updater.applyUpdate({
       canonicalTitle: body.canonicalTitle,
@@ -156,7 +156,7 @@ export class CorpusController {
 
   
   @Get('search')
-  @ApiOperation({ summary: 'deterministic verified-first corpus search' })
+  @ApiOperation({ summary: 'Search the legal library (verified documents first)' })
   async search(@Query('q') q: string, @Query('all') all?: string) {
     return this.corpus.search(q ?? '', { verifiedOnly: all !== 'true' });
   }
@@ -166,7 +166,7 @@ export class CorpusController {
   /** List collector sources with mock adapters (wire-ready contract). */
   
   @Get('jobs')
-  @ApiOperation({ summary: 'all ingestion jobs newest-first' })
+  @ApiOperation({ summary: 'All ingestion jobs, newest first' })
   async jobs() {
     return this.worker.list();
   }
@@ -175,7 +175,7 @@ export class CorpusController {
    *  partial, or validator-rejected runs, newest first. */
   
   @Get('diagnostics')
-  @ApiOperation({ summary: 'SPEC 9: failed / partial / rejected runs + collector sources' })
+  @ApiOperation({ summary: 'Failed, partial and rejected collection runs, with their sources' })
   async diagnostics() {
     return {
       failures: await this.worker.failures(),
@@ -187,7 +187,7 @@ export class CorpusController {
    *  (source, window): re-asking the same day replays as a no-op. */
   
   @Post('sync')
-  @ApiOperation({ summary: 'sync one source window now (idempotent per window)' })
+  @ApiOperation({ summary: 'Sync one source window now (idempotent)' })
   async sync(@Body() body: { sourceId?: string; date?: string }) {
     return this.worker.sync(body.sourceId ?? 'rooznameh-mock', body.date);
   }
@@ -195,7 +195,7 @@ export class CorpusController {
   /** Manual retry for a seen failure — linked to the old run, counted fresh. */
   
   @Post('jobs/:id/retry')
-  @ApiOperation({ summary: 'manual retry linked to the previous attempt' })
+  @ApiOperation({ summary: 'Retry manually, linked to the previous attempt' })
   async retry(@Param('id') id: string) {
     const job = await this.worker.retry(id);
     if (!job) return { retried: false, reason: 'کار یافت نشد' };

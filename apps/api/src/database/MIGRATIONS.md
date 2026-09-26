@@ -1,67 +1,67 @@
-# Database Migrations
+# Database migrations
 
-Migrations live in `src/database/migrations/`.
+Migrations are TypeScript files in `src/database/migrations/`, run by [node-pg-migrate](https://salsita.github.io/node-pg-migrate/) 9. They target PostgreSQL 16 or later with the `vector` (pgvector), `pgcrypto`, `pg_trgm` and `uuid-ossp` extensions; the `pgvector/pgvector:pg16` image used by Docker Compose provides all of them.
 
-> This file is deliberately **not** inside that directory. `node-pg-migrate`
-> parses every file it finds there and fails with
-> `Cannot determine numeric prefix for "README.md"`, which made every
-> `migrate:up` - including the one `scripts/install.sh` runs - abort.
+> This file lives outside the migrations directory on purpose: node-pg-migrate treats every file in that directory as a migration and aborts on files without a numeric prefix.
 
-## Migration Tooling
+## Current migrations
 
-We use `node-pg-migrate` with plain SQL migrations for deterministic, version-controlled schema changes.
+| File | Contents | In use |
+|---|---|---|
+| `001_extensions_and_helpers` | `vector`, `pgcrypto`, `pg_trgm` extensions and helper functions | Yes |
+| `002_identity_tables` | `roles`, `users`, `role_assignments`, `user_sessions`, `otp_challenges` | Yes |
+| `003_ops_tables` | `audit_logs`, `provider_configs`, and job, notice, licence and data-request tables | `audit_logs` and `provider_configs` only |
+| `004_add_fallback_provider` | Fallback provider column on `provider_configs` | Yes |
+| `005_uuid_defaults_and_indexes` | UUID defaults and indexes | Yes |
+| `006_corpus_and_billing_tables` | Relational corpus, billing, queue and notification tables | Reserved |
+| `007_rag_drafts_and_usage` | `draft_requests`, `draft_reviews`, `usage_records` | Reserved |
+| `008_runtime_state_kv` | `runtime_state` key-value store | Yes |
+| `009_wallet_ledger` | `wallet_accounts`, `wallet_entries` (double-entry ledger) | Yes |
+| `010_rag_chunks` | `rag_chunks` vector index for retrieval | Yes |
 
-### Scripts
+Version 1.0 keeps the corpus, purchases, queue tickets, notifications, drafts and usage records in the `runtime_state` store (through `StorageProvider`) rather than in the relational tables of migrations 006 and 007. Those tables, and the unused tables of 003, are reserved for a later move to relational storage; see `ROADMAP.md`.
 
-- `npm run migrate:create <name>` - Create a new migration with timestamp prefix
-- `npm run migrate:up` - Run all pending migrations (UP direction)
-- `npm run migrate:down` - Rollback the last migration (DOWN direction)
+## Running migrations
 
-### Adding a New Migration
+The installer (`scripts/install.sh`) and the updater (`scripts/update.sh`) run pending migrations automatically. To run them by hand from the repository root:
 
-1. Create a new migration file using:
-   ```bash
-   npm run migrate:create my_migration_name
-   ```
-   This creates a file like `001_my_migration_name.ts` with `up` and `down` functions.
-
-2. Implement both `up()` and `down()` methods:
-   - `up()`: Apply the schema change
-   - `down()`: Fully reverse the change (drop tables, remove columns, etc.)
-
-3. Migrations are executed in timestamp order. Ensure your migration number is sequential.
-
-### Running Migrations
-
-Migrations are automatically run during:
-- Initial installation (`scripts/install.sh`)
-- System updates (`scripts/update.sh`)
-
-To manually run migrations:
 ```bash
-# Run all pending migrations
+# Docker deployment
 docker compose run --rm api npm run migrate:up
+docker compose run --rm api npm run migrate:down      # roll back the last migration
 
-# Rollback last migration
-docker compose run --rm api npm run migrate:down
+# Local development (DATABASE_URL must be set)
+npm run migrate:up
+npm run migrate:down
 ```
 
-### Migration Testing
+## Adding a migration
 
-To verify migrations work correctly:
-```bash
-# Unit tests (no DB required)
-npm test
+1. Create the next numbered file by hand, for example `011_case_notes.ts`. Do not use `migrate:create`: it produces a timestamp prefix, while this project uses three-digit sequential numbers.
+2. Export both functions:
 
-# Integration tests against live DB (requires Docker)
-npm run test:migrations
-```
+   ```ts
+   import type { MigrationBuilder } from 'node-pg-migrate';
 
-### Guidelines
+   export async function up(pgm: MigrationBuilder): Promise<void> {
+     pgm.sql(`CREATE TABLE case_notes (...);`);
+   }
 
-- Every migration MUST have both `up` and `down` functions
-- The `down` function must fully reverse everything done in `up`
-- Use plain SQL for clarity and determinism
-- Never modify existing migrations; always create new ones for changes
-- Include appropriate indexes for foreign keys and commonly queried columns
-- Add comments explaining complex schema changes
+   export async function down(pgm: MigrationBuilder): Promise<void> {
+     pgm.sql(`DROP TABLE IF EXISTS case_notes;`);
+   }
+   ```
+
+3. Check that the migration applies, rolls back and applies again:
+
+   ```bash
+   npm run test:migrations -w @legal-platform/api   # up → down to zero → up
+   ```
+
+## Rules
+
+- Never edit a migration that has been released; add a new one instead.
+- `down` must fully reverse `up`.
+- Prefer plain SQL through `pgm.sql` for clarity.
+- Index foreign keys and frequently filtered columns.
+- Comment anything non-obvious in the migration itself.

@@ -32,7 +32,9 @@ export class MockPaymentAdapter implements PaymentProvider {
 
     const session: (Omit<PaymentSession, 'status'> & { status: 'pending' | 'paid' | 'failed' | 'expired' }) & { orderId: string; metadata?: Record<string, unknown> } = {
       sessionId,
-      redirectUrl: `https://mock-payment.example.com/pay/${sessionId}`,
+      // Behaves like a real gateway that the user paid on: it sends the user
+      // straight back to the callback with the gateway's query parameters.
+      redirectUrl: mockReturnUrl(input.callbackUrl, sessionId),
       status: 'pending',
       amount: input.amount,
       currency: input.currency,
@@ -172,4 +174,9 @@ export class MockPaymentAdapter implements PaymentProvider {
     const data = JSON.stringify(payload, Object.keys(payload).sort());
     return createHmac('sha256', this.hmacSecret).update(data).digest('hex');
   }
+}
+
+function mockReturnUrl(callbackUrl: string, sessionId: string): string {
+  const sep = callbackUrl.includes('?') ? '&' : '?';
+  return `${callbackUrl}${sep}Authority=${encodeURIComponent(sessionId)}&Status=OK`;
 }

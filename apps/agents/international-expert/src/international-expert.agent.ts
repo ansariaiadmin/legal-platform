@@ -127,7 +127,7 @@ const INTL_DB: Record<string, IntlInfo> = {
       'درخواست شناسایی و اجرای رای در دادگاه محل اجرای رای',
     ],
     risks: [
-      'هزینه بالای داوری بین‌المللی (ICC: حداقل ۵۰ هزار دلار)',
+      'هزینهٔ بالای داوری بین‌المللی؛ بر اساس مبلغ خواسته و جدول هزینه‌های مؤسسهٔ داوری (مانند ICC) محاسبه می‌شود',
       'طولانی بودن فرآیند (۱ تا ۲ سال)',
       'ریسک عدم اجرای رای در کشور تحریم‌شده',
       'ریسک ابطال رای به دلیل نظم عمومی',
@@ -223,12 +223,14 @@ ${info.notes.join('\n')}
 export const internationalExpert = createExpertAgent({
   agentId: AGENT_ID,
   version: AGENT_VERSION,
-  field: LegalField.INTERNATIONAL,
+  field: LegalField.GENERAL,
   skills,
   subspecialties: ['sanctions', 'trade', 'arbitration', 'shipping'],
   persona: {
     displayName: 'کارشناس ارشد امور بین‌الملل',
     motto: 'در تجارت بین‌الملل، قرارداد خوب از دادگاه خوب بهتر است.',
+    displayNameEn: 'Senior International-Law Counsel',
+    mottoEn: "In international trade, a good contract beats a good court.",
   },
-  executor: intlExpertExecutor,
+  customExecute: intlExpertExecutor,
 });

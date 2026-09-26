@@ -161,7 +161,7 @@ describe('wallet topup × strict gateway (ZarinPal-shaped) contract', () => {
     }) as never;
 
     await expect(wallet.topupConfirm('lawyer-5', start.sessionId)).rejects.toMatchObject({
-      message: expect.stringContaining('یکی نیست'),
+      message: expect.stringContaining('برابر نیست'),
     });
     expect((await wallet.state('lawyer-5')).balanceToman).toBe(0); // refused, not credited, not guessed
   });
